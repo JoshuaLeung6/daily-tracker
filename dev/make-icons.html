@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Icon generator (dev only)</title>
+  <style>body { font-family: sans-serif; padding: 20px; } canvas { border: 1px solid #ccc; margin: 6px; }</style>
+</head>
+<body>
+  <h1>Icon generator</h1>
+  <p>Open this file in a browser, then click each link to download the PNG into <code>icons/</code>.</p>
+  <div id="out"></div>
+  <script>
+    function draw(size) {
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const g = c.getContext('2d');
+      const s = size / 512;
+      g.fillStyle = '#16130e';
+      g.fillRect(0, 0, size, size);
+      g.fillStyle = '#e2a63d';
+      g.beginPath();
+      g.arc(256 * s, 256 * s, 150 * s, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = '#211809';
+      g.lineWidth = 34 * s;
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      g.beginPath();
+      g.moveTo(196 * s, 262 * s);
+      g.lineTo(240 * s, 306 * s);
+      g.lineTo(322 * s, 212 * s);
+      g.stroke();
+      return c;
+    }
+    const out = document.getElementById('out');
+    for (const size of [180, 192, 512]) {
+      const c = draw(size);
+      const a = document.createElement('a');
+      a.textContent = `Download icon-${size}.png`;
+      a.download = `icon-${size}.png`;
+      a.href = c.toDataURL('image/png');
+      const wrap = document.createElement('div');
+      wrap.append(c, document.createElement('br'), a);
+      out.append(wrap);
+    }
+  </script>
+</body>
+</html>

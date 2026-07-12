@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- the app's mark: one amber dot = a day marked -->
+  <rect width="512" height="512" fill="#16130e"/>
+  <circle cx="256" cy="256" r="150" fill="#e2a63d"/>
+  <path d="M196 262 240 306 322 212" fill="none" stroke="#211809" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
