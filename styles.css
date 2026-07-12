@@ -77,6 +77,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 /* ---------- shell ---------- */
 
+/* The app runs edge-to-edge (black-translucent), which pins the iOS status
+   bar text to white — fine on the dark theme, unreadable on cream. In light
+   mode, tint the strip behind the clock so it stays legible. */
+html[data-theme="light"] body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: rgba(32, 25, 12, 0.55);
+  z-index: 40;
+  pointer-events: none;
+}
+
 #views {
   flex: 1;
   min-height: 0;
