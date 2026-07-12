@@ -95,7 +95,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   display: flex;
   border-top: 1px solid var(--hairline);
   background: color-mix(in srgb, var(--bg) 92%, black);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* keep the tabs clear of the home indicator, but don't pad the full
+     inset — that reads as a floating footer in the installed app */
+  padding-bottom: max(env(safe-area-inset-bottom, 0px) - 16px, 0px);
 }
 
 .tab {
@@ -104,7 +106,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 9px 0 7px;
+  padding: 7px 0 5px;
   min-height: var(--tap);
   color: var(--faint);
   font-size: 11px;
