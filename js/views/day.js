@@ -4,7 +4,7 @@
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
 import { getEntry, setValue, persistNow } from '../store.js';
-import { activeTrackers, allTrackers } from '../trackers.js';
+import { activeTrackers, allTrackers, targetFor, streakFor } from '../trackers.js';
 
 export function render(container, ctx) {
   const iso = ctx.date;
@@ -68,10 +68,14 @@ export function render(container, ctx) {
 function trackerCard(t, iso, entry) {
   if (t.type === 'number') return numberCard(t, iso, entry);
   if (t.type === 'checkbox') return checkboxCard(t, iso, entry);
+  if (t.type === 'select' || t.type === 'multiselect') return selectCard(t, iso, entry);
   return textCard(t, iso, entry);
 }
 
 function numberCard(t, iso, entry) {
+  const target = targetFor(t, iso);
+  const dailyGoal = target && target.period === 'day' ? target.value : null;
+
   const input = el('input', {
     type: 'text',
     inputmode: 'decimal',
@@ -81,18 +85,99 @@ function numberCard(t, iso, entry) {
     'aria-label': t.name,
     value: t.id in entry ? String(entry[t.id]) : '',
   });
+
+  const atMost = target && target.dir === 'atmost';
+  let fill = null;
+  let tlText = null;
+  const targetLabel = () =>
+    `target ${atMost ? '≤' : '≥'} ${dailyGoal.toLocaleString()}${t.unit ? ' ' + t.unit : ''}`;
+  const updateFill = () => {
+    if (!fill) return;
+    const num = parseFloat(input.value.replace(',', '.'));
+    const pct = Number.isFinite(num) ? (num / dailyGoal) * 100 : 0;
+    fill.style.width = Math.min(100, pct) + '%';
+    fill.classList.toggle('over', atMost && pct > 100);
+    const streak = streakFor(t, iso);
+    tlText.textContent = targetLabel() + (streak >= 2 ? ` · ${streak}-day streak` : '');
+  };
+
   input.addEventListener('input', () => {
     const cleaned = input.value.replace(/[^0-9.,]/g, '');
     if (cleaned !== input.value) input.value = cleaned;
     const num = parseFloat(cleaned.replace(',', '.'));
     setValue(iso, t.id, Number.isFinite(num) ? num : '');
+    updateFill();
   });
   input.addEventListener('blur', () => persistNow());
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
-  return el('label', { class: 'card' },
+
+  const row = el('span', { class: 'num-row' },
     el('span', { class: 't-name' }, t.name),
     el('span', { class: 't-value' }, input, t.unit && el('span', { class: 'unit' }, t.unit)),
   );
+  if (dailyGoal == null) return el('label', { class: 'card card-num' }, row);
+
+  fill = el('i');
+  tlText = el('span', { class: 'tl-text' });
+  const targetLine = el('span', { class: 'target-line' },
+    el('span', { class: 'bar' }, fill),
+    tlText,
+  );
+  updateFill();
+  return el('label', { class: 'card card-num' }, row, targetLine);
+}
+
+function selectCard(t, iso, entry) {
+  const multi = t.type === 'multiselect';
+  const current = entry[t.id];
+  const selected = new Set(multi
+    ? (Array.isArray(current) ? current : [])
+    : (current != null ? [String(current)] : []));
+
+  // include historical values no longer among the options, so old days render
+  const options = [...(t.options || [])];
+  for (const v of selected) if (!options.includes(v)) options.push(v);
+
+  const chipRow = el('div', { class: 'chips' });
+  for (const opt of options) {
+    const chip = el('button', { class: 'chip', 'aria-pressed': String(selected.has(opt)) }, opt);
+    chip.addEventListener('click', () => {
+      if (selected.has(opt)) selected.delete(opt);
+      else {
+        if (!multi) selected.clear();
+        selected.add(opt);
+      }
+      for (const c of chipRow.children) c.setAttribute('aria-pressed', String(selected.has(c.textContent)));
+      setValue(iso, t.id, multi ? [...selected] : (selected.size ? [...selected][0] : ''));
+      persistNow();
+    });
+    chipRow.append(chip);
+  }
+  if (options.length === 0) {
+    chipRow.append(el('span', { class: 'settings-note' }, 'No options yet — add some in Settings.'));
+  }
+
+  const card = el('div', { class: 'card card-select' },
+    el('span', { class: 't-name' }, t.name),
+    chipRow,
+  );
+  attachStreakLine(card, t, iso);
+  return card;
+}
+
+// For non-number cards with a daily target: show the running streak,
+// refreshed live as today's entry changes.
+function attachStreakLine(card, t, iso) {
+  const target = targetFor(t, iso);
+  if (!target || target.period !== 'day') return;
+  const line = el('span', { class: 'target-line' }, el('span', { class: 'tl-text' }, ''));
+  const refresh = () => {
+    const streak = streakFor(t, iso);
+    line.firstChild.textContent = streak >= 2 ? `${streak}-day streak` : 'daily target';
+  };
+  refresh();
+  card.append(line);
+  card.addEventListener('click', () => requestAnimationFrame(refresh));
 }
 
 function textCard(t, iso, entry) {
@@ -110,16 +195,18 @@ function textCard(t, iso, entry) {
 }
 
 function checkboxCard(t, iso, entry) {
-  const btn = el('button', { class: 'card card-check', 'aria-pressed': String(Boolean(entry[t.id])) },
+  const row = el('span', { class: 'num-row' },
     el('span', { class: 't-name' }, t.name),
     el('span', { class: 'check-dot' }, checkIcon()),
   );
+  const btn = el('button', { class: 'card card-check card-num', 'aria-pressed': String(Boolean(entry[t.id])) }, row);
   btn.addEventListener('click', () => {
     const next = btn.getAttribute('aria-pressed') !== 'true';
     btn.setAttribute('aria-pressed', String(next));
     setValue(iso, t.id, next);
     persistNow();
   });
+  attachStreakLine(btn, t, iso);
   return btn;
 }
 

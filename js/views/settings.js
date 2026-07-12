@@ -1,19 +1,28 @@
-// Settings — manage trackers, back up data, app info.
+// Settings — appearance, manage trackers (with targets), back up data, app info.
 
 import { el } from '../ui.js';
 import { loggedDayCount } from '../store.js';
+import { todayISO } from '../dates.js';
 import {
   allTrackers, addTracker, updateTracker, moveTracker,
-  deleteTracker, daysWithValue, TYPES,
+  deleteTracker, daysWithValue, targetFor, setTarget, TYPES,
 } from '../trackers.js';
 import {
   exportData, readBackupFile, applyImport,
   canUndoImport, undoImport, lastExportDays,
 } from '../backup.js';
+import { themePref, setThemePref } from '../theme.js';
 
 let editingId = null;
 
-const TYPE_LABELS = { number: 'Number', text: 'Text', checkbox: 'Checkbox' };
+const TYPE_LABELS = {
+  number: 'Number',
+  text: 'Text',
+  checkbox: 'Checkbox',
+  select: 'Pick one',
+  multiselect: 'Pick many',
+};
+const OPTION_TYPES = ['select', 'multiselect'];
 
 export function render(container, ctx) {
   const rerender = () => render(container, ctx);
@@ -26,6 +35,21 @@ export function render(container, ctx) {
       el('h1', {}, 'Settings'),
     ),
     el('span'),
+  );
+
+  // ----- appearance -----
+  const pref = themePref();
+  const appearanceSection = el('div', { class: 'settings-section' },
+    el('h2', {}, 'Appearance'),
+    el('div', { class: 'seg', role: 'group', 'aria-label': 'Theme' },
+      [['system', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([value, label]) =>
+        el('button', {
+          class: 'seg-btn',
+          'aria-pressed': String(pref === value),
+          onclick: () => { setThemePref(value); rerender(); },
+        }, label)),
+    ),
+    el('div', { class: 'settings-note' }, 'Auto follows your phone’s appearance.'),
   );
 
   // ----- trackers -----
@@ -93,15 +117,33 @@ export function render(container, ctx) {
   );
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }),
-    trackerSection, backupSection, aboutSection);
+    appearanceSection, trackerSection, backupSection, aboutSection);
+}
+
+function targetDesc(t) {
+  const tgt = targetFor(t, todayISO());
+  if (!tgt) return '';
+  if (t.type === 'number') {
+    return ` · target ${tgt.dir === 'atmost' ? '≤' : '≥'} ${tgt.value.toLocaleString()}`
+      + `${t.unit ? ' ' + t.unit : ''}/${tgt.period === 'day' ? 'day' : 'wk'}`;
+  }
+  if (tgt.period === 'day') {
+    return t.type === 'multiselect' && tgt.value > 1 ? ` · target ${tgt.value}/day` : ' · target: every day';
+  }
+  return ` · target ${tgt.value} days/wk`;
 }
 
 function viewRow(t, index, total, rerender) {
+  let meta = TYPE_LABELS[t.type] || t.type;
+  if (t.unit) meta += ` · ${t.unit}`;
+  if (OPTION_TYPES.includes(t.type)) meta += ` · ${(t.options || []).join(', ')}`;
+  meta += targetDesc(t);
+
   return el('div', { class: 'tracker-row' },
     el('div', { class: 'tr-main' },
       el('div', { class: 'tr-info' },
         el('div', { class: 'name' }, t.name, t.archived ? ' · archived' : ''),
-        el('div', { class: 'meta' }, TYPE_LABELS[t.type] || t.type, t.unit ? ` · ${t.unit}` : ''),
+        el('div', { class: 'meta' }, meta),
       ),
       el('button', {
         class: 'icon-btn', 'aria-label': `Move ${t.name} up`, disabled: index === 0,
@@ -119,14 +161,115 @@ function viewRow(t, index, total, rerender) {
   );
 }
 
+// Builds the target fieldset for a tracker type; returns elements + reader.
+function targetEditor(t) {
+  const current = targetFor(t, todayISO());
+  const isNumber = t.type === 'number';
+
+  const periodSel = el('select', { 'aria-label': 'Target period' },
+    el('option', { value: 'none' }, 'No target'),
+    el('option', { value: 'day' }, isNumber ? 'Per day' : 'Every day'),
+    el('option', { value: 'week' }, isNumber ? 'Per week' : 'Days per week'),
+  );
+  periodSel.value = current ? current.period : 'none';
+
+  const amountField = el('div', { class: 'field' },
+    el('label', {}, 'Amount'),
+    el('input', {
+      type: 'text', inputmode: 'decimal', 'aria-label': 'Target amount',
+      value: current && current.value != null ? String(current.value) : '',
+    }),
+  );
+
+  const dirSel = el('select', { 'aria-label': 'Target direction' },
+    el('option', { value: 'atleast' }, 'Reach at least'),
+    el('option', { value: 'atmost' }, 'Stay under'),
+  );
+  dirSel.value = current && current.dir === 'atmost' ? 'atmost' : 'atleast';
+  const dirField = el('div', { class: 'field' }, el('label', {}, 'Kind'), dirSel);
+
+  const sync = () => {
+    const period = periodSel.value;
+    const amountLabel = amountField.querySelector('label');
+    if (isNumber) {
+      amountField.hidden = period === 'none';
+      amountLabel.textContent = 'Amount';
+      dirField.hidden = period === 'none';
+    } else {
+      dirField.hidden = true;
+      if (period === 'week') {
+        amountField.hidden = false;
+        amountLabel.textContent = 'Days per week (1–7)';
+      } else if (period === 'day' && t.type === 'multiselect') {
+        amountField.hidden = false;
+        amountLabel.textContent = 'How many per day';
+      } else {
+        amountField.hidden = true;
+      }
+    }
+  };
+  periodSel.addEventListener('change', sync);
+  sync();
+
+  const wrap = el('div', { class: 'tr-edit' },
+    el('div', { class: 'field' }, el('label', {}, 'Target'), periodSel),
+    amountField,
+    dirField,
+    el('div', { class: 'settings-note' },
+      'Targets remember their history: changing one applies from today on, past days keep the target they had.'),
+  );
+
+  const save = () => {
+    const period = periodSel.value;
+    if (period === 'none') {
+      if (current) setTarget(t.id, { value: null, period: current.period });
+      return true;
+    }
+    let value;
+    if (isNumber) {
+      value = parseFloat(amountField.querySelector('input').value.replace(',', '.'));
+      if (!Number.isFinite(value) || value <= 0) { alert('Enter a target amount.'); return false; }
+    } else if (period === 'week') {
+      value = parseInt(amountField.querySelector('input').value, 10);
+      if (!Number.isFinite(value) || value < 1 || value > 7) { alert('Weekly target must be 1–7 days.'); return false; }
+    } else if (t.type === 'multiselect') {
+      value = parseInt(amountField.querySelector('input').value, 10);
+      if (!Number.isFinite(value) || value < 1) value = 1;
+    } else {
+      value = 1;
+    }
+    const dir = isNumber ? dirSel.value : undefined;
+    const changed = !current || current.value !== value || current.period !== period
+      || (isNumber && (current.dir || 'atleast') !== dir);
+    if (changed) setTarget(t.id, { value, period, dir });
+    return true;
+  };
+
+  return { wrap, save };
+}
+
 function editRow(t, rerender) {
   const nameInput = el('input', { type: 'text', value: t.name, 'aria-label': 'Tracker name' });
   const unitInput = el('input', { type: 'text', value: t.unit || '', placeholder: 'kcal, g, km…', 'aria-label': 'Unit' });
+  const optionsInput = el('input', {
+    type: 'text',
+    value: (t.options || []).join(', '),
+    placeholder: 'walk, run, squash, bike',
+    'aria-label': 'Options',
+  });
+  const target = t.type === 'text' ? null : targetEditor(t);
 
   const save = () => {
     const name = nameInput.value.trim();
     if (!name) { alert('Give the tracker a name.'); return; }
-    updateTracker(t.id, { name, unit: unitInput.value.trim() || null });
+    const patch = { name, unit: unitInput.value.trim() || null };
+    if (OPTION_TYPES.includes(t.type)) {
+      const options = parseOptions(optionsInput.value);
+      if (options.length === 0) { alert('Add at least one option.'); return; }
+      patch.options = options;
+    }
+    if (target && !target.save()) return;
+    updateTracker(t.id, patch);
     editingId = null;
     rerender();
   };
@@ -137,6 +280,8 @@ function editRow(t, rerender) {
     el('div', { class: 'tr-edit' },
       el('div', { class: 'field' }, el('label', {}, 'Name'), nameInput),
       t.type === 'number' && el('div', { class: 'field' }, el('label', {}, 'Unit (optional)'), unitInput),
+      OPTION_TYPES.includes(t.type) && el('div', { class: 'field' }, el('label', {}, 'Options (comma separated)'), optionsInput),
+      target && target.wrap,
       el('div', { class: 'btn-row' },
         el('button', { class: 'btn primary', onclick: save }, 'Save'),
         el('button', { class: 'btn', onclick: () => { editingId = null; rerender(); } }, 'Cancel'),
@@ -173,22 +318,41 @@ function addForm(rerender) {
     el('label', {}, 'Unit (optional)'),
     el('input', { type: 'text', placeholder: 'kcal, g, km…', 'aria-label': 'Unit' }),
   );
-  typeSelect.addEventListener('change', () => { unitField.hidden = typeSelect.value !== 'number'; });
+  const optionsField = el('div', { class: 'field', hidden: true },
+    el('label', {}, 'Options (comma separated)'),
+    el('input', { type: 'text', placeholder: 'walk, run, squash, bike', 'aria-label': 'Options' }),
+  );
+  typeSelect.addEventListener('change', () => {
+    unitField.hidden = typeSelect.value !== 'number';
+    optionsField.hidden = !OPTION_TYPES.includes(typeSelect.value);
+  });
 
   return el('div', { class: 'add-form' },
     el('div', { class: 'field' }, el('label', {}, 'Name'), nameInput),
     el('div', { class: 'field' }, el('label', {}, 'Type'), typeSelect),
     unitField,
+    optionsField,
     el('button', {
       class: 'btn primary',
       onclick: () => {
         const name = nameInput.value.trim();
         if (!name) { alert('Give the tracker a name.'); return; }
-        addTracker({ name, type: typeSelect.value, unit: unitField.querySelector('input').value });
+        const type = typeSelect.value;
+        const options = parseOptions(optionsField.querySelector('input').value);
+        if (OPTION_TYPES.includes(type) && options.length === 0) {
+          alert('Add at least one option, separated by commas.');
+          return;
+        }
+        addTracker({ name, type, unit: unitField.querySelector('input').value, options });
         rerender();
       },
     }, 'Add tracker'),
+    el('div', { class: 'settings-note' }, 'Set a target from the tracker’s ✎ edit screen after adding it.'),
   );
+}
+
+function parseOptions(str) {
+  return [...new Set(str.split(',').map((s) => s.trim()).filter(Boolean))];
 }
 
 function exportStatusLine() {

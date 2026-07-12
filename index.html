@@ -7,9 +7,23 @@
   <meta name="description" content="Personal daily tracking ledger">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Tracker">
   <meta name="theme-color" content="#16130e">
+  <script>
+    // Apply the saved theme before first paint (js/theme.js takes over after
+    // load). Reads the same pcal:theme key the store owns.
+    (function () {
+      var pref = null;
+      try { pref = localStorage.getItem('pcal:theme'); } catch (e) { /* default below */ }
+      var theme = pref === 'light' || pref === 'dark'
+        ? pref
+        : (pref === 'system' && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.dataset.theme = theme;
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = theme === 'light' ? '#f6f0e3' : '#16130e';
+    })();
+  </script>
   <link rel="apple-touch-icon" href="./icons/icon-180.png">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">

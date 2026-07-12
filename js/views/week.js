@@ -1,9 +1,9 @@
-// Week view — seven ledger rows plus totals/averages for number trackers.
+// Week view — seven ledger rows plus totals, weekly goals, and streaks.
 
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
-import { activeTrackers } from '../trackers.js';
+import { activeTrackers, targetFor, weekStreakFor } from '../trackers.js';
 
 export function render(container, ctx) {
   const today = todayISO();
@@ -41,6 +41,9 @@ export function render(container, ctx) {
         icon.querySelector('path').setAttribute('stroke', 'var(--accent)');
         chip.append(icon);
         vals.append(chip);
+      } else if (t.type === 'multiselect' || t.type === 'select') {
+        const list = Array.isArray(v) ? v : [v];
+        vals.append(el('span', {}, el('b', {}, list.join(' · '))));
       } else {
         vals.append(el('span', { class: 'wr-note' }, String(v)));
       }
@@ -61,28 +64,69 @@ export function render(container, ctx) {
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), rows);
 
-  // totals + daily average for each number tracker logged this week
-  const totals = trackers
-    .filter((t) => t.type === 'number')
-    .map((t) => {
-      const logged = days.map((iso) => getEntry(iso)[t.id]).filter((v) => typeof v === 'number');
-      return { t, logged };
-    })
-    .filter((x) => x.logged.length > 0);
+  const summary = buildSummary(trackers, days);
+  if (summary) container.append(summary);
+}
 
-  if (totals.length > 0) {
-    const box = el('div', { class: 'week-totals' }, el('h2', {}, 'Week totals'));
-    for (const { t, logged } of totals) {
+function buildSummary(trackers, days) {
+  const endOfWeek = days[6];
+  const items = [];
+
+  for (const t of trackers) {
+    const tgt = targetFor(t, endOfWeek);
+
+    if (t.type === 'number') {
+      const logged = days.map((iso) => getEntry(iso)[t.id]).filter((v) => typeof v === 'number');
+      if (logged.length === 0 && !tgt) continue;
       const sum = logged.reduce((a, b) => a + b, 0);
-      const avg = sum / logged.length;
-      box.append(el('div', { class: 'wt-row' },
-        el('span', {}, t.name),
-        el('span', {},
-          el('b', {}, sum.toLocaleString(undefined, { maximumFractionDigits: 1 }), t.unit ? ` ${t.unit}` : ''),
-          el('span', { class: 'avg' }, `avg ${avg.toLocaleString(undefined, { maximumFractionDigits: 1 })}/day`),
-        ),
-      ));
+      const avg = logged.length ? sum / logged.length : 0;
+      const item = { name: t.name, main: fmtN(sum) + (t.unit ? ` ${t.unit}` : ''), sub: logged.length ? `avg ${fmtN(avg)}/day` : 'nothing logged' };
+      if (tgt) {
+        const goal = tgt.period === 'week' ? tgt.value : tgt.value * 7;
+        const atMost = tgt.dir === 'atmost';
+        item.goalText = `${atMost ? '≤' : '≥'} ${fmtN(tgt.value)}${t.unit ? ' ' + t.unit : ''}${tgt.period === 'day' ? '/day' : '/week'}`;
+        item.ratio = goal > 0 ? sum / goal : 0;
+        item.over = atMost && item.ratio > 1;
+        if (tgt.period === 'week') {
+          const streak = weekStreakFor(t, endOfWeek);
+          if (streak >= 2) item.streak = `${streak}-week streak`;
+        }
+      }
+      items.push(item);
+    } else if (t.type !== 'text' && tgt && tgt.period === 'week') {
+      const count = days.filter((iso) => t.id in getEntry(iso)).length;
+      const item = {
+        name: t.name,
+        main: `${count} / ${tgt.value} days`,
+        ratio: tgt.value > 0 ? count / tgt.value : 0,
+        goalText: `${tgt.value} days/week`,
+      };
+      const streak = weekStreakFor(t, endOfWeek);
+      if (streak >= 2) item.streak = `${streak}-week streak`;
+      items.push(item);
     }
-    container.append(box);
   }
+
+  if (items.length === 0) return null;
+
+  const box = el('div', { class: 'week-totals' }, el('h2', {}, 'Week totals'));
+  for (const item of items) {
+    box.append(el('div', { class: 'wt-row' },
+      el('span', {}, item.name, item.goalText ? el('span', { class: 'wt-goal' }, `  ·  ${item.goalText}`) : null),
+      el('span', {}, el('b', {}, item.main), item.sub ? el('span', { class: 'avg' }, item.sub) : null),
+    ));
+    if (item.ratio !== undefined) {
+      const fill = el('i', item.over ? { class: 'over' } : {});
+      fill.style.width = Math.min(100, item.ratio * 100) + '%';
+      box.append(el('div', { class: 'wt-bar' }, fill));
+    }
+    if (item.streak) {
+      box.append(el('div', { class: 'wt-goal' }, item.streak));
+    }
+  }
+  return box;
+}
+
+function fmtN(n) {
+  return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }

@@ -1,9 +1,14 @@
 # Daily Tracker
 
 A personal daily-tracking calendar PWA: log calories, protein, workouts — or any
-tracker you define — against a day/week/month calendar. Built as plain
-HTML/CSS/JS with zero dependencies and no build step; the repo root **is** the
-deployed site.
+tracker you define — against a day/week/month calendar. Tracker types: number,
+text, checkbox, pick-one and pick-many lists. Targets can be daily or weekly,
+"reach at least" or "stay under", and are effective-dated (changing a target
+applies from today; past days keep the target they had). Daily and weekly
+streaks are tracked against targets. Light/dark/auto theme in Settings.
+
+Built as plain HTML/CSS/JS with zero dependencies and no build step; the repo
+root **is** the deployed site.
 
 All data lives on the phone in `localStorage` (key `pcal:data`). Nothing is
 sent anywhere. Use **Settings → Export data** for backups.
@@ -47,8 +52,9 @@ styles.css            all styling (dark "ledger" theme)
 sw.js                 cache-first service worker (bump CACHE per deploy)
 manifest.webmanifest  PWA manifest
 js/app.js             entry point, tabs, date context, APP_VERSION
+js/theme.js           light/dark/auto switching (bootstrap copy inline in index.html)
 js/store.js           localStorage document + debounced autosave (only module touching storage)
-js/trackers.js        tracker CRUD
+js/trackers.js        tracker CRUD, effective-dated targets, streaks
 js/dates.js           local-date helpers (never UTC for day keys)
 js/backup.js          export (iOS share sheet) / import with undo
 js/views/*.js         day / week / month / settings
