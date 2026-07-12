@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '1.1.1';
+export const APP_VERSION = '1.1.2';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -97,7 +97,21 @@ document.addEventListener('visibilitychange', () => {
 switchTab('day');
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => { /* offline still works next visit */ });
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      // iOS resumes the PWA without a page load, which skips the normal
+      // update check — so also check whenever the app comes to the front.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+      // When a new service worker takes over, reload once so the new
+      // version applies immediately instead of on the next launch.
+      let hadController = Boolean(navigator.serviceWorker.controller);
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (hadController) location.reload();
+        hadController = true;
+      });
+    } catch { /* offline still works next visit */ }
   });
 }
