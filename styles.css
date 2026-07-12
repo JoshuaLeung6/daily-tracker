@@ -314,6 +314,36 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .check-dot svg { width: 16px; height: 16px; visibility: hidden; }
 .card-check[aria-pressed="true"] .check-dot svg { visibility: visible; }
 
+/* past-day lock */
+.lock-row { display: flex; justify-content: flex-end; margin: -6px 2px 12px; }
+
+.lock-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 13px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.lock-pill.unlocked {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.lock-ico { display: inline-flex; }
+
+.card.is-locked { opacity: 0.75; }
+.card.is-locked input, .card.is-locked textarea { caret-color: transparent; }
+.chip:disabled, .card-check:disabled { cursor: default; }
+
 .archived-note {
   font-size: 12px;
   color: var(--faint);

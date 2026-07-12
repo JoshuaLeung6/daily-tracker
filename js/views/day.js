@@ -6,12 +6,19 @@ import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
 import { getEntry, setValue, persistNow } from '../store.js';
 import { activeTrackers, allTrackers, targetFor, streakFor } from '../trackers.js';
 
+// Past days are read-only unless explicitly unlocked; the unlock covers one
+// day and drops as soon as you navigate away.
+let unlockedISO = null;
+
 export function render(container, ctx) {
   const iso = ctx.date;
   const today = todayISO();
   const entry = getEntry(iso);
   const isToday = iso === today;
   const sameYear = iso.slice(0, 4) === today.slice(0, 4);
+  if (unlockedISO && unlockedISO !== iso) unlockedISO = null;
+  const isPast = iso < today;
+  const locked = isPast && unlockedISO !== iso;
 
   const head = el('header', { class: 'view-head' },
     el('button', { class: 'nav-arrow', 'aria-label': 'Previous day', onclick: () => ctx.setDate(addDays(iso, -1)) }, '‹'),
@@ -25,17 +32,29 @@ export function render(container, ctx) {
 
   const cards = el('div', { class: 'cards' });
   const active = activeTrackers();
-  for (const t of active) cards.append(trackerCard(t, iso, entry));
+  for (const t of active) cards.append(trackerCard(t, iso, entry, locked));
 
   // archived trackers still show on days where they have data
   const archivedWithData = allTrackers().filter((t) => t.archived && t.id in entry);
   for (const t of archivedWithData) {
-    const card = trackerCard(t, iso, entry);
+    const card = trackerCard(t, iso, entry, locked);
     card.classList.add('is-archived');
     cards.append(card);
   }
 
-  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), cards);
+  const pieces = [head, el('div', { class: 'ledger-rule' })];
+  if (isPast) {
+    const pill = el('button', {
+      class: 'lock-pill' + (locked ? '' : ' unlocked'),
+      'aria-pressed': String(!locked),
+      onclick: () => {
+        unlockedISO = locked ? iso : null;
+        render(container, ctx);
+      },
+    }, lockIcon(locked), locked ? 'Locked — tap to edit' : 'Editing past day');
+    pieces.push(el('div', { class: 'lock-row' }, pill));
+  }
+  container.replaceChildren(...pieces, cards);
 
   if (active.length === 0 && archivedWithData.length === 0) {
     cards.append(el('div', { class: 'empty-state' }, 'No trackers yet. Add one in Settings.'));
@@ -65,14 +84,25 @@ export function render(container, ctx) {
   };
 }
 
-function trackerCard(t, iso, entry) {
-  if (t.type === 'number') return numberCard(t, iso, entry);
-  if (t.type === 'checkbox') return checkboxCard(t, iso, entry);
-  if (t.type === 'select' || t.type === 'multiselect') return selectCard(t, iso, entry);
-  return textCard(t, iso, entry);
+function trackerCard(t, iso, entry, locked) {
+  let card;
+  if (t.type === 'number') card = numberCard(t, iso, entry, locked);
+  else if (t.type === 'checkbox') card = checkboxCard(t, iso, entry, locked);
+  else if (t.type === 'select' || t.type === 'multiselect') card = selectCard(t, iso, entry, locked);
+  else card = textCard(t, iso, entry, locked);
+  if (locked) card.classList.add('is-locked');
+  return card;
 }
 
-function numberCard(t, iso, entry) {
+function lockIcon(closed) {
+  const span = el('span', { class: 'lock-ico', 'aria-hidden': 'true' });
+  span.innerHTML = closed
+    ? '<svg viewBox="0 0 16 16" width="12" height="12"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>'
+    : '<svg viewBox="0 0 16 16" width="12" height="12"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 5.7-1.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+  return span;
+}
+
+function numberCard(t, iso, entry, locked) {
   const target = targetFor(t, iso);
   const dailyGoal = target && target.period === 'day' ? target.value : null;
 
@@ -83,6 +113,7 @@ function numberCard(t, iso, entry) {
     enterkeyhint: 'done',
     placeholder: '·',
     'aria-label': t.name,
+    readonly: locked,
     value: t.id in entry ? String(entry[t.id]) : '',
   });
 
@@ -127,7 +158,7 @@ function numberCard(t, iso, entry) {
   return el('label', { class: 'card card-num' }, row, targetLine);
 }
 
-function selectCard(t, iso, entry) {
+function selectCard(t, iso, entry, locked) {
   const multi = t.type === 'multiselect';
   const current = entry[t.id];
   const selected = new Set(multi
@@ -140,7 +171,7 @@ function selectCard(t, iso, entry) {
 
   const chipRow = el('div', { class: 'chips' });
   for (const opt of options) {
-    const chip = el('button', { class: 'chip', 'aria-pressed': String(selected.has(opt)) }, opt);
+    const chip = el('button', { class: 'chip', 'aria-pressed': String(selected.has(opt)), disabled: locked }, opt);
     chip.addEventListener('click', () => {
       if (selected.has(opt)) selected.delete(opt);
       else {
@@ -180,8 +211,13 @@ function attachStreakLine(card, t, iso) {
   card.addEventListener('click', () => requestAnimationFrame(refresh));
 }
 
-function textCard(t, iso, entry) {
-  const textarea = el('textarea', { rows: '2', placeholder: 'Write it down…', 'aria-label': t.name });
+function textCard(t, iso, entry, locked) {
+  const textarea = el('textarea', {
+    rows: '2',
+    placeholder: locked ? '' : 'Write it down…',
+    'aria-label': t.name,
+    readonly: locked,
+  });
   textarea.value = t.id in entry ? entry[t.id] : '';
   textarea.addEventListener('input', () => {
     grow(textarea);
@@ -194,12 +230,16 @@ function textCard(t, iso, entry) {
   );
 }
 
-function checkboxCard(t, iso, entry) {
+function checkboxCard(t, iso, entry, locked) {
   const row = el('span', { class: 'num-row' },
     el('span', { class: 't-name' }, t.name),
     el('span', { class: 'check-dot' }, checkIcon()),
   );
-  const btn = el('button', { class: 'card card-check card-num', 'aria-pressed': String(Boolean(entry[t.id])) }, row);
+  const btn = el('button', {
+    class: 'card card-check card-num',
+    'aria-pressed': String(Boolean(entry[t.id])),
+    disabled: locked,
+  }, row);
   btn.addEventListener('click', () => {
     const next = btn.getAttribute('aria-pressed') !== 'true';
     btn.setAttribute('aria-pressed', String(next));
