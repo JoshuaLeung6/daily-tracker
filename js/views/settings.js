@@ -112,10 +112,31 @@ export function render(container, ctx) {
   );
 
   // ----- about -----
+  const updateStatus = el('div', { class: 'settings-note', 'aria-live': 'polite' }, '');
+  const checkUpdates = async () => {
+    updateStatus.textContent = 'Checking…';
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) { updateStatus.textContent = 'Updates unavailable in this browser.'; return; }
+      await reg.update();
+      if (reg.installing || reg.waiting) {
+        updateStatus.textContent = 'Update found — installing. The app will refresh itself in a moment.';
+      } else {
+        updateStatus.textContent = `Up to date (${ctx.version}). New releases can take ~10 minutes to reach the server.`;
+      }
+    } catch {
+      updateStatus.textContent = 'Couldn’t check — are you offline?';
+    }
+  };
+
   const aboutSection = el('div', { class: 'settings-section' },
     el('h2', {}, 'About'),
     el('div', { class: 'about-line' }, 'Version ', el('b', {}, ctx.version)),
     el('div', { class: 'about-line' }, el('b', {}, String(loggedDayCount())), ' days logged'),
+    el('div', { class: 'btn-row' },
+      el('button', { class: 'btn', onclick: checkUpdates }, 'Check for updates'),
+    ),
+    updateStatus,
   );
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }),
