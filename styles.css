@@ -17,6 +17,10 @@
   --accent-soft: rgba(226, 166, 61, 0.14);
   --accent-ink: #211809;
   --danger: #d96c45;
+  /* attainment colors: green = daily met, blue = weekly met, violet = goals */
+  --met-day: #8cbe72;
+  --met-week: #7fa9d4;
+  --goal: #bb9bd8;
   --serif: ui-serif, "New York", Georgia, "Times New Roman", serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --radius: 14px;
@@ -38,6 +42,9 @@ html[data-theme="light"] {
   --accent-soft: rgba(143, 98, 16, 0.12);
   --accent-ink: #fdf9ee;
   --danger: #b4552f;
+  --met-day: #4e7c32;
+  --met-week: #3d6b9b;
+  --goal: #7a5799;
   color-scheme: light;
 }
 
@@ -307,6 +314,12 @@ html[data-theme="light"] body::before {
 }
 
 .target-line .bar i.over, .wt-bar i.over { background: var(--danger); }
+.target-line .bar i.met { background: var(--met-day); }
+.tl-text.met { color: var(--met-day); }
+.wt-bar i.wk-met { background: var(--met-week); }
+.wt-row b.wk-met { color: var(--met-week); }
+.week-row .wr-date .dn.all-met { color: var(--met-day); }
+.month-cell .cell-day.all-met { color: var(--met-day); font-weight: 700; }
 .tl-text { font-size: 12px; color: var(--faint); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
 .check-dot {
@@ -475,6 +488,90 @@ html[data-theme="light"] body::before {
 .wo-delete { width: 100%; margin-top: 22px; }
 
 .workout-overlay .ghost-btn { margin-top: 10px; }
+
+/* ---------- progress: goals & attainment ---------- */
+
+.pane { margin-top: 16px; }
+
+.goal-card, .att-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.gc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gc-name { font-size: 16px; font-weight: 700; }
+
+.gc-route { font-family: var(--serif); font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.gc-now { font-family: var(--sans); font-size: 13px; font-weight: 400; color: var(--muted); }
+
+.wt-bar { display: block; }
+.gc-bar { margin: 2px 0; }
+.goal-fill, .wt-bar i.goal-fill { display: block; height: 100%; border-radius: 2px; background: var(--goal); }
+
+.gc-status { font-size: 13px; color: var(--muted); }
+.gc-status.done { color: var(--goal); font-weight: 600; }
+
+.att-desc { font-size: 12px; font-weight: 600; color: var(--faint); text-align: right; }
+.met-day-text.on { color: var(--met-day); }
+.met-week-text.on { color: var(--met-week); }
+
+.att-stats { display: flex; gap: 22px; }
+.as-v { font-family: var(--serif); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.as-l { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-top: 1px; }
+
+.dstrip { display: flex; gap: 5px; margin-top: 2px; }
+.dstrip i { width: 9px; height: 9px; border-radius: 50%; }
+.dstrip i.met { background: var(--met-day); }
+.dstrip i.unmet { border: 1.5px solid var(--line); }
+.dstrip i.notarget { background: var(--hairline); }
+
+.sr-goal { color: var(--goal); font-weight: 600; }
+
+.sr-goalrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.sr-goallabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.sr-goalrow input {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 16px;
+  padding: 8px 10px;
+  width: 90px;
+  text-align: center;
+  min-width: 0;
+}
+
+.sr-goalbtn { min-height: 38px; padding: 8px 14px; font-size: 14px; flex-shrink: 0; }
+
+.field input[type="date"] {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  padding: 10px 12px;
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+}
 
 /* ---------- stats ---------- */
 

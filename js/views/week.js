@@ -3,7 +3,7 @@
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
-import { activeTrackers, targetFor, weekStreakFor } from '../trackers.js';
+import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS } from '../workouts.js';
 
 export function render(container, ctx) {
@@ -62,7 +62,7 @@ export function render(container, ctx) {
     },
       el('span', { class: 'wr-date' },
         el('div', { class: 'wd' }, fmt(iso, { weekday: 'short' })),
-        el('div', { class: 'dn' }, String(Number(iso.slice(8)))),
+        el('div', { class: 'dn' + (dayAllMet(iso) ? ' all-met' : '') }, String(Number(iso.slice(8)))),
       ),
       vals,
     ));
@@ -94,6 +94,7 @@ function buildSummary(trackers, days) {
         item.ratio = goal > 0 ? sum / goal : 0;
         item.over = atMost && item.ratio > 1;
         if (tgt.period === 'week') {
+          item.wkMet = weekMeets(t, days[0]);
           const streak = weekStreakFor(t, endOfWeek);
           if (streak >= 2) item.streak = `${streak}-week streak`;
         }
@@ -106,6 +107,7 @@ function buildSummary(trackers, days) {
         main: `${count} / ${tgt.value} days`,
         ratio: tgt.value > 0 ? count / tgt.value : 0,
         goalText: `${tgt.value} days/week`,
+        wkMet: count >= tgt.value,
       };
       const streak = weekStreakFor(t, endOfWeek);
       if (streak >= 2) item.streak = `${streak}-week streak`;
@@ -119,10 +121,10 @@ function buildSummary(trackers, days) {
   for (const item of items) {
     box.append(el('div', { class: 'wt-row' },
       el('span', {}, item.name, item.goalText ? el('span', { class: 'wt-goal' }, `  ·  ${item.goalText}`) : null),
-      el('span', {}, el('b', {}, item.main), item.sub ? el('span', { class: 'avg' }, item.sub) : null),
+      el('span', {}, el('b', item.wkMet ? { class: 'wk-met' } : {}, item.main), item.sub ? el('span', { class: 'avg' }, item.sub) : null),
     ));
     if (item.ratio !== undefined) {
-      const fill = el('i', item.over ? { class: 'over' } : {});
+      const fill = el('i', { class: (item.over ? 'over' : '') + (item.wkMet ? ' wk-met' : '') });
       fill.style.width = Math.min(100, item.ratio * 100) + '%';
       box.append(el('div', { class: 'wt-bar' }, fill));
     }

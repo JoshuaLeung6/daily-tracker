@@ -16,6 +16,7 @@ export async function exportData() {
     trackers: doc.trackers,
     entries: doc.entries,
     workouts: doc.workouts || {},
+    liftGoals: doc.liftGoals || {},
   };
   const json = JSON.stringify(payload, null, 2);
   const name = `tracker-backup-${todayISO()}.json`;
@@ -59,6 +60,9 @@ export function validateBackup(obj) {
   if (obj.workouts && (typeof obj.workouts !== 'object' || Array.isArray(obj.workouts))) {
     return { ok: false, error: 'Backup file is damaged (workouts).' };
   }
+  if (obj.liftGoals && (typeof obj.liftGoals !== 'object' || Array.isArray(obj.liftGoals))) {
+    return { ok: false, error: 'Backup file is damaged (lift goals).' };
+  }
   return {
     ok: true,
     trackerCount: obj.trackers.length,
@@ -85,6 +89,7 @@ export function applyImport(backup) {
     trackers: backup.trackers,
     entries: backup.entries,
     workouts: backup.workouts || {},
+    liftGoals: backup.liftGoals || {},
   });
 }
 

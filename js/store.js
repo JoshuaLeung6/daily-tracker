@@ -2,7 +2,7 @@
 // One JSON document under `pcal:data`; debounced autosave with
 // immediate flush on blur/hide so iOS suspending the PWA never loses input.
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const KEY = 'pcal:data';
 const KEY_PRE_IMPORT = 'pcal:backup:pre-import';
@@ -24,6 +24,7 @@ function seed() {
     ],
     entries: {},
     workouts: {},
+    liftGoals: {},
   };
 }
 
@@ -73,7 +74,14 @@ export function init({ onStorageError } = {}) {
     data.schemaVersion = 3;
     persistNow();
   }
+  if (data.schemaVersion < 4) {
+    // v4 adds lift PR goals
+    data.liftGoals ??= {};
+    data.schemaVersion = 4;
+    persistNow();
+  }
   data.workouts ??= {};
+  data.liftGoals ??= {};
 
   window.addEventListener('pagehide', () => persistNow());
   document.addEventListener('visibilitychange', () => {

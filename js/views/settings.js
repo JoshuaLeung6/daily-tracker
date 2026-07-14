@@ -112,8 +112,6 @@ export function render(container, ctx) {
     el('h2', {}, 'About'),
     el('div', { class: 'about-line' }, 'Version ', el('b', {}, ctx.version)),
     el('div', { class: 'about-line' }, el('b', {}, String(loggedDayCount())), ' days logged'),
-    el('div', { class: 'settings-note' },
-      'All data lives on this phone. Export a backup now and then — it saves a file you can restore from.'),
   );
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }),

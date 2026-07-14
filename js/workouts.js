@@ -103,6 +103,20 @@ export function lastLift(name, beforeISO) {
   return found;
 }
 
+// ----- lift PR goals -----
+// doc.liftGoals[name.toLowerCase()] = { target, setAt }
+
+export function liftGoal(name) {
+  return getData().liftGoals[name.trim().toLowerCase()] || null;
+}
+
+export function setLiftGoal(name, target) {
+  const key = name.trim().toLowerCase();
+  if (target == null) delete getData().liftGoals[key];
+  else getData().liftGoals[key] = { target, setAt: todayISO() };
+  persistNow();
+}
+
 // ----- stats -----
 
 export function workoutCounts() {
@@ -139,6 +153,10 @@ export function liftStats(filterSplit) {
       (best, h) => (h.weight != null && (best === null || h.weight > best.weight) ? h : best),
       null,
     );
+    s.goal = liftGoal(s.name);
+    s.goalPct = s.goal && s.best && s.best.weight != null
+      ? Math.min(1, s.best.weight / s.goal.target)
+      : null;
   }
   out.sort((a, b) => (a.last.date < b.last.date ? 1 : -1));
   return out;

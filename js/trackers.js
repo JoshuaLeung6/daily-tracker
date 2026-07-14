@@ -2,7 +2,7 @@
 // history; "archive" hides a tracker from the day form without touching data.
 
 import { getData, persistNow } from './store.js';
-import { todayISO, addDays, startOfWeek } from './dates.js';
+import { todayISO, addDays, startOfWeek, fromISO } from './dates.js';
 
 export const TYPES = ['number', 'text', 'checkbox', 'select', 'multiselect'];
 const OPTION_TYPES = ['select', 'multiselect'];
@@ -164,4 +164,158 @@ export function weekStreakFor(tracker, iso) {
     start = addDays(start, -7);
   }
   return streak;
+}
+
+// ----- attainment reporting -----
+
+function firstTargetISO(tracker) {
+  let min = null;
+  for (const t of tracker.targets || []) {
+    if (t.from && (!min || t.from < min)) min = t.from;
+  }
+  return min;
+}
+
+export function longestStreak(tracker) {
+  const start = firstTargetISO(tracker);
+  if (!start) return 0;
+  const today = todayISO();
+  let best = 0;
+  let run = 0;
+  for (let iso = start; iso <= today; iso = addDays(iso, 1)) {
+    if (dayMeets(tracker, iso)) {
+      run++;
+      if (run > best) best = run;
+    } else {
+      run = 0;
+    }
+  }
+  return best;
+}
+
+// Of the last `days` days that had a daily target in force, how many were met?
+export function adherence(tracker, days = 30) {
+  const today = todayISO();
+  let hit = 0;
+  let of = 0;
+  for (let i = 0; i < days; i++) {
+    const iso = addDays(today, -i);
+    const tgt = targetFor(tracker, iso);
+    if (!tgt || tgt.period !== 'day') continue;
+    of++;
+    if (dayMeets(tracker, iso)) hit++;
+  }
+  return { hit, of };
+}
+
+// Last `days` days, oldest first: met / unmet / no daily target that day.
+export function dotStrip(tracker, days = 14) {
+  const today = todayISO();
+  const out = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const iso = addDays(today, -i);
+    const tgt = targetFor(tracker, iso);
+    out.push({
+      iso,
+      state: !tgt || tgt.period !== 'day' ? 'notarget' : (dayMeets(tracker, iso) ? 'met' : 'unmet'),
+    });
+  }
+  return out;
+}
+
+export function longestWeekStreak(tracker) {
+  const start = firstTargetISO(tracker);
+  if (!start) return 0;
+  const lastWeek = startOfWeek(todayISO());
+  let best = 0;
+  let run = 0;
+  for (let ws = startOfWeek(start); ws <= lastWeek; ws = addDays(ws, 7)) {
+    if (weekMeets(tracker, ws)) {
+      run++;
+      if (run > best) best = run;
+    } else {
+      run = 0;
+    }
+  }
+  return best;
+}
+
+export function weekAdherence(tracker, weeks = 8) {
+  const thisWeek = startOfWeek(todayISO());
+  let hit = 0;
+  let of = 0;
+  for (let i = 0; i < weeks; i++) {
+    const ws = addDays(thisWeek, -7 * i);
+    const tgt = targetFor(tracker, addDays(ws, 6));
+    if (!tgt || tgt.period !== 'week') continue;
+    of++;
+    if (weekMeets(tracker, ws)) hit++;
+  }
+  return { hit, of };
+}
+
+// True when the day had at least one daily target and met them all —
+// drives the green day numbers on week/month calendars.
+export function dayAllMet(iso) {
+  let any = false;
+  for (const t of activeTrackers()) {
+    const tgt = targetFor(t, iso);
+    if (!tgt || tgt.period !== 'day') continue;
+    any = true;
+    if (!dayMeets(t, iso)) return false;
+  }
+  return any;
+}
+
+// ----- value goals (destinations: reach a number, e.g. body weight) -----
+// tracker.goal = { from, startValue, target, deadline|null }
+
+export function setGoal(id, { startValue, target, deadline }) {
+  const t = getTracker(id);
+  if (!t) return;
+  t.goal = { from: todayISO(), startValue, target, deadline: deadline || null };
+  persistNow();
+}
+
+export function clearGoal(id) {
+  const t = getTracker(id);
+  if (t && t.goal) {
+    delete t.goal;
+    persistNow();
+  }
+}
+
+export function latestValue(id) {
+  let best = null;
+  for (const [iso, day] of Object.entries(getData().entries)) {
+    if (id in day && typeof day[id] === 'number' && (!best || iso > best.iso)) {
+      best = { iso, value: day[id] };
+    }
+  }
+  return best;
+}
+
+export function goalProgress(t) {
+  if (!t.goal) return null;
+  const g = t.goal;
+  const latest = latestValue(t.id);
+  const current = latest ? latest.value : g.startValue;
+  const span = g.target - g.startValue;
+  const done = span >= 0 ? current >= g.target : current <= g.target;
+  const pct = span === 0 ? 1 : Math.max(0, Math.min(1, (current - g.startValue) / span));
+  const out = {
+    ...g,
+    current,
+    currentDate: latest ? latest.iso : null,
+    pct: done ? 1 : pct,
+    done,
+    change: current - g.startValue,
+    remaining: g.target - current,
+    direction: span < 0 ? 'down' : 'up',
+  };
+  if (g.deadline) {
+    out.daysLeft = Math.ceil((fromISO(g.deadline) - fromISO(todayISO())) / 86400000);
+    if (!done && out.daysLeft > 0) out.pacePerWeek = out.remaining / (out.daysLeft / 7);
+  }
+  return out;
 }

@@ -3,6 +3,7 @@
 import { el } from '../ui.js';
 import { todayISO, addMonths, monthGrid, monthTitle, fmt, startOfWeek, addDays } from '../dates.js';
 import { getEntry } from '../store.js';
+import { dayAllMet } from '../trackers.js';
 import { getWorkout } from '../workouts.js';
 
 export function render(container, ctx) {
@@ -42,7 +43,7 @@ export function render(container, ctx) {
       'aria-label': fmt(iso, { weekday: 'long', month: 'long', day: 'numeric' }),
       onclick: () => ctx.openDay(iso),
     },
-      el('span', {}, String(Number(iso.slice(8)))),
+      el('span', { class: 'cell-day' + (dayAllMet(iso) ? ' all-met' : '') }, String(Number(iso.slice(8)))),
       dots,
     ));
   }

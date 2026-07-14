@@ -4,7 +4,7 @@
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
 import { getEntry, setValue, persistNow } from '../store.js';
-import { activeTrackers, allTrackers, targetFor, streakFor } from '../trackers.js';
+import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, FOCUS_LABELS } from '../workouts.js';
 import { openWorkout } from './workout.js';
 
@@ -33,7 +33,8 @@ export function render(container, ctx) {
   );
 
   const cards = el('div', { class: 'cards' });
-  const active = activeTrackers();
+  // locked days show only what was actually logged
+  const active = activeTrackers().filter((t) => !locked || t.id in entry);
   for (const t of active) cards.append(trackerCard(t, iso, entry, locked));
 
   // archived trackers still show on days where they have data
@@ -42,6 +43,9 @@ export function render(container, ctx) {
     const card = trackerCard(t, iso, entry, locked);
     card.classList.add('is-archived');
     cards.append(card);
+  }
+  if (locked && active.length === 0 && archivedWithData.length === 0) {
+    cards.append(el('div', { class: 'empty-state' }, 'Nothing logged this day.'));
   }
 
   const pieces = [head, el('div', { class: 'ledger-rule' })];
@@ -58,7 +62,7 @@ export function render(container, ctx) {
   }
   container.replaceChildren(...pieces, cards, workoutSection(iso, locked, () => render(container, ctx)));
 
-  if (active.length === 0 && archivedWithData.length === 0) {
+  if (!locked && active.length === 0 && archivedWithData.length === 0) {
     cards.append(el('div', { class: 'empty-state' }, 'No trackers yet. Add one in Settings.'));
   }
 
@@ -151,6 +155,9 @@ function numberCard(t, iso, entry, locked) {
     const pct = Number.isFinite(num) ? (num / dailyGoal) * 100 : 0;
     fill.style.width = Math.min(100, pct) + '%';
     fill.classList.toggle('over', atMost && pct > 100);
+    const met = dayMeets(t, iso);
+    fill.classList.toggle('met', met);
+    tlText.classList.toggle('met', met);
     const streak = streakFor(t, iso);
     tlText.textContent = targetLabel() + (streak >= 2 ? ` · ${streak}-day streak` : '');
   };
@@ -227,7 +234,10 @@ function attachStreakLine(card, t, iso) {
   const line = el('span', { class: 'target-line' }, el('span', { class: 'tl-text' }, ''));
   const refresh = () => {
     const streak = streakFor(t, iso);
-    line.firstChild.textContent = streak >= 2 ? `${streak}-day streak` : 'daily target';
+    const met = dayMeets(t, iso);
+    line.firstChild.textContent = (met ? 'done today' : 'daily target')
+      + (streak >= 2 ? ` · ${streak}-day streak` : '');
+    line.firstChild.classList.toggle('met', met);
   };
   refresh();
   card.append(line);
