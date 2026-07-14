@@ -2,7 +2,7 @@
 // One JSON document under `pcal:data`; debounced autosave with
 // immediate flush on blur/hide so iOS suspending the PWA never loses input.
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const KEY = 'pcal:data';
 const KEY_PRE_IMPORT = 'pcal:backup:pre-import';
@@ -78,6 +78,19 @@ export function init({ onStorageError } = {}) {
     // v4 adds lift PR goals
     data.liftGoals ??= {};
     data.schemaVersion = 4;
+    persistNow();
+  }
+  if (data.schemaVersion < 5) {
+    // v5 splits point-in-time measurements from daily amounts: anything
+    // with a destination goal (or named Weight) becomes a measurement,
+    // and recurring targets don't apply to measurements.
+    for (const t of data.trackers) {
+      if (t.type === 'number' && (t.goal || t.name.trim().toLowerCase() === 'weight')) {
+        t.type = 'measurement';
+        delete t.targets;
+      }
+    }
+    data.schemaVersion = 5;
     persistNow();
   }
   data.workouts ??= {};

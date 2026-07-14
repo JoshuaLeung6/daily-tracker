@@ -56,8 +56,7 @@ export function render(container, ctx) {
 
 function goalsPane(rerender) {
   const wrap = el('div', { class: 'pane' });
-  const numberTrackers = activeTrackers().filter((t) => t.type === 'number');
-  const withGoals = numberTrackers.filter((t) => t.goal);
+  const withGoals = activeTrackers().filter((t) => t.goal);
 
   const goalSection = el('div', { class: 'settings-section' }, el('h2', {}, 'Goals'));
   for (const t of withGoals) {
@@ -119,9 +118,21 @@ function goalCard(t, rerender) {
 }
 
 function goalForm(t, rerender) {
-  const numberTrackers = activeTrackers().filter((x) => x.type === 'number');
-  const eligible = t ? [t] : numberTrackers.filter((x) => !x.goal);
+  // destination goals apply to measurements (weight, body fat, …), not
+  // to daily amounts like calories — those use recurring targets instead
+  const measurements = activeTrackers().filter((x) => x.type === 'measurement');
+  const eligible = t ? [t] : measurements.filter((x) => !x.goal);
   const hasWeightTracker = allTrackers().some((x) => x.name.toLowerCase() === 'weight');
+
+  if (!t && eligible.length === 0 && hasWeightTracker) {
+    return el('div', { class: 'tracker-row' },
+      el('div', { class: 'tr-edit' },
+        el('div', { class: 'settings-note' },
+          'Every measurement tracker already has a goal. Add a new measurement tracker in Settings first (type: Measurement).'),
+        el('button', { class: 'btn', onclick: () => { editingGoalId = null; rerender(); } }, 'Close'),
+      ),
+    );
+  }
 
   const trackerSel = el('select', { 'aria-label': 'Goal tracker' },
     ...eligible.map((x) => el('option', { value: x.id }, x.name)),
@@ -153,7 +164,7 @@ function goalForm(t, rerender) {
     if (!Number.isFinite(start) || !Number.isFinite(target)) { alert('Enter a starting value and a target.'); return; }
     if (start === target) { alert('Target must differ from the starting value.'); return; }
     let id = t ? t.id : trackerSel.value;
-    if (id === '__new_weight__') id = addTracker({ name: 'Weight', type: 'number', unit: 'lb' }).id;
+    if (id === '__new_weight__') id = addTracker({ name: 'Weight', type: 'measurement', unit: 'lb' }).id;
     setGoal(id, { startValue: start, target, deadline: deadlineInput.value || null });
     editingGoalId = null;
     rerender();

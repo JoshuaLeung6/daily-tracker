@@ -37,7 +37,7 @@ export function render(container, ctx) {
       if (!(t.id in entry)) continue;
       has = true;
       const v = entry[t.id];
-      if (t.type === 'number') {
+      if (t.type === 'number' || t.type === 'measurement') {
         vals.append(el('span', {}, el('b', {}, Number(v).toLocaleString()), t.unit ? ` ${t.unit}` : ''));
       } else if (t.type === 'checkbox') {
         const chip = el('span', {}, `${t.name} `);
@@ -100,6 +100,19 @@ function buildSummary(trackers, days) {
         }
       }
       items.push(item);
+    } else if (t.type === 'measurement') {
+      // no totals for measurements — show latest and average instead
+      const logged = days
+        .map((iso) => ({ iso, v: getEntry(iso)[t.id] }))
+        .filter((x) => typeof x.v === 'number');
+      if (logged.length === 0) continue;
+      const latest = logged[logged.length - 1].v;
+      const avg = logged.reduce((a, b) => a + b.v, 0) / logged.length;
+      items.push({
+        name: t.name,
+        main: `${fmtN(latest)}${t.unit ? ' ' + t.unit : ''}`,
+        sub: logged.length > 1 ? `avg ${fmtN(avg)}` : 'latest',
+      });
     } else if (t.type !== 'text' && tgt && tgt.period === 'week') {
       const count = days.filter((iso) => t.id in getEntry(iso)).length;
       const item = {

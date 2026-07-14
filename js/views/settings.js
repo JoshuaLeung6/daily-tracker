@@ -5,7 +5,7 @@ import { loggedDayCount } from '../store.js';
 import { todayISO } from '../dates.js';
 import {
   allTrackers, addTracker, updateTracker, moveTracker,
-  deleteTracker, daysWithValue, targetFor, setTarget, TYPES,
+  deleteTracker, daysWithValue, targetFor, setTarget, clearGoal, TYPES,
 } from '../trackers.js';
 import {
   exportData, readBackupFile, applyImport,
@@ -16,13 +16,17 @@ import { themePref, setThemePref } from '../theme.js';
 let editingId = null;
 
 const TYPE_LABELS = {
-  number: 'Number',
+  number: 'Amount (adds up daily)',
+  measurement: 'Measurement (point-in-time)',
   text: 'Text',
   checkbox: 'Checkbox',
   select: 'Pick one',
   multiselect: 'Pick many',
 };
 const OPTION_TYPES = ['select', 'multiselect'];
+const UNIT_TYPES = ['number', 'measurement'];
+// recurring targets make sense for amounts and habits, not measurements/notes
+const TARGET_TYPES = ['number', 'checkbox', 'select', 'multiselect'];
 
 export function render(container, ctx) {
   const rerender = () => render(container, ctx);
@@ -136,6 +140,7 @@ function viewRow(t, index, total, rerender) {
   if (t.unit) meta += ` · ${t.unit}`;
   if (OPTION_TYPES.includes(t.type)) meta += ` · ${(t.options || []).join(', ')}`;
   meta += targetDesc(t);
+  if (t.goal) meta += ` · goal ${t.goal.target.toLocaleString()}`;
 
   return el('div', { class: 'tracker-row' },
     el('div', { class: 'tr-main' },
@@ -255,7 +260,15 @@ function editRow(t, rerender) {
     placeholder: 'walk, run, squash, bike',
     'aria-label': 'Options',
   });
-  const target = t.type === 'text' ? null : targetEditor(t);
+  const target = TARGET_TYPES.includes(t.type) ? targetEditor(t) : null;
+
+  // numeric trackers can switch between "adds up" and "measurement"
+  const kindSel = UNIT_TYPES.includes(t.type)
+    ? el('select', { 'aria-label': 'Number kind' },
+        el('option', { value: 'number' }, TYPE_LABELS.number),
+        el('option', { value: 'measurement' }, TYPE_LABELS.measurement))
+    : null;
+  if (kindSel) kindSel.value = t.type;
 
   const save = () => {
     const name = nameInput.value.trim();
@@ -266,7 +279,19 @@ function editRow(t, rerender) {
       if (options.length === 0) { alert('Add at least one option.'); return; }
       patch.options = options;
     }
-    if (target && !target.save()) return;
+    const newKind = kindSel ? kindSel.value : t.type;
+    if (newKind !== t.type) {
+      if (newKind === 'measurement' && (t.targets || []).length > 0) {
+        if (!confirm('Daily/weekly targets don’t apply to measurements and will be removed. Continue?')) return;
+        patch.targets = [];
+      }
+      if (newKind === 'number' && t.goal) {
+        if (!confirm('Destination goals don’t apply to daily amounts — the goal will be removed. Continue?')) return;
+      }
+      patch.type = newKind;
+    }
+    if (newKind === t.type && target && !target.save()) return;
+    if (patch.type === 'number' && t.goal) clearGoal(t.id);
     updateTracker(t.id, patch);
     editingId = null;
     rerender();
@@ -277,7 +302,8 @@ function editRow(t, rerender) {
   return el('div', { class: 'tracker-row' },
     el('div', { class: 'tr-edit' },
       el('div', { class: 'field' }, el('label', {}, 'Name'), nameInput),
-      t.type === 'number' && el('div', { class: 'field' }, el('label', {}, 'Unit (optional)'), unitInput),
+      kindSel && el('div', { class: 'field' }, el('label', {}, 'Counts as'), kindSel),
+      UNIT_TYPES.includes(t.type) && el('div', { class: 'field' }, el('label', {}, 'Unit (optional)'), unitInput),
       OPTION_TYPES.includes(t.type) && el('div', { class: 'field' }, el('label', {}, 'Options (comma separated)'), optionsInput),
       target && target.wrap,
       el('div', { class: 'btn-row' },
@@ -321,7 +347,7 @@ function addForm(rerender) {
     el('input', { type: 'text', placeholder: 'walk, run, squash, bike', 'aria-label': 'Options' }),
   );
   typeSelect.addEventListener('change', () => {
-    unitField.hidden = typeSelect.value !== 'number';
+    unitField.hidden = !UNIT_TYPES.includes(typeSelect.value);
     optionsField.hidden = !OPTION_TYPES.includes(typeSelect.value);
   });
 

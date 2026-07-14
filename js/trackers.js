@@ -4,7 +4,7 @@
 import { getData, persistNow } from './store.js';
 import { todayISO, addDays, startOfWeek, fromISO } from './dates.js';
 
-export const TYPES = ['number', 'text', 'checkbox', 'select', 'multiselect'];
+export const TYPES = ['number', 'measurement', 'text', 'checkbox', 'select', 'multiselect'];
 const OPTION_TYPES = ['select', 'multiselect'];
 
 export function allTrackers() {
@@ -103,6 +103,7 @@ export function setTarget(id, { value, period, dir }) {
 
 // Did this day meet its (daily) target? Uses the target in force ON that day.
 export function dayMeets(tracker, iso) {
+  if (tracker.type === 'measurement' || tracker.type === 'text') return false;
   const tgt = targetFor(tracker, iso);
   if (!tgt || tgt.period !== 'day') return false;
   const day = getData().entries[iso];
@@ -131,6 +132,7 @@ export function streakFor(tracker, iso) {
 // Did the week starting at weekStartISO meet its weekly target?
 // Uses the target in force at that week's end.
 export function weekMeets(tracker, weekStartISO) {
+  if (tracker.type === 'measurement' || tracker.type === 'text') return false;
   const tgt = targetFor(tracker, addDays(weekStartISO, 6));
   if (!tgt || tgt.period !== 'week') return false;
   const entries = getData().entries;
@@ -288,6 +290,19 @@ export function clearGoal(id) {
 export function latestValue(id) {
   let best = null;
   for (const [iso, day] of Object.entries(getData().entries)) {
+    if (id in day && typeof day[id] === 'number' && (!best || iso > best.iso)) {
+      best = { iso, value: day[id] };
+    }
+  }
+  return best;
+}
+
+// Most recent numeric value strictly before a date — the "last reading"
+// shown on measurement cards.
+export function previousValue(id, beforeISO) {
+  let best = null;
+  for (const [iso, day] of Object.entries(getData().entries)) {
+    if (iso >= beforeISO) continue;
     if (id in day && typeof day[id] === 'number' && (!best || iso > best.iso)) {
       best = { iso, value: day[id] };
     }

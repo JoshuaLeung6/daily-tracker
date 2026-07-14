@@ -4,7 +4,7 @@
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
 import { getEntry, setValue, persistNow } from '../store.js';
-import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets } from '../trackers.js';
+import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets, previousValue } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, FOCUS_LABELS } from '../workouts.js';
 import { openWorkout } from './workout.js';
 
@@ -113,7 +113,7 @@ function workoutSection(iso, locked, rerender) {
 
 function trackerCard(t, iso, entry, locked) {
   let card;
-  if (t.type === 'number') card = numberCard(t, iso, entry, locked);
+  if (t.type === 'number' || t.type === 'measurement') card = numberCard(t, iso, entry, locked);
   else if (t.type === 'checkbox') card = checkboxCard(t, iso, entry, locked);
   else if (t.type === 'select' || t.type === 'multiselect') card = selectCard(t, iso, entry, locked);
   else card = textCard(t, iso, entry, locked);
@@ -130,7 +130,8 @@ function lockIcon(closed) {
 }
 
 function numberCard(t, iso, entry, locked) {
-  const target = targetFor(t, iso);
+  const isMeasure = t.type === 'measurement';
+  const target = !isMeasure ? targetFor(t, iso) : null;
   const dailyGoal = target && target.period === 'day' ? target.value : null;
 
   const input = el('input', {
@@ -176,6 +177,18 @@ function numberCard(t, iso, entry, locked) {
     el('span', { class: 't-name' }, t.name),
     el('span', { class: 't-value' }, input, t.unit && el('span', { class: 'unit' }, t.unit)),
   );
+
+  // measurements show the previous reading for context instead of a target
+  if (isMeasure) {
+    const prev = previousValue(t.id, iso);
+    return el('label', { class: 'card card-num' }, row,
+      prev && el('span', { class: 'target-line' },
+        el('span', { class: 'tl-text' },
+          `last ${prev.value.toLocaleString()}${t.unit ? ' ' + t.unit : ''} · ${fmt(prev.iso, { month: 'short', day: 'numeric' })}`),
+      ),
+    );
+  }
+
   if (dailyGoal == null) return el('label', { class: 'card card-num' }, row);
 
   fill = el('i');
