@@ -31,7 +31,7 @@ export function render(container, ctx) {
   const head = el('header', { class: 'view-head' },
     el('span'),
     el('div', { class: 'masthead' },
-      el('div', { class: 'eyebrow' }, 'Daily Tracker'),
+      el('div', { class: 'eyebrow' }, 'Personal Fitness Tracker'),
       el('h1', {}, 'Settings'),
     ),
     el('span'),

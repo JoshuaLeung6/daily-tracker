@@ -4,6 +4,7 @@ import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor } from '../trackers.js';
+import { getWorkout, SPLIT_LABELS } from '../workouts.js';
 
 export function render(container, ctx) {
   const today = todayISO();
@@ -27,6 +28,11 @@ export function render(container, ctx) {
     const entry = getEntry(iso);
     const vals = el('span', { class: 'wr-vals' });
     let has = false;
+    const wo = getWorkout(iso);
+    if (wo) {
+      has = true;
+      vals.append(el('span', { class: 'wr-workout' }, `${SPLIT_LABELS[wo.split]} day`));
+    }
     for (const t of trackers) {
       if (!(t.id in entry)) continue;
       has = true;

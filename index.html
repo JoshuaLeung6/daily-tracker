@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Daily Tracker</title>
+  <title>Personal Fitness Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="Personal daily tracking ledger">
+  <meta name="description" content="A low-pressure personal fitness ledger">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Tracker">
+  <meta name="apple-mobile-web-app-title" content="Fitness">
   <meta name="theme-color" content="#16130e">
   <script>
     // Apply the saved theme before first paint (js/theme.js takes over after
@@ -37,6 +37,7 @@
     <section id="view-day" class="view" aria-label="Day"></section>
     <section id="view-week" class="view" aria-label="Week" hidden></section>
     <section id="view-month" class="view" aria-label="Month" hidden></section>
+    <section id="view-stats" class="view" aria-label="Stats" hidden></section>
     <section id="view-settings" class="view" aria-label="Settings" hidden></section>
   </main>
 
@@ -52,6 +53,10 @@
     <button class="tab" data-tab="month">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="4" y1="10" x2="20" y2="10" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="14" r="1.3" fill="currentColor"/><circle cx="15" cy="14" r="1.3" fill="currentColor"/><circle cx="9" cy="17.2" r="1.3" fill="currentColor"/></svg>
       <span>Month</span>
+    </button>
+    <button class="tab" data-tab="stats">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="13" width="3.6" height="7" rx="1" fill="currentColor"/><rect x="10.2" y="8" width="3.6" height="12" rx="1" fill="currentColor"/><rect x="16.4" y="4" width="3.6" height="16" rx="1" fill="currentColor"/></svg>
+      <span>Stats</span>
     </button>
     <button class="tab" data-tab="settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 4v2.2M12 17.8V20M4 12h2.2M17.8 12H20M6.3 6.3l1.6 1.6M16.1 16.1l1.6 1.6M17.7 6.3l-1.6 1.6M7.9 16.1l-1.6 1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>

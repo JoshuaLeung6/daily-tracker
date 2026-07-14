@@ -1,7 +1,7 @@
 {
-  "name": "Daily Tracker",
-  "short_name": "Tracker",
-  "description": "Personal daily tracking ledger",
+  "name": "Personal Fitness Tracker",
+  "short_name": "Fitness",
+  "description": "A low-pressure personal fitness ledger",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

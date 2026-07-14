@@ -15,6 +15,7 @@ export async function exportData() {
     schemaVersion: doc.schemaVersion,
     trackers: doc.trackers,
     entries: doc.entries,
+    workouts: doc.workouts || {},
   };
   const json = JSON.stringify(payload, null, 2);
   const name = `tracker-backup-${todayISO()}.json`;
@@ -55,6 +56,9 @@ export function validateBackup(obj) {
   if (!obj.entries || typeof obj.entries !== 'object' || Array.isArray(obj.entries)) {
     return { ok: false, error: 'Backup file is damaged (entries).' };
   }
+  if (obj.workouts && (typeof obj.workouts !== 'object' || Array.isArray(obj.workouts))) {
+    return { ok: false, error: 'Backup file is damaged (workouts).' };
+  }
   return {
     ok: true,
     trackerCount: obj.trackers.length,
@@ -80,6 +84,7 @@ export function applyImport(backup) {
     schemaVersion: backup.schemaVersion,
     trackers: backup.trackers,
     entries: backup.entries,
+    workouts: backup.workouts || {},
   });
 }
 

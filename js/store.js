@@ -2,7 +2,7 @@
 // One JSON document under `pcal:data`; debounced autosave with
 // immediate flush on blur/hide so iOS suspending the PWA never loses input.
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const KEY = 'pcal:data';
 const KEY_PRE_IMPORT = 'pcal:backup:pre-import';
@@ -23,6 +23,7 @@ function seed() {
       { id: 't_' + crypto.randomUUID(), name: 'Weightlifting', type: 'checkbox', unit: null, order: 3, archived: false },
     ],
     entries: {},
+    workouts: {},
   };
 }
 
@@ -66,6 +67,13 @@ export function init({ onStorageError } = {}) {
     migrateV2(data);
     persistNow();
   }
+  if (data.schemaVersion < 3) {
+    // v3 adds the workouts log
+    data.workouts ??= {};
+    data.schemaVersion = 3;
+    persistNow();
+  }
+  data.workouts ??= {};
 
   window.addEventListener('pagehide', () => persistNow());
   document.addEventListener('visibilitychange', () => {

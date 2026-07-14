@@ -5,6 +5,8 @@ import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
 import { getEntry, setValue, persistNow } from '../store.js';
 import { activeTrackers, allTrackers, targetFor, streakFor } from '../trackers.js';
+import { getWorkout, SPLIT_LABELS, FOCUS_LABELS } from '../workouts.js';
+import { openWorkout } from './workout.js';
 
 // Past days are read-only unless explicitly unlocked; the unlock covers one
 // day and drops as soon as you navigate away.
@@ -54,7 +56,7 @@ export function render(container, ctx) {
     }, lockIcon(locked), locked ? 'Locked — tap to edit' : 'Editing past day');
     pieces.push(el('div', { class: 'lock-row' }, pill));
   }
-  container.replaceChildren(...pieces, cards);
+  container.replaceChildren(...pieces, cards, workoutSection(iso, locked, () => render(container, ctx)));
 
   if (active.length === 0 && archivedWithData.length === 0) {
     cards.append(el('div', { class: 'empty-state' }, 'No trackers yet. Add one in Settings.'));
@@ -82,6 +84,27 @@ export function render(container, ctx) {
       ctx.setDate(addDays(iso, dx < 0 ? 1 : -1));
     }
   };
+}
+
+// Below the trackers: the day's workout, or a quiet button to start one.
+function workoutSection(iso, locked, rerender) {
+  const wrap = el('div', { class: 'workout-section' });
+  const wo = getWorkout(iso);
+  const open = () => openWorkout(iso, { locked, onClose: rerender });
+
+  if (wo) {
+    const named = wo.lifts.filter((l) => l.name);
+    wrap.append(el('button', { class: 'card workout-card', onclick: open },
+      el('span', { class: 'wo-sum' },
+        el('span', { class: 'wo-class' }, `${SPLIT_LABELS[wo.split]} · ${FOCUS_LABELS[wo.focus]}`),
+        el('span', { class: 'wo-meta' }, `${named.length} lift${named.length === 1 ? '' : 's'} · ${named.map((l) => l.name).join(', ')}`),
+      ),
+      el('span', { class: 'wo-chevron' }, '›'),
+    ));
+  } else if (!locked) {
+    wrap.append(el('button', { class: 'ghost-btn', onclick: open }, '+ Log workout'));
+  }
+  return wrap;
 }
 
 function trackerCard(t, iso, entry, locked) {

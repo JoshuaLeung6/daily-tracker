@@ -1,11 +1,18 @@
-# Daily Tracker
+# Personal Fitness Tracker
 
-A personal daily-tracking calendar PWA: log calories, protein, workouts — or any
+A low-pressure personal fitness PWA: log calories, protein, workouts — or any
 tracker you define — against a day/week/month calendar. Tracker types: number,
 text, checkbox, pick-one and pick-many lists. Targets can be daily or weekly,
 "reach at least" or "stay under", and are effective-dated (changing a target
 applies from today; past days keep the target they had). Daily and weekly
 streaks are tracked against targets. Light/dark/auto theme in Settings.
+
+Each day also has an optional weightlifting log: a workout is classified by
+PPL split (Push/Pull/Legs) and day type (Weight/Volume), with one row per
+lift (name × weight × reps × sets). New workouts pre-fill from the last
+workout of the same classification, lift names autocomplete from history,
+and the Stats tab shows per-lift bests, last session, trend, and full
+history. Logging a workout auto-checks the Weightlifting tracker.
 
 Built as plain HTML/CSS/JS with zero dependencies and no build step; the repo
 root **is** the deployed site.
@@ -55,6 +62,7 @@ js/app.js             entry point, tabs, date context, APP_VERSION
 js/theme.js           light/dark/auto switching (bootstrap copy inline in index.html)
 js/store.js           localStorage document + debounced autosave (only module touching storage)
 js/trackers.js        tracker CRUD, effective-dated targets, streaks
+js/workouts.js        workout log: PPL classification, template/lift memory, stats
 js/dates.js           local-date helpers (never UTC for day keys)
 js/backup.js          export (iOS share sheet) / import with undo
 js/views/*.js         day / week / month / settings

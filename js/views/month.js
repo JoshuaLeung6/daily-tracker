@@ -3,6 +3,7 @@
 import { el } from '../ui.js';
 import { todayISO, addMonths, monthGrid, monthTitle, fmt, startOfWeek, addDays } from '../dates.js';
 import { getEntry } from '../store.js';
+import { getWorkout } from '../workouts.js';
 
 export function render(container, ctx) {
   const today = todayISO();
@@ -31,7 +32,7 @@ export function render(container, ctx) {
       grid.append(el('div', { class: 'month-cell is-empty' }));
       continue;
     }
-    const count = Object.keys(getEntry(iso)).length;
+    const count = Object.keys(getEntry(iso)).length + (getWorkout(iso) ? 1 : 0);
     const dots = el('span', { class: 'dots' });
     for (let i = 0; i < Math.min(count, 3); i++) dots.append(el('i'));
     if (count > 3) dots.append(el('span', { class: 'more' }, `+${count - 3}`));
