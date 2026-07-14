@@ -67,7 +67,7 @@ export function render(container, ctx) {
   const trackerSection = el('div', { class: 'settings-section' },
     el('h2', {}, 'Trackers'),
     list,
-    addForm(rerender),
+    el('button', { class: 'ghost-btn', onclick: () => openAddSheet(rerender) }, '+ Add tracker'),
   );
 
   // ----- backup -----
@@ -333,7 +333,7 @@ function editRow(t, rerender) {
   );
 }
 
-function addForm(rerender) {
+function openAddSheet(rerender) {
   const nameInput = el('input', { type: 'text', placeholder: 'e.g. Weight, Sleep, Steps', 'aria-label': 'New tracker name' });
   const typeSelect = el('select', { 'aria-label': 'Tracker type' },
     ...TYPES.map((v) => el('option', { value: v }, TYPE_LABELS[v])),
@@ -351,28 +351,43 @@ function addForm(rerender) {
     optionsField.hidden = !OPTION_TYPES.includes(typeSelect.value);
   });
 
-  return el('div', { class: 'add-form' },
+  const backdrop = el('div', { class: 'sheet-backdrop' });
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const close = () => {
+    backdrop.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  document.addEventListener('keydown', onKey);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+
+  const add = () => {
+    const name = nameInput.value.trim();
+    if (!name) { alert('Give the tracker a name.'); return; }
+    const type = typeSelect.value;
+    const options = parseOptions(optionsField.querySelector('input').value);
+    if (OPTION_TYPES.includes(type) && options.length === 0) {
+      alert('Add at least one option, separated by commas.');
+      return;
+    }
+    addTracker({ name, type, unit: unitField.querySelector('input').value, options });
+    close();
+    rerender();
+  };
+
+  backdrop.append(el('div', { class: 'sheet add-form', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Add tracker' },
+    el('h2', {}, 'New tracker'),
     el('div', { class: 'field' }, el('label', {}, 'Name'), nameInput),
     el('div', { class: 'field' }, el('label', {}, 'Type'), typeSelect),
     unitField,
     optionsField,
-    el('button', {
-      class: 'btn primary',
-      onclick: () => {
-        const name = nameInput.value.trim();
-        if (!name) { alert('Give the tracker a name.'); return; }
-        const type = typeSelect.value;
-        const options = parseOptions(optionsField.querySelector('input').value);
-        if (OPTION_TYPES.includes(type) && options.length === 0) {
-          alert('Add at least one option, separated by commas.');
-          return;
-        }
-        addTracker({ name, type, unit: unitField.querySelector('input').value, options });
-        rerender();
-      },
-    }, 'Add tracker'),
+    el('div', { class: 'btn-row' },
+      el('button', { class: 'btn primary', onclick: add }, 'Add tracker'),
+      el('button', { class: 'btn', onclick: close }, 'Cancel'),
+    ),
     el('div', { class: 'settings-note' }, 'Set a target from the tracker’s ✎ edit screen after adding it.'),
-  );
+  ));
+  document.body.append(backdrop);
+  nameInput.focus();
 }
 
 function parseOptions(str) {

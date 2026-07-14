@@ -858,6 +858,40 @@ html[data-theme="light"] body::before {
 
 /* ---------- feedback ---------- */
 
+/* bottom sheet */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet {
+  background: var(--bg);
+  border: none;
+  border-top: 1px solid var(--line);
+  border-radius: 20px 20px 0 0;
+  padding: 22px 18px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  max-height: 85dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sheet h2 {
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+@media (min-width: 560px) {
+  .sheet { max-width: 480px; margin: 0 auto; width: 100%; }
+}
+
 .saved-flash {
   position: fixed;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
