@@ -9,10 +9,15 @@ streaks are tracked against targets. Light/dark/auto theme in Settings.
 
 Each day also has an optional weightlifting log: a workout is classified by
 PPL split (Push/Pull/Legs) and day type (Weight/Volume), with one row per
-lift (name × weight × reps × sets). New workouts pre-fill from the last
-workout of the same classification, lift names autocomplete from history,
-and the Stats tab shows per-lift bests, last session, trend, and full
-history. Logging a workout auto-checks the Weightlifting tracker.
+lift (name × weight × reps × sets). Rows always start empty — the last
+same-classification workout appears as one-tap suggestion chips, lifts come
+from a searchable picker over your history, and each row previews your last
+session ("last weight day: 185 × 8 × 3"). Progress trends use estimated 1RM
+(Epley) on weight days and total volume on volume days, compared only within
+the same day type. The Progress tab charts body weight against its goal line,
+per-lift e1RM over time, and weekly training volume (SVG, no dependencies).
+An optional profile (birth year, height, sex, units) rides along in exports
+for analysis. Logging a workout auto-checks the Weightlifting tracker.
 
 Built as plain HTML/CSS/JS with zero dependencies and no build step; the repo
 root **is** the deployed site.

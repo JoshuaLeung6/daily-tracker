@@ -1,7 +1,7 @@
 // Cache-first service worker. Bump CACHE on EVERY deploy (and APP_VERSION
 // in js/app.js) — that byte change is what triggers the update.
 
-const CACHE = 'pcal-v11';
+const CACHE = 'pcal-v12';
 
 const ASSETS = [
   './',
@@ -13,6 +13,7 @@ const ASSETS = [
   './js/store.js',
   './js/trackers.js',
   './js/workouts.js',
+  './js/charts.js',
   './js/dates.js',
   './js/backup.js',
   './js/ui.js',

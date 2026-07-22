@@ -1,7 +1,7 @@
 // Settings — appearance, manage trackers (with targets), back up data, app info.
 
 import { el } from '../ui.js';
-import { loggedDayCount } from '../store.js';
+import { loggedDayCount, getProfile, setProfile } from '../store.js';
 import { todayISO } from '../dates.js';
 import {
   allTrackers, addTracker, updateTracker, moveTracker,
@@ -68,6 +68,45 @@ export function render(container, ctx) {
     el('h2', {}, 'Trackers'),
     list,
     el('button', { class: 'ghost-btn', onclick: () => openAddSheet(rerender) }, '+ Add tracker'),
+  );
+
+  // ----- profile (optional; travels with exports for analysis) -----
+  const profile = getProfile();
+  const profileField = (label, key, attrs = {}) => {
+    const input = el('input', {
+      type: 'text', 'aria-label': label,
+      value: profile[key] != null ? String(profile[key]) : '',
+      ...attrs,
+    });
+    input.addEventListener('input', () => {
+      const raw = input.value.trim();
+      setProfile({ [key]: attrs.inputmode === 'numeric' ? (parseInt(raw, 10) || '') : raw });
+    });
+    return el('div', { class: 'field' }, el('label', {}, label), input);
+  };
+  const sexSel = el('select', { 'aria-label': 'Sex' },
+    el('option', { value: '' }, '—'),
+    el('option', { value: 'male' }, 'Male'),
+    el('option', { value: 'female' }, 'Female'),
+    el('option', { value: 'other' }, 'Other'),
+  );
+  sexSel.value = profile.sex || '';
+  sexSel.addEventListener('change', () => setProfile({ sex: sexSel.value }));
+  const unitsSel = el('select', { 'aria-label': 'Preferred units' },
+    el('option', { value: 'lb' }, 'Pounds (lb)'),
+    el('option', { value: 'kg' }, 'Kilograms (kg)'),
+  );
+  unitsSel.value = profile.units || 'lb';
+  unitsSel.addEventListener('change', () => setProfile({ units: unitsSel.value }));
+
+  const profileSection = el('div', { class: 'settings-section' },
+    el('h2', {}, 'Profile'),
+    profileField('Birth year', 'birthYear', { inputmode: 'numeric', placeholder: 'e.g. 1998' }),
+    profileField('Height', 'height', { placeholder: 'e.g. 5\'10" or 178 cm' }),
+    el('div', { class: 'field' }, el('label', {}, 'Sex'), sexSel),
+    el('div', { class: 'field' }, el('label', {}, 'Units'), unitsSel),
+    el('div', { class: 'settings-note' },
+      'Optional — included in exports so future analysis has context. Leave anything blank.'),
   );
 
   // ----- backup -----
@@ -140,7 +179,7 @@ export function render(container, ctx) {
   );
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }),
-    appearanceSection, trackerSection, backupSection, aboutSection);
+    appearanceSection, trackerSection, profileSection, backupSection, aboutSection);
 }
 
 function targetDesc(t) {

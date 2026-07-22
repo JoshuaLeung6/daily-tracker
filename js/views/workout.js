@@ -1,23 +1,22 @@
-// Workout editor — a full-screen sheet over the day view. New workouts start
-// from the last workout of the same classification; nothing is saved until
-// the user actually touches a lift.
+// Workout editor — a full-screen sheet over the day view.
+// Numbers are NEVER pre-filled: every row starts empty and shows what you
+// did last time as a reference to beat. Lift names come from one-tap
+// suggestion chips (last same-classification workout) or a picker sheet
+// with your full lift history.
 
 import { el } from '../ui.js';
 import { fmt, weekdayName } from '../dates.js';
 import {
   SPLITS, SPLIT_LABELS, FOCUSES, FOCUS_LABELS,
   getWorkout, saveWorkout, deleteWorkout, templateFor, suggestedClass,
-  liftNames, lastLift,
+  liftNames, lastLiftOfFocus,
 } from '../workouts.js';
 
 export function openWorkout(iso, { locked = false, onClose } = {}) {
   const existing = getWorkout(iso);
   const draft = existing
     ? { split: existing.split, focus: existing.focus, lifts: existing.lifts.map((l) => ({ ...l })) }
-    : (() => {
-        const cls = suggestedClass(iso);
-        return { ...cls, lifts: templateFor(cls.split, cls.focus, iso) };
-      })();
+    : { ...suggestedClass(iso), lifts: [] };
 
   let dirty = Boolean(existing);
   const persist = () => { if (dirty && !locked) saveWorkout(iso, draft); };
@@ -30,22 +29,27 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     if (onClose) onClose();
   };
 
-  const datalist = el('datalist', { id: 'wo-lift-names' });
-  const refreshNames = () => {
-    datalist.replaceChildren(...liftNames(draft.split).map((n) => el('option', { value: n })));
+  const addLift = (name) => {
+    draft.lifts.push({ name, weight: null, reps: null, sets: null });
+    if (name) touch();
+    renderRows();
+    renderSuggestions();
+    if (!name) {
+      const inputs = rows.querySelectorAll('.lift-name');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    }
   };
-  refreshNames();
 
   // classification segments
   const splitSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Split' });
   const focusSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Day type' });
   const renderSegs = () => {
-    splitSeg.replaceChildren(...SPLITS.map((s) => el('button', {
+    splitSeg.replaceChildren(...SPLITS.map((sp) => el('button', {
       class: 'seg-btn',
-      'aria-pressed': String(draft.split === s),
+      'aria-pressed': String(draft.split === sp),
       disabled: locked,
-      onclick: () => setClass({ split: s }),
-    }, SPLIT_LABELS[s])));
+      onclick: () => setClass({ split: sp }),
+    }, SPLIT_LABELS[sp])));
     focusSeg.replaceChildren(...FOCUSES.map((f) => el('button', {
       class: 'seg-btn',
       'aria-pressed': String(draft.focus === f),
@@ -55,12 +59,27 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
   };
   const setClass = (patch) => {
     Object.assign(draft, patch);
-    // untouched drafts re-template from the new classification's history
-    if (!dirty) draft.lifts = templateFor(draft.split, draft.focus, iso);
-    else persist();
-    refreshNames();
+    if (dirty) persist();
     renderSegs();
-    renderRows();
+    renderRows();          // previews depend on focus
+    renderSuggestions();   // suggestions depend on classification
+  };
+
+  // one-tap suggestions: lift names from the last same-classification workout
+  const suggestWrap = el('div', { class: 'suggest-wrap' });
+  const renderSuggestions = () => {
+    suggestWrap.replaceChildren();
+    if (locked) return;
+    const added = new Set(draft.lifts.map((l) => (l.name || '').trim().toLowerCase()));
+    const names = templateFor(draft.split, draft.focus, iso)
+      .map((l) => l.name)
+      .filter((n) => !added.has(n.trim().toLowerCase()));
+    if (names.length === 0) return;
+    suggestWrap.append(
+      el('div', { class: 'wo-seg-label' }, `Last ${SPLIT_LABELS[draft.split]} · ${FOCUS_LABELS[draft.focus]}`),
+      el('div', { class: 'chips' }, ...names.map((n) =>
+        el('button', { class: 'chip chip-suggest', onclick: () => addLift(n) }, `+ ${n}`))),
+    );
   };
 
   // lift rows
@@ -70,7 +89,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     draft.lifts.forEach((lift, i) => rows.append(liftRow(lift, i)));
     if (draft.lifts.length === 0) {
       rows.append(el('div', { class: 'empty-state' },
-        locked ? 'No lifts logged.' : 'No lifts yet — add your first below.'));
+        locked ? 'No lifts logged.' : 'No lifts yet — tap a suggestion or add one below.'));
     }
   };
 
@@ -95,29 +114,33 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     return input;
   };
 
+  const previewText = (name) => {
+    if (!name || !name.trim()) return '';
+    const same = lastLiftOfFocus(name, draft.focus, iso);
+    const any = same || lastLiftOfFocus(name, null, iso);
+    if (!any) return 'first time — no previous sessions';
+    const setStr = [any.weight, any.reps, any.sets].filter((v) => v != null)
+      .map((v) => v.toLocaleString()).join(' × ') || '—';
+    const label = same ? `last ${FOCUS_LABELS[any.focus].toLowerCase()}` : `last (${FOCUS_LABELS[any.focus].toLowerCase()})`;
+    return `${label}: ${setStr} · ${fmt(any.date, { month: 'short', day: 'numeric' })}`;
+  };
+
   const liftRow = (lift, index) => {
     const name = el('input', {
       type: 'text',
       class: 'lift-name',
-      list: 'wo-lift-names',
       placeholder: 'Lift',
       autocomplete: 'off',
       'aria-label': 'Lift name',
       readonly: locked,
       value: lift.name || '',
     });
+    const preview = el('div', { class: 'lift-preview' }, previewText(lift.name));
     name.addEventListener('input', () => {
       lift.name = name.value;
       touch();
-    });
-    // picking a known lift fills in its last numbers
-    name.addEventListener('change', () => {
-      if (lift.weight != null || lift.reps != null || lift.sets != null) return;
-      const prev = lastLift(name.value, iso);
-      if (!prev) return;
-      Object.assign(lift, { weight: prev.weight, reps: prev.reps, sets: prev.sets });
-      touch();
-      renderRows();
+      preview.textContent = previewText(lift.name);
+      renderSuggestions();
     });
 
     const remove = el('button', {
@@ -128,26 +151,81 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
         draft.lifts.splice(index, 1);
         touch();
         renderRows();
+        renderSuggestions();
       },
     }, '✕');
 
-    return el('div', { class: 'lift-row' },
-      name,
-      numInput(lift, 'weight', 'Weight', false),
-      numInput(lift, 'reps', 'Reps', true),
-      numInput(lift, 'sets', 'Sets', true),
-      remove,
+    return el('div', { class: 'lift-block' },
+      el('div', { class: 'lift-row' },
+        name,
+        numInput(lift, 'weight', 'Weight', false),
+        numInput(lift, 'reps', 'Reps', true),
+        numInput(lift, 'sets', 'Sets', true),
+        remove,
+      ),
+      preview,
     );
+  };
+
+  // lift picker sheet — full history, search, add-new
+  const openPicker = () => {
+    const backdrop = el('div', { class: 'sheet-backdrop' });
+    const closePicker = () => backdrop.remove();
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closePicker(); });
+
+    const search = el('input', { type: 'text', placeholder: 'Search or type a new lift…', 'aria-label': 'Search lifts' });
+    const listEl = el('div', { class: 'pick-list' });
+    const added = new Set(draft.lifts.map((l) => (l.name || '').trim().toLowerCase()));
+    const splitNames = liftNames(draft.split);
+    const otherNames = liftNames().filter((n) => !splitNames.includes(n));
+
+    const renderList = () => {
+      const q = search.value.trim().toLowerCase();
+      listEl.replaceChildren();
+      const match = (n) => !q || n.toLowerCase().includes(q);
+      const pickRow = (n) => el('button', {
+        class: 'pick-row', disabled: added.has(n.toLowerCase()),
+        onclick: () => { addLift(n); closePicker(); },
+      },
+        el('span', {}, n),
+        el('span', { class: 'pick-hint' }, added.has(n.toLowerCase()) ? 'added' : previewText(n).replace(/^last [^:]*: /, '')),
+      );
+      const inSplit = splitNames.filter(match);
+      const others = otherNames.filter(match);
+      if (q && ![...splitNames, ...otherNames].some((n) => n.toLowerCase() === q)) {
+        listEl.append(el('button', {
+          class: 'pick-row pick-new',
+          onclick: () => { addLift(search.value.trim()); closePicker(); },
+        }, `＋ New lift “${search.value.trim()}”`));
+      }
+      if (inSplit.length) listEl.append(el('div', { class: 'pick-head' }, `${SPLIT_LABELS[draft.split]} lifts`), ...inSplit.map(pickRow));
+      if (others.length) listEl.append(el('div', { class: 'pick-head' }, 'Other lifts'), ...others.map(pickRow));
+      if (!inSplit.length && !others.length && !q) {
+        listEl.append(el('div', { class: 'empty-state' }, 'No lifts logged yet — type a name above.'));
+      }
+    };
+    search.addEventListener('input', renderList);
+    renderList();
+
+    backdrop.append(el('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Add lift' },
+      el('h2', {}, 'Add lift'),
+      el('div', { class: 'field' }, search),
+      listEl,
+    ));
+    document.body.append(backdrop);
+    search.focus();
   };
 
   renderSegs();
   renderRows();
+  renderSuggestions();
 
   const body = el('div', { class: 'wo-body' },
     el('div', { class: 'wo-seg-label' }, 'Split'),
     splitSeg,
     el('div', { class: 'wo-seg-label' }, 'Day type'),
     focusSeg,
+    suggestWrap,
     el('div', { class: 'lift-labels' },
       el('span', { class: 'll-name' }, 'Lift'),
       el('span', {}, 'Weight'),
@@ -156,16 +234,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
       el('span', { class: 'll-x' }),
     ),
     rows,
-    !locked && el('button', {
-      class: 'ghost-btn',
-      onclick: () => {
-        draft.lifts.push({ name: '', weight: null, reps: null, sets: null });
-        dirty = true;
-        renderRows();
-        const inputs = rows.querySelectorAll('.lift-name');
-        if (inputs.length) inputs[inputs.length - 1].focus();
-      },
-    }, '+ Add lift'),
+    !locked && el('button', { class: 'ghost-btn', onclick: openPicker }, '+ Add lift'),
     !locked && existing && el('button', {
       class: 'btn danger wo-delete',
       onclick: () => {
@@ -177,7 +246,6 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
         }
       },
     }, 'Delete workout'),
-    datalist,
   );
 
   overlay.append(

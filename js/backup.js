@@ -17,6 +17,7 @@ export async function exportData() {
     entries: doc.entries,
     workouts: doc.workouts || {},
     liftGoals: doc.liftGoals || {},
+    profile: doc.profile || {},
   };
   const json = JSON.stringify(payload, null, 2);
   const name = `tracker-backup-${todayISO()}.json`;
@@ -90,6 +91,7 @@ export function applyImport(backup) {
     entries: backup.entries,
     workouts: backup.workouts || {},
     liftGoals: backup.liftGoals || {},
+    profile: backup.profile || {},
   });
 }
 

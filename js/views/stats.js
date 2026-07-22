@@ -5,7 +5,7 @@
 
 import { el } from '../ui.js';
 import { fmt, todayISO, addDays, startOfWeek } from '../dates.js';
-import { getEntry } from '../store.js';
+import { getEntry, getData } from '../store.js';
 import {
   activeTrackers, allTrackers, addTracker, targetFor,
   dayMeets, weekMeets, streakFor, weekStreakFor,
@@ -14,8 +14,9 @@ import {
 } from '../trackers.js';
 import {
   SPLITS, SPLIT_LABELS, FOCUS_LABELS, workoutCounts, liftStats,
-  liftGoal, setLiftGoal,
+  liftGoal, setLiftGoal, weeklyVolume,
 } from '../workouts.js';
+import { lineChart, barChart } from '../charts.js';
 
 let pane = 'goals';
 let filterSplit = null;
@@ -99,7 +100,7 @@ function goalCard(t, rerender) {
   const fill = el('i', { class: 'goal-fill' });
   fill.style.width = Math.round(p.pct * 100) + '%';
 
-  return el('div', { class: 'card goal-card' },
+  const card = el('div', { class: 'card goal-card' },
     el('div', { class: 'gc-head' },
       el('span', { class: 'gc-name' }, t.name),
       el('button', {
@@ -115,6 +116,25 @@ function goalCard(t, rerender) {
     el('div', { class: 'wt-bar gc-bar' }, fill),
     el('div', { class: 'gc-status' + (p.done ? ' done' : '') }, status),
   );
+
+  // trendline of every logged measurement, with the goal as a reference line
+  const series = measurementSeries(t.id);
+  if (series.length >= 2) {
+    card.append(lineChart({
+      points: series,
+      goal: { value: p.target, label: `goal ${fmtN(p.target)}` },
+      unit: t.unit || '',
+      ariaLabel: `${t.name} over time`,
+    }));
+  }
+  return card;
+}
+
+function measurementSeries(id) {
+  return Object.entries(getData().entries)
+    .filter(([, day]) => typeof day[id] === 'number')
+    .map(([iso, day]) => ({ iso, value: day[id] }))
+    .sort((a, b) => (a.iso < b.iso ? -1 : 1));
 }
 
 function goalForm(t, rerender) {
@@ -288,6 +308,21 @@ function liftingPane(rerender) {
     }, SPLIT_LABELS[s])),
   ));
 
+  // weekly training volume (respects the split filter)
+  const weeks = weeklyVolume(8, filterSplit);
+  if (weeks.some((w) => w.value > 0)) {
+    wrap.append(el('div', { class: 'card chart-card' },
+      el('div', { class: 'gc-head' },
+        el('span', { class: 'gc-name' }, 'Weekly volume'),
+        el('span', { class: 'att-desc' }, filterSplit ? SPLIT_LABELS[filterSplit] : 'all splits'),
+      ),
+      barChart({
+        bars: weeks.map((w) => ({ label: fmt(w.startISO, { month: 'short', day: 'numeric' }), value: w.value })),
+        ariaLabel: 'Weekly lifted volume, last 8 weeks',
+      }),
+    ));
+  }
+
   const stats = liftStats(filterSplit);
   const list = el('div', { class: 'stat-list' });
   for (const s of stats) list.append(liftRow(s, rerender));
@@ -305,13 +340,6 @@ function statTile(value, label) {
   );
 }
 
-function trendOf(s) {
-  if (!s.prev || s.last.weight == null || s.prev.weight == null) return null;
-  if (s.last.weight > s.prev.weight) return 'up';
-  if (s.last.weight < s.prev.weight) return 'down';
-  return 'flat';
-}
-
 function setStr(h) {
   const parts = [];
   if (h.weight != null) parts.push(h.weight.toLocaleString());
@@ -323,9 +351,16 @@ function setStr(h) {
 function liftRow(s, rerender) {
   const key = s.name.toLowerCase();
   const expanded = expandedLift === key;
-  const trend = trendOf(s);
+  const trend = s.trend;
 
   const metaBits = [];
+  // trend metric first, so the arrow is explainable: e1RM on weight days,
+  // total volume on volume days — always compared within the same day type
+  if (s.trendInfo && s.trendInfo.cur != null) {
+    metaBits.push(s.trendInfo.kind === 'e1rm'
+      ? `e1RM ${fmtN(s.trendInfo.cur)}`
+      : `vol ${Math.round(s.trendInfo.cur).toLocaleString()}`);
+  }
   if (s.best && s.best.weight != null) {
     metaBits.push(`best ${s.best.weight.toLocaleString()}${s.best.reps != null ? ' × ' + s.best.reps : ''}`);
   }
@@ -381,6 +416,18 @@ function liftRow(s, rerender) {
   );
 
   const history = el('div', { class: 'sr-history' }, goalRow);
+
+  // e1RM works across day types, so one line tells the strength story
+  const e1rmPoints = s.history
+    .filter((h) => h.e1rm != null)
+    .map((h) => ({ iso: h.date, value: Math.round(h.e1rm * 10) / 10 }));
+  if (e1rmPoints.length >= 2) {
+    history.append(
+      el('div', { class: 'ch-caption' }, 'estimated 1RM over time'),
+      lineChart({ points: e1rmPoints, ariaLabel: `${s.name} estimated 1RM over time` }),
+    );
+  }
+
   for (const h of [...s.history].reverse()) {
     history.append(el('div', { class: 'sr-hrow' },
       el('span', { class: 'sr-hdate' }, fmt(h.date, { month: 'short', day: 'numeric' })),

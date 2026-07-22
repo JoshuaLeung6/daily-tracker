@@ -8,7 +8,7 @@
 // }
 
 import { getData, persistNow, setValue } from './store.js';
-import { todayISO } from './dates.js';
+import { todayISO, addDays, startOfWeek } from './dates.js';
 
 export const SPLITS = ['push', 'pull', 'legs'];
 export const SPLIT_LABELS = { push: 'Push', pull: 'Pull', legs: 'Legs' };
@@ -117,6 +117,21 @@ export function setLiftGoal(name, target) {
   persistNow();
 }
 
+// ----- derived metrics -----
+// e1RM (Epley): weight x (1 + reps/30) — folds reps into a strength
+// estimate so 185x8 correctly beats 185x6. Volume: weight x reps x sets.
+
+export function epley(weight, reps) {
+  if (weight == null) return null;
+  if (reps == null || reps <= 1) return weight;
+  return weight * (1 + reps / 30);
+}
+
+export function liftVolume(l) {
+  if (l.weight == null || l.reps == null || l.sets == null) return null;
+  return l.weight * l.reps * l.sets;
+}
+
 // ----- stats -----
 
 export function workoutCounts() {
@@ -146,18 +161,80 @@ export function liftStats(filterSplit) {
   }
   const out = [...map.values()];
   for (const s of out) {
+    for (const h of s.history) {
+      h.e1rm = epley(h.weight, h.reps);
+      h.vol = liftVolume(h);
+    }
     s.sessions = s.history.length;
     s.last = s.history[s.history.length - 1];
-    s.prev = s.history.length > 1 ? s.history[s.history.length - 2] : null;
     s.best = s.history.reduce(
       (best, h) => (h.weight != null && (best === null || h.weight > best.weight) ? h : best),
       null,
     );
+    s.bestE1rm = s.history.reduce(
+      (best, h) => (h.e1rm != null && (best === null || h.e1rm > best.e1rm) ? h : best),
+      null,
+    );
+    s.bestVol = s.history.reduce(
+      (best, h) => (h.vol != null && (best === null || h.vol > best.vol) ? h : best),
+      null,
+    );
+
+    // Trend compares the latest session against the previous session of the
+    // SAME day type — weight days trend on e1RM, volume days on volume.
+    const kind = s.last.focus === 'volume' ? 'vol' : 'e1rm';
+    const sameFocus = s.history.filter((h) => h.focus === s.last.focus);
+    const prevSame = sameFocus.length > 1 ? sameFocus[sameFocus.length - 2] : null;
+    const cur = s.last[kind];
+    const prev = prevSame ? prevSame[kind] : null;
+    s.trendInfo = { kind, cur, prev };
+    s.trend = cur == null || prev == null ? null
+      : cur > prev + 1e-9 ? 'up'
+      : cur < prev - 1e-9 ? 'down'
+      : 'flat';
+
     s.goal = liftGoal(s.name);
     s.goalPct = s.goal && s.best && s.best.weight != null
       ? Math.min(1, s.best.weight / s.goal.target)
       : null;
   }
   out.sort((a, b) => (a.last.date < b.last.date ? 1 : -1));
+  return out;
+}
+
+// Most recent performance of a named lift before a date, optionally
+// restricted to one day type — powers the "last: 185 x 8 x 3" previews.
+export function lastLiftOfFocus(name, focus, beforeISO) {
+  const key = name.trim().toLowerCase();
+  let found = null;
+  for (const w of allWorkouts()) {
+    if (beforeISO && w.date >= beforeISO) continue;
+    if (focus && w.focus !== focus) continue;
+    for (const l of w.lifts) {
+      if (l.name.toLowerCase() === key) found = { ...l, date: w.date, focus: w.focus };
+    }
+  }
+  return found;
+}
+
+// Total lifted volume per week for the last `weeks` weeks (oldest first),
+// optionally filtered to one split. Weeks with no workouts count as 0.
+export function weeklyVolume(weeks = 8, split = null) {
+  const thisWeek = startOfWeek(todayISO());
+  const out = [];
+  for (let i = weeks - 1; i >= 0; i--) {
+    const ws = addDays(thisWeek, -7 * i);
+    const we = addDays(ws, 7);
+    let sum = 0;
+    for (const w of allWorkouts()) {
+      if (w.date < ws || w.date >= we) continue;
+      if (split && w.split !== split) continue;
+      for (const l of w.lifts) {
+        const v = liftVolume(l);
+        if (v != null) sum += v;
+      }
+    }
+    out.push({ startISO: ws, value: sum });
+  }
   return out;
 }

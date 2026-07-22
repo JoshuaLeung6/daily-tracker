@@ -489,6 +489,56 @@ html[data-theme="light"] body::before {
 
 .workout-overlay .ghost-btn { margin-top: 10px; }
 
+.suggest-wrap { margin-top: 4px; }
+.chip-suggest { border-style: dashed; color: var(--accent); border-color: var(--line); }
+
+.lift-block { display: flex; flex-direction: column; gap: 3px; }
+.lift-preview {
+  font-size: 12px;
+  color: var(--faint);
+  padding: 0 2px;
+  min-height: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* lift picker sheet */
+.pick-list { display: flex; flex-direction: column; max-height: 45dvh; overflow-y: auto; }
+
+.pick-head {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 12px 2px 6px;
+}
+
+.pick-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  min-height: 46px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 16px;
+}
+
+.pick-row:disabled { opacity: 0.45; }
+.pick-row.pick-new { color: var(--accent); font-weight: 600; }
+.pick-hint { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+.sheet .field input[type="text"] {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 16px;
+  padding: 11px 12px;
+  width: 100%;
+}
+
 /* ---------- progress: goals & attainment ---------- */
 
 .pane { margin-top: 16px; }
@@ -571,6 +621,34 @@ html[data-theme="light"] body::before {
   width: 100%;
   -webkit-appearance: none;
   appearance: none;
+}
+
+/* ---------- charts ---------- */
+
+.chart { width: 100%; height: auto; display: block; margin-top: 6px; touch-action: pan-y; }
+.chart-card { flex-direction: column; align-items: stretch; gap: 4px; margin: 14px 0 0; }
+
+.ch-grid { stroke: var(--hairline); stroke-width: 1; }
+.ch-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.ch-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.ch-bar { fill: var(--accent); }
+.ch-bar-zero { fill: var(--line); }
+.ch-goal { stroke: var(--goal); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.ch-goal-lab { fill: var(--goal); font-size: 10px; font-weight: 600; }
+.ch-lab { fill: var(--faint); font-size: 10px; }
+.ch-val { fill: var(--muted); font-size: 11px; font-weight: 600; }
+.ch-end { text-anchor: end; }
+.ch-cross { stroke: var(--line); stroke-width: 1; }
+.ch-ring { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+.ch-tip-bg { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; }
+.ch-tip { fill: var(--ink); font-size: 10px; text-anchor: middle; font-variant-numeric: tabular-nums; }
+.ch-caption {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 12px;
 }
 
 /* ---------- stats ---------- */

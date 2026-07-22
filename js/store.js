@@ -25,6 +25,7 @@ function seed() {
     entries: {},
     workouts: {},
     liftGoals: {},
+    profile: {},
   };
 }
 
@@ -95,6 +96,7 @@ export function init({ onStorageError } = {}) {
   }
   data.workouts ??= {};
   data.liftGoals ??= {};
+  data.profile ??= {};
 
   window.addEventListener('pagehide', () => persistNow());
   document.addEventListener('visibilitychange', () => {
@@ -183,6 +185,20 @@ export function getPreImportSnapshot() {
 
 export function clearPreImportSnapshot() {
   localStorage.removeItem(KEY_PRE_IMPORT);
+}
+
+// ----- profile (optional personal context for analysis) -----
+
+export function getProfile() {
+  return data.profile;
+}
+
+export function setProfile(patch) {
+  Object.assign(data.profile, patch);
+  for (const k of Object.keys(data.profile)) {
+    if (data.profile[k] === '' || data.profile[k] == null) delete data.profile[k];
+  }
+  scheduleSave();
 }
 
 // ----- theme preference -----
