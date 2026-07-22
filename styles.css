@@ -563,6 +563,22 @@ html[data-theme="light"] body::before {
 .gc-status { font-size: 13px; color: var(--muted); }
 .gc-status.done { color: var(--goal); font-weight: 600; }
 
+.gc-insight {
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 9px 12px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.gc-window { color: var(--faint); font-size: 12px; white-space: nowrap; }
+.gc-pace { font-weight: 600; color: var(--muted); }
+.gc-pace.pace-good { color: var(--met-day); }
+.gc-pace.pace-bad { color: var(--danger); }
+
+.pr-star { color: var(--accent); font-weight: 700; font-size: 13px; }
+
 .att-desc { font-size: 12px; font-weight: 600; color: var(--faint); text-align: right; }
 .met-day-text.on { color: var(--met-day); }
 .met-week-text.on { color: var(--met-week); }
@@ -670,6 +686,8 @@ html[data-theme="light"] body::before {
 
 .st-value { font-family: var(--serif); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .st-label { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+.st-sub { font-size: 10px; color: var(--faint); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.st-sub.warn { color: var(--danger); font-weight: 600; }
 
 .stat-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 

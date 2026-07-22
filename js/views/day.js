@@ -5,7 +5,7 @@ import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
 import { getEntry, setValue, persistNow } from '../store.js';
 import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets, previousValue } from '../trackers.js';
-import { getWorkout, SPLIT_LABELS, FOCUS_LABELS } from '../workouts.js';
+import { getWorkout, SPLIT_LABELS, FOCUS_LABELS, sessionHadPR } from '../workouts.js';
 import { openWorkout } from './workout.js';
 
 // Past days are read-only unless explicitly unlocked; the unlock covers one
@@ -100,7 +100,10 @@ function workoutSection(iso, locked, rerender) {
     const named = wo.lifts.filter((l) => l.name);
     wrap.append(el('button', { class: 'card workout-card', onclick: open },
       el('span', { class: 'wo-sum' },
-        el('span', { class: 'wo-class' }, `${SPLIT_LABELS[wo.split]} · ${FOCUS_LABELS[wo.focus]}`),
+        el('span', { class: 'wo-class' },
+          `${SPLIT_LABELS[wo.split]} · ${FOCUS_LABELS[wo.focus]}`,
+          sessionHadPR(iso) && el('span', { class: 'pr-star' }, ' ★ PR'),
+        ),
         el('span', { class: 'wo-meta' }, `${named.length} lift${named.length === 1 ? '' : 's'} · ${named.map((l) => l.name).join(', ')}`),
       ),
       el('span', { class: 'wo-chevron' }, '›'),

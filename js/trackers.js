@@ -310,6 +310,42 @@ export function previousValue(id, beforeISO) {
   return best;
 }
 
+// Least-squares slope of a numeric tracker over the last `days` days,
+// in units per week — the honest "trending -0.5 lb/wk" number.
+export function ratePerWeek(id, days = 28) {
+  const today = todayISO();
+  const cutoff = addDays(today, -(days - 1));
+  const pts = [];
+  for (const [iso, day] of Object.entries(getData().entries)) {
+    if (iso < cutoff || iso > today) continue;
+    if (typeof day[id] === 'number') pts.push({ x: Date.parse(iso) / 86400000, y: day[id] });
+  }
+  if (pts.length < 2) return null;
+  const span = Math.max(...pts.map((p) => p.x)) - Math.min(...pts.map((p) => p.x));
+  if (span < 5) return null; // need points spread over most of a week
+  const n = pts.length;
+  const sx = pts.reduce((a, p) => a + p.x, 0);
+  const sy = pts.reduce((a, p) => a + p.y, 0);
+  const sxx = pts.reduce((a, p) => a + p.x * p.x, 0);
+  const sxy = pts.reduce((a, p) => a + p.x * p.y, 0);
+  const denom = n * sxx - sx * sx;
+  if (denom === 0) return null;
+  return ((n * sxy - sx * sy) / denom) * 7;
+}
+
+// Average logged value per logged day over the last `days` days.
+export function avgOverDays(id, days = 28) {
+  const today = todayISO();
+  const cutoff = addDays(today, -(days - 1));
+  let sum = 0;
+  let count = 0;
+  for (const [iso, day] of Object.entries(getData().entries)) {
+    if (iso < cutoff || iso > today) continue;
+    if (typeof day[id] === 'number') { sum += day[id]; count++; }
+  }
+  return count > 0 ? { avg: sum / count, loggedDays: count } : null;
+}
+
 export function goalProgress(t) {
   if (!t.goal) return null;
   const g = t.goal;

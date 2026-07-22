@@ -8,7 +8,7 @@ import {
   deleteTracker, daysWithValue, targetFor, setTarget, clearGoal, TYPES,
 } from '../trackers.js';
 import {
-  exportData, readBackupFile, applyImport,
+  exportData, exportAnalysis, readBackupFile, applyImport,
   canUndoImport, undoImport, lastExportDays,
 } from '../backup.js';
 import { themePref, setThemePref } from '../theme.js';
@@ -136,6 +136,11 @@ export function render(container, ctx) {
     ),
     fileInput,
     exportStatusLine(),
+    el('div', { class: 'btn-row' },
+      el('button', { class: 'btn', onclick: () => exportAnalysis() }, 'Export for analysis'),
+    ),
+    el('div', { class: 'settings-note' },
+      'Analysis export uses tracker names and includes precomputed stats — the file to hand to Claude for advice. It is not a restorable backup.'),
     canUndoImport() && el('div', { class: 'btn-row' },
       el('button', {
         class: 'btn danger',

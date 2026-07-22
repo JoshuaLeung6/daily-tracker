@@ -10,11 +10,11 @@ import {
   activeTrackers, allTrackers, addTracker, targetFor,
   dayMeets, weekMeets, streakFor, weekStreakFor,
   longestStreak, longestWeekStreak, adherence, weekAdherence, dotStrip,
-  setGoal, clearGoal, goalProgress, latestValue,
+  setGoal, clearGoal, goalProgress, latestValue, ratePerWeek, avgOverDays,
 } from '../trackers.js';
 import {
   SPLITS, SPLIT_LABELS, FOCUS_LABELS, workoutCounts, liftStats,
-  liftGoal, setLiftGoal, weeklyVolume,
+  liftGoal, setLiftGoal, weeklyVolume, daysSince,
 } from '../workouts.js';
 import { lineChart, barChart } from '../charts.js';
 
@@ -117,6 +117,10 @@ function goalCard(t, rerender) {
     el('div', { class: 'gc-status' + (p.done ? ' done' : '') }, status),
   );
 
+  // intake <-> weight insight: trend rate, calorie average, pace projection
+  const insight = buildInsight(t, p);
+  if (insight) card.append(insight);
+
   // trendline of every logged measurement, with the goal as a reference line
   const series = measurementSeries(t.id);
   if (series.length >= 2) {
@@ -128,6 +132,47 @@ function goalCard(t, rerender) {
     }));
   }
   return card;
+}
+
+function buildInsight(t, p) {
+  const unit = t.unit ? ` ${t.unit}` : '';
+  const rate = ratePerWeek(t.id, 28);
+  const cal = activeTrackers().find((x) => x.type === 'number' && x.name.toLowerCase() === 'calories');
+  const intake = cal ? avgOverDays(cal.id, 28) : null;
+
+  const bits = [];
+  if (rate != null) bits.push(`trending ${signed(Math.round(rate * 10) / 10)}${unit}/wk`);
+  if (intake) bits.push(`avg ${Math.round(intake.avg).toLocaleString()} ${cal.unit || ''}/day`.trimEnd());
+  if (bits.length === 0) return null;
+
+  let pace = null;
+  let paceClass = '';
+  if (rate != null && !p.done) {
+    const remaining = p.target - p.current;
+    if (Math.abs(rate) <= 0.05) {
+      pace = 'weight holding steady';
+    } else if (Math.sign(rate) === Math.sign(remaining)) {
+      const daysTo = Math.round(remaining / (rate / 7));
+      if (daysTo <= 730) {
+        const when = addDays(todayISO(), daysTo);
+        const opts = when.slice(0, 4) === todayISO().slice(0, 4)
+          ? { month: 'short', day: 'numeric' }
+          : { month: 'short', day: 'numeric', year: 'numeric' };
+        pace = `on pace for ${fmtN(p.target)} by ${fmt(when, opts)}`;
+        paceClass = ' pace-good';
+      } else {
+        pace = 'at this pace: over 2 years out';
+      }
+    } else {
+      pace = 'trending away from the goal';
+      paceClass = ' pace-bad';
+    }
+  }
+
+  return el('div', { class: 'gc-insight' },
+    el('div', {}, bits.join(' · '), el('span', { class: 'gc-window' }, ' · last 28 days')),
+    pace && el('div', { class: 'gc-pace' + paceClass }, pace),
+  );
 }
 
 function measurementSeries(id) {
@@ -294,7 +339,11 @@ function liftingPane(rerender) {
   wrap.append(el('div', { class: 'stats-summary' },
     statTile(String(counts.total), 'workouts'),
     statTile(String(counts.thisMonth), 'this month'),
-    ...SPLITS.map((s) => statTile(String(counts.bySplit[s] || 0), SPLIT_LABELS[s].toLowerCase())),
+    ...SPLITS.map((s) => {
+      const ds = daysSince(s);
+      const sub = ds === null ? '—' : ds === 0 ? 'today' : `${ds}d ago`;
+      return statTile(String(counts.bySplit[s] || 0), SPLIT_LABELS[s].toLowerCase(), sub, ds !== null && ds >= 7);
+    }),
   ));
 
   wrap.append(el('div', { class: 'seg', role: 'group', 'aria-label': 'Filter by split' },
@@ -333,10 +382,11 @@ function liftingPane(rerender) {
   return wrap;
 }
 
-function statTile(value, label) {
+function statTile(value, label, sub, subWarn) {
   return el('div', { class: 'stat-tile' },
     el('div', { class: 'st-value' }, value),
     el('div', { class: 'st-label' }, label),
+    sub != null && el('div', { class: 'st-sub' + (subWarn ? ' warn' : '') }, sub),
   );
 }
 
@@ -371,6 +421,7 @@ function liftRow(s, rerender) {
     el('span', { class: 'sr-name' },
       s.name,
       trend && el('span', { class: `trend ${trend}` }, trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'),
+      s.last.isPR && el('span', { class: 'pr-star', title: 'New e1RM PR' }, '★'),
     ),
     el('span', { class: 'sr-meta' },
       metaBits.join(' · '),
@@ -432,7 +483,7 @@ function liftRow(s, rerender) {
     history.append(el('div', { class: 'sr-hrow' },
       el('span', { class: 'sr-hdate' }, fmt(h.date, { month: 'short', day: 'numeric' })),
       el('span', { class: 'sr-hclass' }, `${SPLIT_LABELS[h.split]} · ${FOCUS_LABELS[h.focus]}`),
-      el('span', { class: 'sr-hset' }, setStr(h)),
+      el('span', { class: 'sr-hset' }, h.isPR && el('span', { class: 'pr-star' }, '★ '), setStr(h)),
     ));
   }
   return el('div', { class: 'stat-block' }, row, history);

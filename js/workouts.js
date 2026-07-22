@@ -146,6 +146,19 @@ export function workoutCounts() {
   };
 }
 
+// Days since the last workout of a split (0 = today), or null if never.
+export function daysSince(split) {
+  const list = allWorkouts().filter((w) => w.split === split);
+  if (list.length === 0) return null;
+  const last = list[list.length - 1].date;
+  return Math.round((Date.parse(todayISO()) - Date.parse(last)) / 86400000);
+}
+
+// Did any lift set a new all-time e1RM best on this date?
+export function sessionHadPR(iso) {
+  return liftStats().some((s) => s.history.some((h) => h.date === iso && h.isPR));
+}
+
 // Per-lift aggregates, most recently trained first.
 export function liftStats(filterSplit) {
   const map = new Map();
@@ -161,9 +174,13 @@ export function liftStats(filterSplit) {
   }
   const out = [...map.values()];
   for (const s of out) {
+    let runningMax = null;
     for (const h of s.history) {
       h.e1rm = epley(h.weight, h.reps);
       h.vol = liftVolume(h);
+      // a PR beats a previous best — the first-ever session doesn't count
+      h.isPR = h.e1rm != null && runningMax != null && h.e1rm > runningMax + 1e-9;
+      if (h.e1rm != null && (runningMax === null || h.e1rm > runningMax)) runningMax = h.e1rm;
     }
     s.sessions = s.history.length;
     s.last = s.history[s.history.length - 1];
