@@ -16,6 +16,8 @@ import {
   SPLITS, SPLIT_LABELS, FOCUS_LABELS, workoutCounts, liftStats,
   liftGoal, setLiftGoal, weeklyVolume, daysSince,
 } from '../workouts.js';
+import { setTarget } from '../trackers.js';
+import { suggestedIntake, calorieTracker, PACE_PRESETS } from '../insights.js';
 import { lineChart, barChart } from '../charts.js';
 
 let pane = 'goals';
@@ -118,7 +120,7 @@ function goalCard(t, rerender) {
   );
 
   // intake <-> weight insight: trend rate, calorie average, pace projection
-  const insight = buildInsight(t, p);
+  const insight = buildInsight(t, p, rerender);
   if (insight) card.append(insight);
 
   // trendline of every logged measurement, with the goal as a reference line
@@ -134,7 +136,7 @@ function goalCard(t, rerender) {
   return card;
 }
 
-function buildInsight(t, p) {
+function buildInsight(t, p, rerender) {
   const unit = t.unit ? ` ${t.unit}` : '';
   const rate = ratePerWeek(t.id, 28);
   const cal = activeTrackers().find((x) => x.type === 'number' && x.name.toLowerCase() === 'calories');
@@ -169,9 +171,35 @@ function buildInsight(t, p) {
     }
   }
 
+  // adaptive TDEE + the goals→actions link: suggested intake, one tap to set
+  let tdeeEl = null;
+  const sug = /weight/i.test(t.name) ? suggestedIntake() : null;
+  if (sug && sug.locked) {
+    tdeeEl = el('div', { class: 'gc-tdee rp-dim' }, `Measured TDEE: ${sug.reason}.`);
+  } else if (sug) {
+    const mid = Math.round((sug.lo + sug.hi) / 2 / 10) * 10;
+    const calT = calorieTracker();
+    const cur = calT ? targetFor(calT, todayISO()) : null;
+    const showBtn = calT && (!cur || cur.period !== 'day' || Math.abs(cur.value - mid) > 50);
+    tdeeEl = el('div', { class: 'gc-tdee' },
+      el('div', {}, 'maintenance ≈ ', el('b', {}, `${Math.round(sug.tdee).toLocaleString()} ${sug.unit}`),
+        el('span', { class: 'gc-window' }, ' measured from your logs, ±200')),
+      el('div', {}, `suggested for this ${sug.phase === 'gain' ? 'bulk' : 'cut'}: `,
+        el('b', {}, `${sug.lo.toLocaleString()}–${sug.hi.toLocaleString()} ${sug.unit}/day`)),
+      showBtn && el('button', {
+        class: 'btn primary gc-setbtn',
+        onclick: () => {
+          setTarget(calT.id, { value: mid, period: 'day', dir: sug.phase === 'gain' ? 'atleast' : 'atmost' });
+          rerender();
+        },
+      }, `Set ${mid.toLocaleString()} ${sug.unit}/day as my calorie target`),
+    );
+  }
+
   return el('div', { class: 'gc-insight' },
     el('div', {}, bits.join(' · '), el('span', { class: 'gc-window' }, ' · last 28 days')),
     pace && el('div', { class: 'gc-pace' + paceClass }, pace),
+    tdeeEl,
   );
 }
 
@@ -208,6 +236,19 @@ function goalForm(t, rerender) {
   const startInput = el('input', { type: 'text', inputmode: 'decimal', 'aria-label': 'Starting value' });
   const targetInput = el('input', { type: 'text', inputmode: 'decimal', 'aria-label': 'Goal target' });
   const deadlineInput = el('input', { type: 'date', 'aria-label': 'Deadline (optional)' });
+  const paceSel = el('select', { 'aria-label': 'Pace' },
+    el('option', { value: 'conservative' }, 'Conservative'),
+    el('option', { value: 'standard' }, 'Standard (recommended)'),
+    el('option', { value: 'aggressive' }, 'Aggressive'),
+  );
+  paceSel.value = 'standard';
+  if (t && t.goal && t.goal.band) {
+    for (const phase of ['gain', 'loss']) {
+      for (const [key, preset] of Object.entries(PACE_PRESETS[phase])) {
+        if (preset.lo === t.goal.band.lo && preset.hi === t.goal.band.hi) paceSel.value = key;
+      }
+    }
+  }
 
   const prefillStart = () => {
     if (t && t.goal) { startInput.value = String(t.goal.startValue); return; }
@@ -230,7 +271,11 @@ function goalForm(t, rerender) {
     if (start === target) { alert('Target must differ from the starting value.'); return; }
     let id = t ? t.id : trackerSel.value;
     if (id === '__new_weight__') id = addTracker({ name: 'Weight', type: 'measurement', unit: 'lb' }).id;
-    setGoal(id, { startValue: start, target, deadline: deadlineInput.value || null });
+    const preset = PACE_PRESETS[target > start ? 'gain' : 'loss'][paceSel.value];
+    setGoal(id, {
+      startValue: start, target, deadline: deadlineInput.value || null,
+      band: preset ? { lo: preset.lo, hi: preset.hi } : null,
+    });
     editingGoalId = null;
     rerender();
   };
@@ -240,6 +285,7 @@ function goalForm(t, rerender) {
       el('div', { class: 'field' }, el('label', {}, 'Tracker'), trackerSel),
       el('div', { class: 'field' }, el('label', {}, 'Starting value'), startInput),
       el('div', { class: 'field' }, el('label', {}, 'Target'), targetInput),
+      el('div', { class: 'field' }, el('label', {}, 'Pace (weight goals)'), paceSel),
       el('div', { class: 'field' }, el('label', {}, 'By date (optional)'), deadlineInput),
       el('div', { class: 'btn-row' },
         el('button', { class: 'btn primary', onclick: save }, 'Save goal'),

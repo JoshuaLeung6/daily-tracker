@@ -272,10 +272,11 @@ export function dayAllMet(iso) {
 // ----- value goals (destinations: reach a number, e.g. body weight) -----
 // tracker.goal = { from, startValue, target, deadline|null }
 
-export function setGoal(id, { startValue, target, deadline }) {
+export function setGoal(id, { startValue, target, deadline, band }) {
   const t = getTracker(id);
   if (!t) return;
   t.goal = { from: todayISO(), startValue, target, deadline: deadline || null };
+  if (band) t.goal.band = { lo: band.lo, hi: band.hi };
   persistNow();
 }
 

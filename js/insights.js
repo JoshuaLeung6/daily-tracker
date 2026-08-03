@@ -11,7 +11,7 @@
 
 import { todayISO, addDays, startOfWeek, fromISO, toLocalISO } from './dates.js';
 import { getEntry, getData } from './store.js';
-import { activeTrackers, targetFor, dayMeets, dayAllMet } from './trackers.js';
+import { activeTrackers, targetFor, dayMeets, dayAllMet, ratePerWeek, avgOverDays } from './trackers.js';
 import { allWorkouts, liftVolume, liftStats, SPLITS, SPLIT_LABELS } from './workouts.js';
 
 // Mean + count of a measurement's logged values over the trailing 7 days.
@@ -57,15 +57,35 @@ function earliestValueISO(id) {
   return min;
 }
 
-// %BW/week band from the goal's direction. Null when no goal, and null for
-// non-bodyweight measurements — %BW bands don't apply to waist or body fat.
+// %BW/week band from the goal's direction (or the goal's own chosen pace).
+// Null when no goal, and null for non-bodyweight measurements — %BW bands
+// don't apply to waist or body fat.
 export function rateBand(t) {
   if (!t || !t.goal || !/weight/i.test(t.name)) return null;
   const gaining = t.goal.target > t.goal.startValue;
+  const phase = gaining ? 'gain' : 'loss';
+  if (t.goal.band && typeof t.goal.band.lo === 'number' && typeof t.goal.band.hi === 'number') {
+    const b = t.goal.band;
+    return { lo: b.lo, hi: b.hi, phase, label: `${b.lo > 0 ? '+' : ''}${b.lo}–${b.hi}%/wk` };
+  }
   return gaining
-    ? { lo: 0.1, hi: 0.25, label: '+0.1–0.25%/wk', phase: 'gain' }
-    : { lo: -1.0, hi: -0.5, label: '−0.5–1%/wk', phase: 'loss' };
+    ? { lo: 0.1, hi: 0.25, label: '+0.1–0.25%/wk', phase }
+    : { lo: -1.0, hi: -0.5, label: '−0.5–1%/wk', phase };
 }
+
+// The named pace presets a goal can choose from, per direction.
+export const PACE_PRESETS = {
+  gain: {
+    conservative: { lo: 0.05, hi: 0.15, label: 'Conservative (+0.05–0.15%/wk)' },
+    standard: { lo: 0.1, hi: 0.25, label: 'Standard (+0.1–0.25%/wk)' },
+    aggressive: { lo: 0.25, hi: 0.5, label: 'Aggressive (+0.25–0.5%/wk, more fat)' },
+  },
+  loss: {
+    conservative: { lo: -0.5, hi: -0.25, label: 'Gentle (−0.25–0.5%/wk)' },
+    standard: { lo: -1.0, hi: -0.5, label: 'Standard (−0.5–1%/wk)' },
+    aggressive: { lo: -1.25, hi: -1.0, label: 'Aggressive (−1–1.25%/wk, muscle risk)' },
+  },
+};
 
 // Rate over the 7 days ending at `endISO`, from trend weights. Requires
 // ≥3 readings in BOTH windows so the rate reflects a trend; returns null
@@ -240,6 +260,62 @@ export function weekSuggestions(report) {
 
 function fmtPct(p) {
   return `${p > 0 ? '+' : ''}${p.toFixed(2)}%/wk`;
+}
+
+// ----- adaptive TDEE & suggested intake -----
+
+function countReadings(id, days) {
+  const today = todayISO();
+  const cutoff = addDays(today, -(days - 1));
+  let n = 0;
+  for (const [iso, day] of Object.entries(getData().entries)) {
+    if (iso >= cutoff && iso <= today && typeof day[id] === 'number') n++;
+  }
+  return n;
+}
+
+// Maintenance calories measured from the user's own logs:
+// TDEE ≈ mean intake − (weekly trend Δ × 3500)/7 over 28 days.
+// Locked until the logs can carry the conclusion (principles: 3–4 weeks of
+// consistent logging; the number is "effective for how you log", ±200).
+export function adaptiveTDEE(days = 28) {
+  const cal = calorieTracker();
+  const wt = weightTracker();
+  if (!cal || !wt) return null;
+  const intake = avgOverDays(cal.id, days);
+  const intakeDays = intake ? intake.loggedDays : 0;
+  const weighIns = countReadings(wt.id, days);
+  if (intakeDays < 20 || weighIns < 12) {
+    return {
+      locked: true,
+      reason: `needs ~4 weeks of logs — ${intakeDays}/20 intake days, ${weighIns}/12 weigh-ins in the last 28`,
+    };
+  }
+  const rate = ratePerWeek(wt.id, days);
+  if (rate == null) return { locked: true, reason: 'weigh-ins too clustered for a rate — spread them across the weeks' };
+  return {
+    locked: false,
+    tdee: intake.avg - (rate * 3500) / 7,
+    intakeAvg: intake.avg,
+    ratePerWeek: rate,
+    unit: cal.unit || 'kcal',
+  };
+}
+
+// TDEE + the phase's surplus/deficit = the daily calorie target to aim at.
+export function suggestedIntake() {
+  const t = adaptiveTDEE();
+  if (!t) return null;
+  if (t.locked) return t;
+  const band = rateBand(weightTracker());
+  if (!band) return null;
+  const gaining = band.phase === 'gain';
+  return {
+    ...t,
+    phase: band.phase,
+    lo: Math.round((gaining ? t.tdee + 200 : t.tdee - 500) / 10) * 10,
+    hi: Math.round((gaining ? t.tdee + 300 : t.tdee - 300) / 10) * 10,
+  };
 }
 
 // ----- week grading (the zoomed-out view) -----

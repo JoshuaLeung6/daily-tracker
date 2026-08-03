@@ -176,7 +176,9 @@ export function liftStats(filterSplit) {
   for (const s of out) {
     let runningMax = null;
     for (const h of s.history) {
-      h.e1rm = epley(h.weight, h.reps);
+      // e1RM is only trustworthy from ≤10-rep sets (error grows past that,
+      // direction unpredictable) — higher-rep sets contribute volume only
+      h.e1rm = h.reps != null && h.reps > 10 ? null : epley(h.weight, h.reps);
       h.vol = liftVolume(h);
       // a PR beats a previous best — the first-ever session doesn't count
       h.isPR = h.e1rm != null && runningMax != null && h.e1rm > runningMax + 1e-9;

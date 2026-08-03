@@ -573,6 +573,16 @@ html[data-theme="light"] body::before {
   font-variant-numeric: tabular-nums;
 }
 .gc-window { color: var(--faint); font-size: 12px; white-space: nowrap; }
+
+.gc-tdee {
+  border-top: 1px solid var(--hairline);
+  margin-top: 7px;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.gc-setbtn { margin-top: 7px; min-height: 42px; font-size: 14px; }
 .gc-pace { font-weight: 600; color: var(--muted); }
 .gc-pace.pace-good { color: var(--met-day); }
 .gc-pace.pace-bad { color: var(--danger); }
