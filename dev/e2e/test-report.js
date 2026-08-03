@@ -100,6 +100,7 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   check('A: week tab reopens on overview', (await page.$('.report-card')) === null);
   const firstRow = await page.$eval('.wk-row', (e) => e.textContent);
   check('A: first overview row is This week (in progress)', /This week/.test(firstRow) && /in progress/.test(firstRow), firstRow);
+  check('A: overview rows lead with avg weight', /\d{3}(\.\d)? lb avg/.test(firstRow), firstRow);
   const gradedDots = await page.$$eval('.wk-row .wk-dot', (els) => els.map((e) => e.className));
   check('A: past weeks carry graded dots', gradedDots.some((c) => /green|yellow|red/.test(c)), gradedDots.join(' | '));
   await page.screenshot({ path: path.join(__dirname, 'shots', 'weeks-overview.png') });

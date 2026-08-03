@@ -39,6 +39,9 @@ function renderOverview(container, ctx) {
   for (const wk of weeks) {
     const r = wk.report;
     const bits = [];
+    if (r.weight && r.weight.weekAvg != null) {
+      bits.push(`${fmtN(r.weight.weekAvg)}${r.weight.tracker.unit ? ' ' + r.weight.tracker.unit : ''} avg`);
+    }
     if (r.weight && r.weight.rate) {
       bits.push(`${r.weight.rate.pct > 0 ? '+' : ''}${r.weight.rate.pct.toFixed(2)}%/wk`);
     }

@@ -105,9 +105,18 @@ export function weekReport(iso) {
   if (wt && ws <= today) {
     const rate = weeklyRate(wt.id, end);
     const band = rateBand(wt);
+    // plain mean of THIS week's readings (the zoomed-out "avg" number)
+    let sum = 0;
+    let n = 0;
+    for (const d of days) {
+      if (d > today) continue;
+      const v = getEntry(d)[wt.id];
+      if (typeof v === 'number') { sum += v; n++; }
+    }
     report.weight = {
       tracker: wt,
       trend: trendWeightOn(wt.id, end),
+      weekAvg: n > 0 ? sum / n : null,
       rate,
       band,
       verdict: rate && band
