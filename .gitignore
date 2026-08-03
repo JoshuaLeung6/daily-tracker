@@ -1,3 +1,8 @@
 # personal context for Claude sessions — never publish (public repo)
 docs/owner-profile.md
 docs/redesign-plan.md
+
+# e2e tooling artifacts
+dev/e2e/node_modules/
+dev/e2e/package-lock.json
+dev/e2e/shots/

@@ -4,7 +4,8 @@ import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet } from '../trackers.js';
-import { getWorkout, SPLIT_LABELS } from '../workouts.js';
+import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
+import { weekReport, weekSuggestions } from '../insights.js';
 
 export function render(container, ctx) {
   const today = todayISO();
@@ -68,10 +69,95 @@ export function render(container, ctx) {
     ));
   }
 
-  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), rows);
+  const report = buildReportCard(ctx);
+  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), ...report, rows);
 
   const summary = buildSummary(trackers, days);
   if (summary) container.append(summary);
+}
+
+// The report card: the week's verdict — rate vs band, intake, training —
+// plus any triggered if-then suggestions. This is the weekly review surface.
+function buildReportCard(ctx) {
+  const r = weekReport(ctx.date);
+  const parts = [];
+  const card = el('div', { class: 'card report-card' });
+  let any = false;
+
+  if (r.weight) {
+    const w = r.weight;
+    const unit = w.tracker.unit ? ` ${w.tracker.unit}` : '';
+    const label = w.tracker.name;
+    if (w.rate) {
+      const pct = `${w.rate.pct > 0 ? '+' : ''}${w.rate.pct.toFixed(2)}%/wk`;
+      let badge = null;
+      if (w.verdict === 'in') badge = el('span', { class: 'rp-badge in' }, 'in band');
+      else if (w.verdict) {
+        const gaining = w.band.phase === 'gain';
+        const harmful = (gaining && w.verdict === 'above') || (!gaining && w.verdict === 'below');
+        badge = el('span', { class: 'rp-badge ' + (harmful ? 'bad' : 'off') },
+          w.verdict === 'above' ? (gaining ? 'fast — fat risk' : 'slow') : (gaining ? 'slow' : 'fast — muscle risk'));
+      }
+      card.append(rpRow(label,
+        el('span', {}, el('b', {}, `${fmtN(w.rate.trend)}${unit}`), ` trend · ${pct} `, badge)));
+      any = true;
+    } else if (w.trend != null) {
+      card.append(rpRow(label,
+        el('span', {}, el('b', {}, `${fmtN(w.trend)}${unit}`), ' trend',
+          el('span', { class: 'rp-dim' }, ' · 3+ weigh-ins/wk unlock a rate'))));
+      any = true;
+    } else {
+      card.append(rpRow(label, el('span', { class: 'rp-dim' }, 'not enough readings for a trend yet')));
+      any = true;
+    }
+  }
+
+  if (r.intake || r.protein) {
+    card.append(rpRow('Intake',
+      el('span', {},
+        r.intake ? el('b', {}, Math.round(r.intake.avg).toLocaleString()) : null,
+        r.intake ? ` ${r.intake.unit}/day avg` : null,
+        r.protein
+          ? el('span', { class: r.intake ? 'rp-dim' : '' },
+              `${r.intake ? ' · ' : ''}protein ${r.protein.hit}/${r.protein.of} days`)
+          : null,
+      )));
+    any = true;
+  }
+
+  if (r.training && r.training.sessions > 0) {
+    const t = r.training;
+    const splitBits = SPLITS.filter((s) => t.bySplit[s])
+      .map((s) => `${SPLIT_LABELS[s]} ${t.bySplit[s]}`).join(' · ');
+    card.append(rpRow('Training',
+      el('span', {},
+        el('b', {}, `${t.sessions} session${t.sessions === 1 ? '' : 's'}`),
+        splitBits ? ` · ${splitBits}` : '',
+        // a partial week vs full prior weeks reads as a false deficit —
+        // only compare completed weeks
+        t.volumeVsAvg != null && !r.isCurrent
+          ? el('span', { class: 'rp-dim' }, ` · vol ${t.volumeVsAvg >= 0 ? '+' : ''}${Math.round(t.volumeVsAvg)}% vs 4wk`)
+          : null,
+      )));
+    any = true;
+  }
+
+  if (any) parts.push(card);
+
+  for (const s of weekSuggestions(r)) {
+    parts.push(el('div', { class: 'card suggest-card' },
+      el('div', { class: 'sg-text' }, s.text),
+      el('div', { class: 'sg-why' }, s.why),
+    ));
+  }
+  return parts;
+}
+
+function rpRow(label, valueEl) {
+  return el('div', { class: 'rp-row' },
+    el('span', { class: 'rp-label' }, label),
+    el('span', { class: 'rp-value' }, valueEl),
+  );
 }
 
 function buildSummary(trackers, days) {

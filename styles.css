@@ -767,6 +767,54 @@ html[data-theme="light"] body::before {
 .wr-vals .none { color: var(--faint); font-style: italic; }
 .wr-note { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* week report card */
+.report-card { flex-direction: column; align-items: stretch; gap: 0; margin-bottom: 10px; padding: 6px 16px; }
+
+.rp-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 14px;
+}
+.rp-row:last-child { border-bottom: none; }
+
+.rp-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.rp-value { text-align: right; font-variant-numeric: tabular-nums; min-width: 0; }
+.rp-value b { font-weight: 700; }
+.rp-dim { color: var(--muted); }
+
+.rp-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.rp-badge.in { background: color-mix(in srgb, var(--met-day) 18%, transparent); color: var(--met-day); }
+.rp-badge.off { background: var(--surface-2); color: var(--muted); }
+.rp-badge.bad { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+
+.suggest-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  border-left: 3px solid var(--accent);
+  margin-bottom: 10px;
+}
+.sg-text { font-size: 14px; font-weight: 600; }
+.sg-why { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
 .week-totals {
   margin-top: 16px;
   background: var(--surface-2);

@@ -151,7 +151,7 @@ export function daysSince(split) {
   const list = allWorkouts().filter((w) => w.split === split);
   if (list.length === 0) return null;
   const last = list[list.length - 1].date;
-  return Math.round((Date.parse(todayISO()) - Date.parse(last)) / 86400000);
+  return Math.max(0, Math.round((Date.parse(todayISO()) - Date.parse(last)) / 86400000));
 }
 
 // Did any lift set a new all-time e1RM best on this date?

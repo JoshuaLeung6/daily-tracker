@@ -1,0 +1,8 @@
+{
+  "name": "fitness-tracker-e2e",
+  "private": true,
+  "description": "Headless-Chrome e2e suites for the Personal Fitness Tracker PWA. Run `npm install`, serve the app root on :8080 (python -m http.server 8080), then `node run-all.js` or any single test.",
+  "dependencies": {
+    "puppeteer-core": "^25.0.0"
+  }
+}
