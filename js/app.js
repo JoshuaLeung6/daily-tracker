@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.5.0';
+export const APP_VERSION = '2.6.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -65,6 +65,7 @@ function renderActive() {
 
 function switchTab(tab) {
   state.tab = tab;
+  if (views[tab].enter) views[tab].enter();
   for (const [name, section] of Object.entries(sections)) section.hidden = name !== tab;
   for (const btn of document.querySelectorAll('.tab')) {
     if (btn.dataset.tab === tab) btn.setAttribute('aria-current', 'page');

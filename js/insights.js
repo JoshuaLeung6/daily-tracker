@@ -9,10 +9,10 @@
 //   weeks off-band (the playbook's confirmation lag), and only with
 //   enough logged data to trust the trend.
 
-import { todayISO, addDays, startOfWeek } from './dates.js';
+import { todayISO, addDays, startOfWeek, fromISO, toLocalISO } from './dates.js';
 import { getEntry, getData } from './store.js';
-import { activeTrackers, targetFor, dayMeets } from './trackers.js';
-import { allWorkouts, liftVolume, SPLITS, SPLIT_LABELS } from './workouts.js';
+import { activeTrackers, targetFor, dayMeets, dayAllMet } from './trackers.js';
+import { allWorkouts, liftVolume, liftStats, SPLITS, SPLIT_LABELS } from './workouts.js';
 
 // Mean + count of a measurement's logged values over the trailing 7 days.
 function trendStats(id, iso) {
@@ -231,4 +231,146 @@ export function weekSuggestions(report) {
 
 function fmtPct(p) {
   return `${p > 0 ? '+' : ''}${p.toFixed(2)}%/wk`;
+}
+
+// ----- week grading (the zoomed-out view) -----
+
+// Sessions/week commitment: the Weightlifting tracker's weekly target if
+// set, else a 3-session floor once any workout has ever been logged.
+export function liftingSessionTarget() {
+  const t = activeTrackers().find((x) => x.type === 'checkbox' && /weightlift/i.test(x.name));
+  if (t) {
+    const tgt = targetFor(t, todayISO());
+    if (tgt && tgt.period === 'week') return tgt.value;
+  }
+  return 3;
+}
+
+// Grade a week on its applicable components: rate in band, protein hit on
+// ≥70% of target days (≈ the "80% adherence is enough" rule with slack),
+// and training sessions vs the weekly commitment.
+export function weekGrade(iso) {
+  const report = weekReport(iso);
+  const components = [];
+  if (report.weight && report.weight.rate && report.weight.band) {
+    components.push({ key: 'rate', met: report.weight.verdict === 'in' });
+  }
+  if (report.protein && report.protein.of > 0) {
+    components.push({ key: 'protein', met: report.protein.hit / report.protein.of >= 0.7 });
+  }
+  if (allWorkouts().length > 0) {
+    components.push({ key: 'training', met: report.training.sessions >= liftingSessionTarget() });
+  }
+  const met = components.filter((c) => c.met).length;
+  const grade = components.length === 0 ? null
+    : met === components.length ? 'green'
+    : met === 0 ? 'red'
+    : 'yellow';
+  return { grade, met, applicable: components.length, components, report };
+}
+
+function earliestDataISO() {
+  let min = null;
+  for (const iso of Object.keys(getData().entries)) {
+    if (!min || iso < min) min = iso;
+  }
+  for (const w of allWorkouts()) {
+    if (!min || w.date < min) min = w.date;
+  }
+  return min;
+}
+
+// ----- month report (consistency at scale) -----
+
+function daysBetween(a, b) {
+  return Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+}
+
+export function monthReport(iso) {
+  const today = todayISO();
+  const d = fromISO(iso);
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  const start = toLocalISO(new Date(y, m, 1));
+  const endFull = toLocalISO(new Date(y, m + 1, 0));
+  if (start > today) return null;
+  const end = endFull <= today ? endFull : today;
+  const report = { start, end, isCurrent: today >= start && today <= endFull };
+
+  // weight: trend at month end vs first full trend window inside the month
+  const wt = weightTracker();
+  if (wt) {
+    const startTrendISO = addDays(start, 6);
+    const spanDays = daysBetween(startTrendISO, end);
+    const s1 = trendStats(wt.id, startTrendISO);
+    const s2 = trendStats(wt.id, end);
+    if (s1 && s2 && s1.n >= MIN_READINGS_PER_WINDOW && s2.n >= MIN_READINGS_PER_WINDOW && spanDays >= 7) {
+      const delta = s2.mean - s1.mean;
+      const pctPerWeek = ((delta / s1.mean) * 100) / (spanDays / 7);
+      const band = rateBand(wt);
+      report.weight = {
+        tracker: wt,
+        delta,
+        pctPerWeek,
+        band,
+        verdict: band ? (pctPerWeek < band.lo ? 'below' : pctPerWeek > band.hi ? 'above' : 'in') : null,
+      };
+    } else {
+      report.weight = { tracker: wt };
+    }
+  }
+
+  // training + PRs
+  const bySplit = { push: 0, pull: 0, legs: 0 };
+  let sessions = 0;
+  for (const w of allWorkouts()) {
+    if (w.date < start || w.date > endFull) continue;
+    sessions++;
+    bySplit[w.split] = (bySplit[w.split] || 0) + 1;
+  }
+  let prs = 0;
+  for (const s of liftStats()) {
+    for (const h of s.history) {
+      if (h.isPR && h.date >= start && h.date <= endFull) prs++;
+    }
+  }
+  report.training = { sessions, bySplit, prs };
+
+  // consistency
+  const elapsed = daysBetween(start, end) + 1;
+  let loggedDays = 0;
+  let allMet = 0;
+  for (let i = 0; i < elapsed; i++) {
+    const day = addDays(start, i);
+    if (Object.keys(getEntry(day)).length > 0) loggedDays++;
+    if (dayAllMet(day)) allMet++;
+  }
+  const pro = proteinTracker();
+  let proteinHit = 0;
+  let proteinOf = 0;
+  if (pro) {
+    for (let i = 0; i < elapsed; i++) {
+      const day = addDays(start, i);
+      const tgt = targetFor(pro, day);
+      if (!tgt || tgt.period !== 'day') continue;
+      proteinOf++;
+      if (dayMeets(pro, day)) proteinHit++;
+    }
+  }
+  report.consistency = { loggedDays, elapsed, allMet, proteinHit, proteinOf };
+
+  return report;
+}
+
+// Newest-first list of weeks since data began (capped), graded.
+export function weeksOverview(maxWeeks = 26) {
+  const current = startOfWeek(todayISO());
+  const first = earliestDataISO();
+  if (!first) return [];
+  const start = startOfWeek(first);
+  const out = [];
+  for (let ws = current; ws >= start && out.length < maxWeeks; ws = addDays(ws, -7)) {
+    out.push({ ws, isCurrent: ws === current, ...weekGrade(ws) });
+  }
+  return out;
 }

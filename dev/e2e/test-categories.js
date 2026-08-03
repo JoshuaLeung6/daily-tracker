@@ -76,6 +76,8 @@ const localISO = (offset) => {
   await page.type('.card input[aria-label="Weight"]', '186');
   await new Promise((r) => setTimeout(r, 400));
   await page.click('.tab[data-tab="week"]');
+  await page.waitForSelector('.wk-row');
+  await page.click('.wk-row');
   await page.waitForSelector('.week-totals');
   const wkText = await page.$eval('.week-totals', (e) => e.textContent);
   const weightLine = /Weight/.test(wkText);

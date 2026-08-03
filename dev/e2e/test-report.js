@@ -77,6 +77,8 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.removeScriptToEvaluateOnNewDocument(injA.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="week"]');
+  await page.waitForSelector('.wk-row');
+  await page.click('.wk-row');
   await page.waitForSelector('.report-card');
 
   let cardText = await page.$eval('.report-card', (e) => e.textContent);
@@ -91,6 +93,24 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   check('A: no rate suggestion when in band', suggCountA === 0 || !(await page.$eval('#view-week', (e) => /kcal\/day\b.*add|trim/.test(e.textContent))), `cards: ${suggCountA}`);
   await page.screenshot({ path: path.join(__dirname, 'shots', 'report-inband.png') });
 
+  // ---- overview: tab away and back resets to the zoomed-out graded list ----
+  await page.click('.tab[data-tab="day"]');
+  await page.click('.tab[data-tab="week"]');
+  await page.waitForSelector('.wk-row');
+  check('A: week tab reopens on overview', (await page.$('.report-card')) === null);
+  const firstRow = await page.$eval('.wk-row', (e) => e.textContent);
+  check('A: first overview row is This week (in progress)', /This week/.test(firstRow) && /in progress/.test(firstRow), firstRow);
+  const gradedDots = await page.$$eval('.wk-row .wk-dot', (els) => els.map((e) => e.className));
+  check('A: past weeks carry graded dots', gradedDots.some((c) => /green|yellow|red/.test(c)), gradedDots.join(' | '));
+  await page.screenshot({ path: path.join(__dirname, 'shots', 'weeks-overview.png') });
+
+  // ---- month summary header ----
+  await page.click('.tab[data-tab="month"]');
+  await page.waitForSelector('.month-summary');
+  const monthText = await page.$eval('.month-summary', (e) => e.textContent);
+  check('A: month summary shows days logged', /days logged/.test(monthText), monthText.slice(0, 160));
+  check('A: month summary shows training sessions', /session/.test(monthText), monthText.slice(0, 160));
+
   // ---- scenario B: bulk stalled two weeks (flat weight) -> add-calories suggestion ----
   const injB = await inject(page, {
     weightFn: () => 185,
@@ -104,6 +124,8 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.removeScriptToEvaluateOnNewDocument(injB.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="week"]');
+  await page.waitForSelector('.wk-row');
+  await page.click('.wk-row');
   await page.waitForSelector('.report-card');
   cardText = await page.$eval('#view-week', (e) => e.textContent);
   check('B: flat trend rate ~+0.00%/wk shown', /[+-]?0\.00%\/wk/.test(cardText), cardText.slice(0, 200));
@@ -124,6 +146,8 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.removeScriptToEvaluateOnNewDocument(injC.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="week"]');
+  await page.waitForSelector('.wk-row');
+  await page.click('.wk-row');
   await page.waitForSelector('.report-card');
   cardText = await page.$eval('#view-week', (e) => e.textContent);
   check('C: 8 days of data -> no intake suggestion yet', !/add 100–150 kcal|trim 100–150 kcal/.test(cardText), cardText.slice(0, 300));
@@ -142,6 +166,8 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.removeScriptToEvaluateOnNewDocument(injD.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="week"]');
+  await page.waitForSelector('.wk-row');
+  await page.click('.wk-row');
   await page.waitForSelector('.report-card');
   cardText = await page.$eval('#view-week', (e) => e.textContent);
   check('D: fast badge with fat risk', /fast — fat risk/.test(cardText), cardText.slice(0, 200));
@@ -171,6 +197,8 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.removeScriptToEvaluateOnNewDocument(injE.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="week"]');
+  await page.waitForSelector('.wk-row');
+  await page.click('.wk-row');
   await page.waitForSelector('.report-card');
   cardText = await page.$eval('#view-week', (e) => e.textContent);
   check('E: sparse weigh-ins -> no rate/badge', !/%\/wk in band|fast|slow/.test(cardText) && /weigh-ins\/wk unlock a rate/.test(cardText),

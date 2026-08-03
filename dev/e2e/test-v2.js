@@ -149,6 +149,8 @@ async function setNumberInput(page, selector, value) {
 
   // ---- 7. week view: totals, weekly goal, days count ----
   await page.click('.tab[data-tab="week"]');
+  await page.waitForSelector('.wk-row');
+  await page.click('.wk-row');
   await page.waitForSelector('.week-totals');
   const weekText = await page.$eval('.week-totals', (e) => e.textContent);
   check('week totals show weightlifting days vs 4/week target', /\d \/ 4 days/.test(weekText), weekText.slice(0, 200));

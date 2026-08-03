@@ -164,6 +164,8 @@ const localISO = (offset) => {
 
   // ---- 5. week + month coloring ----
   await page.click('.tab[data-tab="week"]');
+  await page.waitForSelector('.wk-row');
+  await page.click('.wk-row');
   await page.waitForSelector('.week-totals');
   const wkMet = await page.$(`.wt-row b.wk-met`);
   check(`weekly weightlifting ${liftDays}/4 -> blue when met`, liftDays >= 4 ? wkMet !== null : wkMet === null);

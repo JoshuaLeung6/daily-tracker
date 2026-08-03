@@ -4,7 +4,8 @@ import { el } from '../ui.js';
 import { todayISO, addMonths, monthGrid, monthTitle, fmt, startOfWeek, addDays } from '../dates.js';
 import { getEntry } from '../store.js';
 import { dayAllMet } from '../trackers.js';
-import { getWorkout } from '../workouts.js';
+import { getWorkout, SPLITS, SPLIT_LABELS } from '../workouts.js';
+import { monthReport } from '../insights.js';
 
 export function render(container, ctx) {
   const today = todayISO();
@@ -48,5 +49,67 @@ export function render(container, ctx) {
     ));
   }
 
-  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), grid);
+  const summary = buildMonthSummary(ctx.date);
+  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), ...(summary ? [summary] : []), grid);
+}
+
+// Month = consistency at scale: weight change vs band, training totals,
+// PRs, and adherence — totals only, never which days were missed.
+function buildMonthSummary(iso) {
+  const r = monthReport(iso);
+  if (!r) return null;
+  const card = el('div', { class: 'card report-card month-summary' });
+  let any = false;
+  const fmtN = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+
+  if (r.weight && r.weight.delta != null) {
+    const w = r.weight;
+    const unit = w.tracker.unit ? ` ${w.tracker.unit}` : '';
+    let badge = null;
+    if (w.verdict === 'in') badge = el('span', { class: 'rp-badge in' }, 'in band');
+    else if (w.verdict) {
+      const gaining = w.band.phase === 'gain';
+      const harmful = (gaining && w.verdict === 'above') || (!gaining && w.verdict === 'below');
+      badge = el('span', { class: 'rp-badge ' + (harmful ? 'bad' : 'off') },
+        w.verdict === 'above' ? (gaining ? 'fast — fat risk' : 'slow') : (gaining ? 'slow' : 'fast — muscle risk'));
+    }
+    card.append(rpRow(w.tracker.name,
+      el('span', {},
+        el('b', {}, `${w.delta > 0 ? '+' : ''}${fmtN(w.delta)}${unit}`),
+        ` ${r.isCurrent ? 'so far' : 'this month'} · ${w.pctPerWeek > 0 ? '+' : ''}${w.pctPerWeek.toFixed(2)}%/wk `,
+        badge)));
+    any = true;
+  }
+
+  if (r.training.sessions > 0 || r.training.prs > 0) {
+    const splitBits = SPLITS.filter((s) => r.training.bySplit[s])
+      .map((s) => `${SPLIT_LABELS[s]} ${r.training.bySplit[s]}`).join(' · ');
+    card.append(rpRow('Training',
+      el('span', {},
+        el('b', {}, `${r.training.sessions} session${r.training.sessions === 1 ? '' : 's'}`),
+        splitBits ? ` · ${splitBits}` : '',
+        r.training.prs > 0 ? el('span', { class: 'pr-star' }, ` · ${r.training.prs} PR${r.training.prs === 1 ? '' : 's'} ★`) : null,
+      )));
+    any = true;
+  }
+
+  const c = r.consistency;
+  if (c.loggedDays > 0) {
+    card.append(rpRow('Consistency',
+      el('span', {},
+        el('b', {}, `${c.loggedDays}/${c.elapsed}`), ' days logged',
+        c.proteinOf > 0 ? el('span', { class: 'rp-dim' }, ` · protein ${c.proteinHit}/${c.proteinOf}`) : null,
+        c.allMet > 0 ? el('span', { class: 'rp-dim' }, ` · ${c.allMet} all-target day${c.allMet === 1 ? '' : 's'}`) : null,
+      )));
+    any = true;
+  }
+
+  return any ? card : null;
+}
+
+function rpRow(label, valueEl) {
+  return el('div', { class: 'rp-row' },
+    el('span', { class: 'rp-label' }, label),
+    el('span', { class: 'rp-value' }, valueEl),
+  );
 }

@@ -5,9 +5,70 @@ import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
-import { weekReport, weekSuggestions } from '../insights.js';
+import { weekReport, weekSuggestions, weeksOverview } from '../insights.js';
+
+// The tab opens zoomed out: every week graded green/yellow/red; tapping a
+// week drills into its report card. Switching away and back resets to the
+// overview.
+let mode = 'overview';
+
+export function enter() {
+  mode = 'overview';
+}
 
 export function render(container, ctx) {
+  if (mode === 'overview') renderOverview(container, ctx);
+  else renderDetail(container, ctx);
+}
+
+function renderOverview(container, ctx) {
+  const head = el('header', { class: 'view-head' },
+    el('span'),
+    el('div', { class: 'masthead' },
+      el('div', { class: 'eyebrow' }, 'Week by week'),
+      el('h1', {}, 'Weeks'),
+    ),
+    el('span'),
+  );
+
+  const list = el('div', { class: 'week-rows' });
+  const weeks = weeksOverview();
+  if (weeks.length === 0) {
+    list.append(el('div', { class: 'empty-state' }, 'Nothing logged yet — weeks appear here as you log.'));
+  }
+  for (const wk of weeks) {
+    const r = wk.report;
+    const bits = [];
+    if (r.weight && r.weight.rate) {
+      bits.push(`${r.weight.rate.pct > 0 ? '+' : ''}${r.weight.rate.pct.toFixed(2)}%/wk`);
+    }
+    if (r.training && r.training.sessions > 0) {
+      bits.push(`${r.training.sessions} session${r.training.sessions === 1 ? '' : 's'}`);
+    }
+    if (r.protein) bits.push(`protein ${r.protein.hit}/${r.protein.of}`);
+    if (bits.length === 0) bits.push('nothing logged');
+
+    list.append(el('button', {
+      class: 'wk-row' + (wk.isCurrent ? ' is-current' : ''),
+      onclick: () => { mode = 'detail'; ctx.setDate(wk.ws); },
+    },
+      el('span', {
+        class: 'wk-dot ' + (wk.isCurrent ? 'current' : (wk.grade || 'none')),
+        'aria-label': wk.isCurrent ? 'in progress' : (wk.grade || 'no data'),
+      }),
+      el('span', { class: 'wk-main' },
+        el('b', {}, wk.isCurrent ? 'This week' : weekLabel(wk.ws)),
+        el('span', { class: 'wk-bits' },
+          bits.join(' · '), wk.isCurrent ? el('span', { class: 'rp-dim' }, ' · in progress') : null),
+      ),
+      el('span', { class: 'wo-chevron' }, '›'),
+    ));
+  }
+
+  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), list);
+}
+
+function renderDetail(container, ctx) {
   const today = todayISO();
   const start = startOfWeek(ctx.date);
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
@@ -69,8 +130,14 @@ export function render(container, ctx) {
     ));
   }
 
+  const back = el('div', { class: 'lock-row wk-back' },
+    el('button', {
+      class: 'lock-pill',
+      onclick: () => { mode = 'overview'; render(container, ctx); },
+    }, '‹ All weeks'));
+
   const report = buildReportCard(ctx);
-  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), ...report, rows);
+  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), back, ...report, rows);
 
   const summary = buildSummary(trackers, days);
   if (summary) container.append(summary);
