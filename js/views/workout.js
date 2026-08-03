@@ -9,7 +9,7 @@ import { fmt, weekdayName } from '../dates.js';
 import {
   SPLITS, SPLIT_LABELS, FOCUSES, FOCUS_LABELS,
   getWorkout, saveWorkout, deleteWorkout, templateFor, suggestedClass,
-  liftNames, lastLiftOfFocus,
+  liftNames, lastLiftOfFocus, repRange, suggestedNextLoad,
 } from '../workouts.js';
 
 export function openWorkout(iso, { locked = false, onClose } = {}) {
@@ -122,7 +122,12 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     const setStr = [any.weight, any.reps, any.sets].filter((v) => v != null)
       .map((v) => v.toLocaleString()).join(' × ') || '—';
     const label = same ? `last ${FOCUS_LABELS[any.focus].toLowerCase()}` : `last (${FOCUS_LABELS[any.focus].toLowerCase()})`;
-    return `${label}: ${setStr} · ${fmt(any.date, { month: 'short', day: 'numeric' })}`;
+    let text = `${label}: ${setStr} · ${fmt(any.date, { month: 'short', day: 'numeric' })}`;
+    // double progression: rep ceiling filled last time -> nudge the load up
+    if (same && same.reps != null && same.weight != null && same.reps >= repRange(name, draft.focus).hi) {
+      text += ` · ready: try ${suggestedNextLoad(same.weight).toLocaleString()}`;
+    }
+    return text;
   };
 
   const liftRow = (lift, index) => {

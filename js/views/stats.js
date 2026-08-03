@@ -15,10 +15,14 @@ import {
 import {
   SPLITS, SPLIT_LABELS, FOCUS_LABELS, workoutCounts, liftStats,
   liftGoal, setLiftGoal, weeklyVolume, daysSince,
+  repRange, setRepRange,
 } from '../workouts.js';
 import { setTarget } from '../trackers.js';
-import { suggestedIntake, calorieTracker, PACE_PRESETS } from '../insights.js';
-import { lineChart, barChart } from '../charts.js';
+import {
+  suggestedIntake, calorieTracker, PACE_PRESETS,
+  weightTracker, rateBand, weekReport, weekSuggestions,
+} from '../insights.js';
+import { lineChart, barChart, svgEl } from '../charts.js';
 
 let pane = 'goals';
 let filterSplit = null;
@@ -31,28 +35,27 @@ const signed = (n) => `${n > 0 ? '+' : ''}${fmtN(n)}`;
 export function render(container, ctx) {
   const rerender = () => render(container, ctx);
 
+  const TITLES = { goals: 'Goals', lifting: 'Lifting', coach: 'Coach' };
   const head = el('header', { class: 'view-head' },
     el('span'),
     el('div', { class: 'masthead' },
       el('div', { class: 'eyebrow' }, 'Progress'),
-      el('h1', {}, pane === 'goals' ? 'Goals' : 'Lifting'),
+      el('h1', {}, TITLES[pane]),
     ),
     el('span'),
   );
 
   const paneSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Progress section' },
-    el('button', {
-      class: 'seg-btn', 'aria-pressed': String(pane === 'goals'),
-      onclick: () => { pane = 'goals'; rerender(); },
-    }, 'Goals'),
-    el('button', {
-      class: 'seg-btn', 'aria-pressed': String(pane === 'lifting'),
-      onclick: () => { pane = 'lifting'; rerender(); },
-    }, 'Lifting'),
+    ...['goals', 'lifting', 'coach'].map((p) => el('button', {
+      class: 'seg-btn', 'aria-pressed': String(pane === p),
+      onclick: () => { pane = p; rerender(); },
+    }, TITLES[p])),
   );
 
-  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), paneSeg,
-    pane === 'goals' ? goalsPane(rerender) : liftingPane(rerender));
+  const paneEl = pane === 'goals' ? goalsPane(rerender)
+    : pane === 'lifting' ? liftingPane(rerender)
+    : coachPane(rerender);
+  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), paneSeg, paneEl);
 }
 
 /* ================= Goals pane ================= */
@@ -392,6 +395,22 @@ function liftingPane(rerender) {
     }),
   ));
 
+  // headline verdict: how many lifts are actually progressing
+  const allStats = liftStats();
+  const withTrend = allStats.filter((s) => s.trend != null);
+  if (withTrend.length > 0) {
+    const up = withTrend.filter((s) => s.trend === 'up').length;
+    const stalledCount = allStats.filter((s) => s.stalled).length;
+    const readyCount = allStats.filter((s) => s.ready).length;
+    wrap.append(el('div', { class: 'card verdict-card' },
+      el('b', {}, `${up} of ${withTrend.length} lift${withTrend.length === 1 ? '' : 's'} progressing`),
+      el('span', { class: 'rp-dim' },
+        readyCount > 0 ? ` · ${readyCount} ready to load` : '',
+        stalledCount > 0 ? ` · ${stalledCount} stalled` : '',
+      ),
+    ));
+  }
+
   wrap.append(el('div', { class: 'seg', role: 'group', 'aria-label': 'Filter by split' },
     el('button', {
       class: 'seg-btn', 'aria-pressed': String(filterSplit === null),
@@ -428,6 +447,181 @@ function liftingPane(rerender) {
   return wrap;
 }
 
+/* ================= Coach pane ================= */
+
+function coachPane(rerender) {
+  const wrap = el('div', { class: 'pane' });
+  const today = todayISO();
+
+  // phase summary
+  const wt = weightTracker();
+  const band = wt ? rateBand(wt) : null;
+  if (band && wt.goal) {
+    const weeksIn = Math.max(1, Math.ceil((Date.parse(today) - Date.parse(wt.goal.from)) / (7 * 86400000)));
+    wrap.append(el('div', { class: 'card verdict-card' },
+      el('b', {}, band.phase === 'gain' ? 'Lean bulk' : 'Cut'),
+      el('span', { class: 'rp-dim' }, ` · week ${weeksIn} · pace band ${band.label}`),
+    ));
+  }
+
+  // --- active guidance ---
+  const active = el('div', { class: 'settings-section' }, el('h2', {}, 'Right now'));
+  let anyActive = false;
+
+  const report = weekReport(today);
+  for (const sg of weekSuggestions(report)) {
+    active.append(el('div', { class: 'card suggest-card' },
+      el('div', { class: 'sg-text' }, sg.text),
+      el('div', { class: 'sg-why' }, sg.why)));
+    anyActive = true;
+  }
+
+  const stats = liftStats();
+  const readyLifts = stats.filter((s) => s.ready);
+  if (readyLifts.length > 0) {
+    active.append(el('div', { class: 'card suggest-card' },
+      el('div', { class: 'sg-text' },
+        `Ready to add weight: ${readyLifts.map((s) => `${s.name} (try ${fmtN(s.ready.suggest)})`).join(', ')}.`),
+      el('div', { class: 'sg-why' }, 'These hit the top of their rep range last session.')));
+    anyActive = true;
+  }
+  for (const s of stats.filter((x) => x.stalled)) {
+    active.append(el('div', { class: 'card rx-card' },
+      el('div', { class: 'sg-text' }, `${s.name} has stalled — ${s.stalled.sessions} weight-day sessions without an e1RM PR.`),
+      el('div', { class: 'sg-why' }, 'Open it in Lifting for the fix list: effort check → add a set → change range → deload.')));
+    anyActive = true;
+  }
+
+  for (const sp of SPLITS) {
+    const ds = daysSince(sp);
+    if (ds != null && ds >= 7) {
+      active.append(el('div', { class: 'card rx-card' },
+        el('div', { class: 'sg-text' }, `${SPLIT_LABELS[sp]} hasn’t been trained in ${ds} days.`),
+        el('div', { class: 'sg-why' }, 'Each muscle should be hit at least once — ideally twice — per week.')));
+      anyActive = true;
+    }
+  }
+
+  const sug = suggestedIntake();
+  if (sug && sug.locked) {
+    active.append(el('div', { class: 'settings-note' }, `Measured TDEE: ${sug.reason}.`));
+    anyActive = true;
+  } else if (sug) {
+    active.append(el('div', { class: 'settings-note' },
+      `Maintenance ≈ ${Math.round(sug.tdee).toLocaleString()} ${sug.unit} · aim ${sug.lo.toLocaleString()}–${sug.hi.toLocaleString()}/day (set it from the Goals pane).`));
+    anyActive = true;
+  }
+
+  if (!anyActive) active.append(el('div', { class: 'empty-state' }, 'Nothing needs attention — keep logging.'));
+  wrap.append(active);
+
+  // --- reference cards ---
+  const ref = el('div', { class: 'settings-section' }, el('h2', {}, 'Reference'));
+  ref.append(
+    refCard('Rep ranges', 'Strength lives at 1–6 reps with heavy loads; muscle grows anywhere from ~5–30 reps if sets approach failure. Your weight days sit at 3–6, volume days at 8–15.', repRangeDiagram()),
+    refCard('Weekly volume', '10–20 hard sets per muscle per week is the productive band — most gains arrive by ~10, returns shrink past 20. Only sets within 0–4 reps of failure count.', volumeBandDiagram()),
+    band && refCard('Gain rate', 'Faster gaining mostly adds fat: intermediates do best around +0.1–0.25% BW/week. The dashed marker is your chosen band.', rateBandDiagram(band)),
+    refCard('Effort (reps in reserve)', 'A set counts when you stop 0–3 reps short of failure. Heavy compound sets: keep 2–3 in reserve — grinding true failure costs more than it gives.', rirDiagram()),
+    refCard('When stuck', 'Diagnose in order: eating enough? → protein? → sleep? → missed sessions? Then: add a set, change the rep range, or deload one week at ~50% of sets. Change one thing at a time.', null),
+    refCard('e1RM', 'Estimated 1RM (weight × (1 + reps/30)) tracks strength across rep counts — but only from sets of ≤10 reps. High-rep sets count toward volume, not strength trends.', null),
+  );
+  wrap.append(ref);
+
+  return wrap;
+}
+
+function refCard(title, text, diagram) {
+  return el('div', { class: 'card ref-card' },
+    el('div', { class: 'gc-name' }, title),
+    el('div', { class: 'ref-text' }, text),
+    diagram,
+  );
+}
+
+// --- tiny static diagrams (single hue, labels in ink tokens) ---
+
+const DW = 320;
+function diagramSvg(h, label) {
+  return svgEl('svg', { viewBox: `0 0 ${DW} ${h}`, class: 'chart diagram', role: 'img', 'aria-label': label });
+}
+
+function axisX(v, max, pad = 14) {
+  return pad + (DW - 2 * pad) * (v / max);
+}
+
+function repRangeDiagram() {
+  const svg = diagramSvg(96, 'rep range zones');
+  svg.append(svgEl('rect', { x: axisX(1, 30), y: 10, width: axisX(6, 30) - axisX(1, 30), height: 11, rx: 4, class: 'dg-strong' }));
+  svg.append(svgEl('text', { x: axisX(6, 30) + 6, y: 20, class: 'ch-lab' }, 'strength 1–6'));
+  svg.append(svgEl('rect', { x: axisX(5, 30), y: 28, width: axisX(30, 30) - axisX(5, 30), height: 11, rx: 4, class: 'dg-soft' }));
+  svg.append(svgEl('text', { x: axisX(5, 30) + 8, y: 37, class: 'ch-lab dg-ink' }, 'hypertrophy 5–30 (near failure)'));
+  const bracket = (lo, hi, y, label) => {
+    const x1 = axisX(lo, 30);
+    const x2 = axisX(hi, 30);
+    svg.append(svgEl('line', { x1, y1: y, x2, y2: y, class: 'dg-marker' }));
+    svg.append(svgEl('line', { x1, y1: y - 4, x2: x1, y2: y + 4, class: 'dg-marker' }));
+    svg.append(svgEl('line', { x1: x2, y1: y - 4, x2, y2: y + 4, class: 'dg-marker' }));
+    svg.append(svgEl('text', { x: x2 + 6, y: y + 3, class: 'ch-lab' }, label));
+  };
+  bracket(3, 6, 54, 'weight day 3–6');
+  bracket(8, 15, 72, 'volume day 8–15');
+  svg.append(svgEl('text', { x: axisX(1, 30), y: 92, class: 'ch-lab' }, '1 rep'));
+  svg.append(svgEl('text', { x: axisX(30, 30), y: 92, class: 'ch-lab ch-end' }, '30'));
+  return svg;
+}
+
+function volumeBandDiagram() {
+  const svg = diagramSvg(58, 'weekly volume zones');
+  const zone = (lo, hi, cls) => svg.append(svgEl('rect', {
+    x: axisX(lo, 25), y: 12, width: axisX(hi, 25) - axisX(lo, 25), height: 12, rx: 4, class: cls,
+  }));
+  zone(0, 10, 'dg-dim');
+  zone(10, 20, 'dg-good');
+  zone(20, 25, 'dg-dim');
+  svg.append(svgEl('text', { x: axisX(5, 25), y: 40, class: 'ch-lab dg-center' }, 'too little'));
+  svg.append(svgEl('text', { x: axisX(15, 25), y: 40, class: 'ch-lab dg-center dg-goodtext' }, '10–20 · aim 12–16'));
+  svg.append(svgEl('text', { x: axisX(22.5, 25), y: 40, class: 'ch-lab dg-center' }, 'diminishing'));
+  svg.append(svgEl('text', { x: axisX(0, 25), y: 54, class: 'ch-lab' }, '0'));
+  svg.append(svgEl('text', { x: axisX(25, 25), y: 54, class: 'ch-lab ch-end' }, '25+ sets/muscle/wk'));
+  return svg;
+}
+
+function rateBandDiagram(band) {
+  const svg = diagramSvg(58, 'gain rate zones');
+  const max = 0.6;
+  const zone = (lo, hi, cls) => svg.append(svgEl('rect', {
+    x: axisX(lo, max), y: 12, width: axisX(hi, max) - axisX(lo, max), height: 12, rx: 4, class: cls,
+  }));
+  zone(0.05, 0.15, 'dg-dim');
+  zone(0.1, 0.25, 'dg-good');
+  zone(0.25, 0.5, 'dg-warn');
+  const lo = Math.abs(band.lo);
+  const hi = Math.abs(band.hi);
+  svg.append(svgEl('rect', {
+    x: axisX(Math.min(lo, max), max), y: 8,
+    width: Math.max(4, axisX(Math.min(hi, max), max) - axisX(Math.min(lo, max), max)), height: 20,
+    class: 'dg-yours', rx: 4,
+  }));
+  svg.append(svgEl('text', { x: axisX(Math.min((lo + hi) / 2, max), max), y: 44, class: 'ch-lab dg-center dg-goodtext' }, 'your band'));
+  svg.append(svgEl('text', { x: axisX(0, max), y: 54, class: 'ch-lab' }, '0'));
+  svg.append(svgEl('text', { x: axisX(max, max), y: 54, class: 'ch-lab ch-end' }, '+0.6%/wk'));
+  return svg;
+}
+
+function rirDiagram() {
+  const svg = diagramSvg(64, 'reps in reserve scale');
+  const labels = ['0', '1', '2', '3', '4', '5+'];
+  labels.forEach((lab, i) => {
+    const x = 14 + i * 40;
+    svg.append(svgEl('rect', { x, y: 8, width: 32, height: 20, rx: 5, class: i <= 3 ? 'dg-good' : 'dg-dim' }));
+    svg.append(svgEl('text', { x: x + 16, y: 22, class: 'ch-lab dg-center dg-ink' }, lab));
+  });
+  svg.append(svgEl('text', { x: 14 + 2 * 40, y: 44, class: 'ch-lab dg-center dg-goodtext' }, '0–3 = a hard set'));
+  svg.append(svgEl('text', { x: 14 + 4.5 * 40 + 16, y: 44, class: 'ch-lab dg-center' }, "doesn't count"));
+  svg.append(svgEl('text', { x: 14, y: 60, class: 'ch-lab' }, 'reps left in the tank when the set ends'));
+  return svg;
+}
+
 function statTile(value, label, sub, subWarn) {
   return el('div', { class: 'stat-tile' },
     el('div', { class: 'st-value' }, value),
@@ -449,25 +643,24 @@ function liftRow(s, rerender) {
   const expanded = expandedLift === key;
   const trend = s.trend;
 
+  // collapsed rows stay slim: ONE metric plus state badges; the detail
+  // (best/last/sessions/history) lives in the expansion
   const metaBits = [];
-  // trend metric first, so the arrow is explainable: e1RM on weight days,
-  // total volume on volume days — always compared within the same day type
   if (s.trendInfo && s.trendInfo.cur != null) {
     metaBits.push(s.trendInfo.kind === 'e1rm'
       ? `e1RM ${fmtN(s.trendInfo.cur)}`
       : `vol ${Math.round(s.trendInfo.cur).toLocaleString()}`);
+  } else {
+    metaBits.push(`last ${setStr(s.last)}`);
   }
-  if (s.best && s.best.weight != null) {
-    metaBits.push(`best ${s.best.weight.toLocaleString()}${s.best.reps != null ? ' × ' + s.best.reps : ''}`);
-  }
-  metaBits.push(`last ${setStr(s.last)}`);
-  metaBits.push(`${s.sessions} session${s.sessions === 1 ? '' : 's'}`);
 
   const main = el('span', { class: 'sr-main' },
     el('span', { class: 'sr-name' },
       s.name,
       trend && el('span', { class: `trend ${trend}` }, trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'),
       s.last.isPR && el('span', { class: 'pr-star', title: 'New e1RM PR' }, '★'),
+      s.ready && el('span', { class: 'b-badge b-ready' }, 'ready to load'),
+      s.stalled && el('span', { class: 'b-badge b-stall' }, 'stalled'),
     ),
     el('span', { class: 'sr-meta' },
       metaBits.join(' · '),
@@ -512,7 +705,45 @@ function liftRow(s, rerender) {
     }, '✕'),
   );
 
-  const history = el('div', { class: 'sr-history' }, goalRow);
+  // rep-range editor (double progression)
+  const range = repRange(s.name, s.last.focus);
+  const loIn = el('input', { type: 'text', class: 'rep-in', inputmode: 'numeric', 'aria-label': `${s.name} rep range low`, value: String(range.lo) });
+  const hiIn = el('input', { type: 'text', class: 'rep-in', inputmode: 'numeric', 'aria-label': `${s.name} rep range high`, value: String(range.hi) });
+  const rangeRow = el('div', { class: 'sr-goalrow' },
+    el('span', { class: 'sr-goallabel' }, 'Rep range'),
+    loIn, el('span', { class: 'rp-dim' }, '–'), hiIn,
+    el('button', {
+      class: 'btn primary sr-goalbtn',
+      onclick: () => {
+        const lo = parseInt(loIn.value, 10);
+        const hi = parseInt(hiIn.value, 10);
+        if (Number.isFinite(lo) && Number.isFinite(hi) && lo >= 1 && hi > lo) setRepRange(s.name, lo, hi);
+        else setRepRange(s.name, null, null);
+        rerender();
+      },
+    }, 'Save'),
+    range.custom && el('span', { class: 'pick-hint' }, 'custom'),
+  );
+
+  const history = el('div', { class: 'sr-history' }, goalRow, rangeRow);
+
+  if (s.ready) {
+    history.append(el('div', { class: 'rx-card rx-good' },
+      el('div', { class: 'sg-text' }, `All reps at the top of the range — add weight: try ${fmtN(s.ready.suggest)}.`),
+      el('div', { class: 'sg-why' }, 'Double progression: fill the rep range, add ~2.5–5%, reset to the bottom.'),
+    ));
+  }
+
+  if (s.stalled) {
+    history.append(el('div', { class: 'rx-card' },
+      el('div', { class: 'sg-text' }, `Stalled: no e1RM PR in the last ${s.stalled.sessions} weight-day sessions (${s.stalled.spanDays} days).`),
+      el('div', { class: 'sg-why' },
+        '1. Check effort — hard sets should end 0–3 reps from failure. ',
+        '2. Add a set to this lift for 2–3 weeks. ',
+        '3. Or change the rep range for a block. ',
+        '4. Still stuck: deload a week at ~50% of sets, then retest.'),
+    ));
+  }
 
   // e1RM works across day types, so one line tells the strength story
   const e1rmPoints = s.history
@@ -524,6 +755,11 @@ function liftRow(s, rerender) {
       lineChart({ points: e1rmPoints, ariaLabel: `${s.name} estimated 1RM over time` }),
     );
   }
+
+  history.append(el('div', { class: 'sr-detail' },
+    s.best && s.best.weight != null ? `best ${s.best.weight.toLocaleString()}${s.best.reps != null ? ' × ' + s.best.reps : ''} · ` : '',
+    `last ${setStr(s.last)} · ${s.sessions} session${s.sessions === 1 ? '' : 's'}`,
+  ));
 
   for (const h of [...s.history].reverse()) {
     history.append(el('div', { class: 'sr-hrow' },

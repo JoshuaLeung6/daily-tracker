@@ -103,18 +103,57 @@ export function lastLift(name, beforeISO) {
   return found;
 }
 
-// ----- lift PR goals -----
-// doc.liftGoals[name.toLowerCase()] = { target, setAt }
+// ----- lift PR goals & progression prefs -----
+// doc.liftGoals[name.toLowerCase()] = { target?, setAt?, repLo?, repHi? }
 
 export function liftGoal(name) {
-  return getData().liftGoals[name.trim().toLowerCase()] || null;
+  const p = getData().liftGoals[name.trim().toLowerCase()];
+  return p && p.target != null ? p : null;
 }
 
 export function setLiftGoal(name, target) {
   const key = name.trim().toLowerCase();
-  if (target == null) delete getData().liftGoals[key];
-  else getData().liftGoals[key] = { target, setAt: todayISO() };
+  const prefs = getData().liftGoals[key] || {};
+  if (target == null) {
+    delete prefs.target;
+    delete prefs.setAt;
+  } else {
+    prefs.target = target;
+    prefs.setAt = todayISO();
+  }
+  if (Object.keys(prefs).length === 0) delete getData().liftGoals[key];
+  else getData().liftGoals[key] = prefs;
   persistNow();
+}
+
+// Rep range for double progression: custom per lift, else the day-type
+// defaults (weight day 3–6, volume day 8–15).
+export function repRange(name, focus) {
+  const p = getData().liftGoals[name.trim().toLowerCase()];
+  if (p && p.repLo != null && p.repHi != null) return { lo: p.repLo, hi: p.repHi, custom: true };
+  return focus === 'volume' ? { lo: 8, hi: 15, custom: false } : { lo: 3, hi: 6, custom: false };
+}
+
+export function setRepRange(name, lo, hi) {
+  const key = name.trim().toLowerCase();
+  const prefs = getData().liftGoals[key] || {};
+  if (lo == null || hi == null) {
+    delete prefs.repLo;
+    delete prefs.repHi;
+  } else {
+    prefs.repLo = lo;
+    prefs.repHi = hi;
+  }
+  if (Object.keys(prefs).length === 0) delete getData().liftGoals[key];
+  else getData().liftGoals[key] = prefs;
+  persistNow();
+}
+
+// Round a load bump to something plate-loadable: +2.5–5%, at least +5.
+export function suggestedNextLoad(weight) {
+  if (weight == null) return null;
+  const bump = Math.max(5, Math.round((weight * 0.035) / 5) * 5);
+  return weight + bump;
 }
 
 // ----- derived metrics -----
@@ -216,6 +255,31 @@ export function liftStats(filterSplit) {
     s.goalPct = s.goal && s.best && s.best.weight != null
       ? Math.min(1, s.best.weight / s.goal.target)
       : null;
+
+    // double progression: latest session hit the top of its rep range with
+    // known weight -> flag "ready to add weight" with a suggested load
+    s.ready = null;
+    if (s.last.reps != null && s.last.weight != null) {
+      const range = repRange(s.name, s.last.focus);
+      if (s.last.reps >= range.hi) {
+        s.ready = { focus: s.last.focus, from: s.last.weight, suggest: suggestedNextLoad(s.last.weight) };
+      }
+    }
+
+    // plateau: the last 3 weight-day sessions set no e1RM PR, spanning 2+
+    // weeks of consistent training (a product heuristic, per the principles)
+    s.stalled = null;
+    const wd = s.history.filter((h) => h.focus === 'weight' && h.e1rm != null);
+    if (wd.length >= 4) {
+      const recent = wd.slice(-3);
+      const before = wd.slice(0, -3);
+      const priorMax = Math.max(...before.map((h) => h.e1rm));
+      const noPR = recent.every((h) => h.e1rm <= priorMax + 1e-9);
+      const spanDays = Math.round((Date.parse(recent[2].date) - Date.parse(recent[0].date)) / 86400000);
+      if (noPR && spanDays >= 14) {
+        s.stalled = { sessions: 3, spanDays, priorMax };
+      }
+    }
   }
   out.sort((a, b) => (a.last.date < b.last.date ? 1 : -1));
   return out;

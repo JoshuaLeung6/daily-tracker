@@ -16,6 +16,9 @@ function s(tag, attrs = {}, text) {
   return node;
 }
 
+// exported for static diagrams (Coach reference cards)
+export const svgEl = s;
+
 const fmtN = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 const fmtCompact = (n) => (Math.abs(n) >= 10000 ? `${(n / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}k` : fmtN(n));
 
