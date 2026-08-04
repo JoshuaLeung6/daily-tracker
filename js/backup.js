@@ -24,6 +24,7 @@ export async function exportData() {
     workouts: doc.workouts || {},
     liftGoals: doc.liftGoals || {},
     profile: doc.profile || {},
+    foods: doc.foods || [],
   };
   const result = await shareJSON(JSON.stringify(payload, null, 2), `tracker-backup-${todayISO()}.json`, 'Tracker backup');
   if (result !== 'cancelled') setLastExport();
@@ -115,6 +116,7 @@ export function buildAnalysisPayload() {
     exportedAt: new Date().toISOString(),
     note: 'Derived stats are precomputed; days/workouts are the raw log. e1RM uses the Epley formula.',
     profile: getProfile(),
+    foods: (doc.foods || []).map((f) => ({ name: f.name, kcal: f.kcal, protein: f.protein, uses: f.uses || 0 })),
     trackers: doc.trackers.map((t) => ({
       name: nameOf[t.id], type: t.type, unit: t.unit || null, archived: !!t.archived,
       currentTarget: targetFor(t, today), targetHistory: t.targets || [], goal: t.goal || null,
@@ -193,6 +195,7 @@ export function applyImport(backup) {
     workouts: backup.workouts || {},
     liftGoals: backup.liftGoals || {},
     profile: backup.profile || {},
+    foods: backup.foods || [],
   });
 }
 

@@ -26,6 +26,7 @@ function seed() {
     workouts: {},
     liftGoals: {},
     profile: {},
+    foods: [],
   };
 }
 
@@ -97,6 +98,7 @@ export function init({ onStorageError } = {}) {
   data.workouts ??= {};
   data.liftGoals ??= {};
   data.profile ??= {};
+  data.foods ??= [];
 
   window.addEventListener('pagehide', () => persistNow());
   document.addEventListener('visibilitychange', () => {

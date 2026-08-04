@@ -47,7 +47,7 @@ async function setNumberInput(page, selector, value) {
   // ---- 1. fresh seeds ----
   await page.goto(URL, { waitUntil: 'networkidle0' });
   await page.waitForSelector('.card');
-  const names = await page.$$eval('.card .t-name', (els) => els.map((e) => e.textContent));
+  const names = await page.$$eval('.card .t-name', (els) => els.map((e) => e.childNodes[0].textContent.trim()));
   check('seeds are Calories, Protein, Cardio, Weightlifting',
     JSON.stringify(names) === JSON.stringify(['Calories', 'Protein', 'Cardio', 'Weightlifting']), names.join(','));
   const chips = await page.$$eval('.chip', (els) => els.map((e) => e.textContent));

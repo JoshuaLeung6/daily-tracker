@@ -7,6 +7,7 @@ import { getEntry, setValue, persistNow } from '../store.js';
 import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets, previousValue } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, FOCUS_LABELS, sessionHadPR } from '../workouts.js';
 import { openWorkout } from './workout.js';
+import { openFoodSheet } from './foodsheet.js';
 
 // Past days are read-only unless explicitly unlocked; the unlock covers one
 // day and drops as soon as you navigate away.
@@ -32,15 +33,16 @@ export function render(container, ctx) {
     el('button', { class: 'nav-arrow', 'aria-label': 'Next day', onclick: () => ctx.setDate(addDays(iso, 1)) }, '›'),
   );
 
+  const rerender = () => render(container, ctx);
   const cards = el('div', { class: 'cards' });
   // locked days show only what was actually logged
   const active = activeTrackers().filter((t) => !locked || t.id in entry);
-  for (const t of active) cards.append(trackerCard(t, iso, entry, locked));
+  for (const t of active) cards.append(trackerCard(t, iso, entry, locked, rerender));
 
   // archived trackers still show on days where they have data
   const archivedWithData = allTrackers().filter((t) => t.archived && t.id in entry);
   for (const t of archivedWithData) {
-    const card = trackerCard(t, iso, entry, locked);
+    const card = trackerCard(t, iso, entry, locked, rerender);
     card.classList.add('is-archived');
     cards.append(card);
   }
@@ -114,9 +116,9 @@ function workoutSection(iso, locked, rerender) {
   return wrap;
 }
 
-function trackerCard(t, iso, entry, locked) {
+function trackerCard(t, iso, entry, locked, rerender) {
   let card;
-  if (t.type === 'number' || t.type === 'measurement') card = numberCard(t, iso, entry, locked);
+  if (t.type === 'number' || t.type === 'measurement') card = numberCard(t, iso, entry, locked, rerender);
   else if (t.type === 'checkbox') card = checkboxCard(t, iso, entry, locked);
   else if (t.type === 'select' || t.type === 'multiselect') card = selectCard(t, iso, entry, locked);
   else card = textCard(t, iso, entry, locked);
@@ -132,10 +134,11 @@ function lockIcon(closed) {
   return span;
 }
 
-function numberCard(t, iso, entry, locked) {
+function numberCard(t, iso, entry, locked, rerender) {
   const isMeasure = t.type === 'measurement';
   const target = !isMeasure ? targetFor(t, iso) : null;
   const dailyGoal = target && target.period === 'day' ? target.value : null;
+  const isCalories = t.name.toLowerCase() === 'calories';
 
   const input = el('input', {
     type: 'text',
@@ -177,7 +180,17 @@ function numberCard(t, iso, entry, locked) {
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
 
   const row = el('span', { class: 'num-row' },
-    el('span', { class: 't-name' }, t.name),
+    el('span', { class: 't-name' },
+      t.name,
+      // the food library's entry point lives on the Calories card
+      isCalories && !locked && el('button', {
+        class: 'food-btn',
+        onclick: (e) => {
+          e.preventDefault();
+          openFoodSheet(iso, { onClose: rerender });
+        },
+      }, '＋ food'),
+    ),
     el('span', { class: 't-value' }, input, t.unit && el('span', { class: 'unit' }, t.unit)),
   );
 
