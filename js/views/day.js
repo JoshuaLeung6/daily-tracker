@@ -91,8 +91,13 @@ export function render(container, ctx) {
   //  - swipe left/right -> previous / next day
   //  - pull down at the top -> zoom out to this day's week
   const DIST = 70;
-  const hint = el('div', { class: 'swipe-hint' });
-  container.append(hint);
+  const HINT_W = 30; // .swipe-hint width (26) + its 2px edge offset, both sides
+  // The hint lives on <body>, NOT inside the view: a transformed ancestor
+  // makes position:fixed resolve against that ancestor, so a hint inside the
+  // view would slide along with the content and always overlap it.
+  const hint = document.getElementById('swipe-hint')
+    || el('div', { class: 'swipe-hint', id: 'swipe-hint' });
+  if (hint.parentElement !== document.body) document.body.append(hint);
   // g holds the in-flight gesture; hint/iso/ctx are refreshed every render so
   // the once-bound touchmove listener never reads a stale closure.
   g.hint = hint;
@@ -134,15 +139,23 @@ export function render(container, ctx) {
       // once locked to an axis, own the gesture — no concurrent scroll
       if ((g.axis === 'x' || g.axis === 'y') && e.cancelable) e.preventDefault();
       if (g.axis === 'x') {
-        container.style.transform = `translateX(${Math.max(-90, Math.min(90, dx * 0.35))}px)`;
+        // travel enough to open a gutter wider than the glyph (26px)
+        const shift = Math.max(-96, Math.min(96, dx * 0.55));
+        container.style.transform = `translateX(${shift}px)`;
         const armed = Math.abs(dx) > DIST;
         g.hint.textContent = dx < 0 ? '›' : '‹';
-        g.hint.className = 'swipe-hint ' + (dx < 0 ? 'right' : 'left') + ' show' + (armed ? ' armed' : '');
+        // centre the glyph in the strip the view vacated
+        g.hint.style.setProperty('--hint-gap', Math.abs(shift) + 'px');
+        g.hint.className = 'swipe-hint ' + (dx < 0 ? 'right' : 'left') + ' show'
+          + (Math.abs(shift) >= HINT_W ? ' roomy' : '') + (armed ? ' armed' : '');
       } else if (g.axis === 'y') {
-        container.style.transform = `translateY(${Math.min(70, dy * 0.35)}px)`;
+        const shift = Math.min(84, dy * 0.55);
+        container.style.transform = `translateY(${shift}px)`;
         const armed = dy > DIST + 20;
         g.hint.textContent = '⌄';
-        g.hint.className = 'swipe-hint top show' + (armed ? ' armed' : '');
+        g.hint.style.setProperty('--hint-gap', shift + 'px');
+        g.hint.className = 'swipe-hint top show'
+          + (shift >= HINT_W ? ' roomy' : '') + (armed ? ' armed' : '');
       }
     }, { passive: false });
   }

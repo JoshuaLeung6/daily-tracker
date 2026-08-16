@@ -131,9 +131,12 @@ html[data-theme="light"] body::before {
      it withholds below the web view with the page background, so a matching
      bar makes the two read as one continuous surface down to the edge */
   background: var(--bg);
-  /* the tab row's own height keeps the icons above the home indicator;
-     no extra inset padding (it read as empty space under the icons) */
-  padding-bottom: 0;
+  /* The home-indicator band is unavoidable space below the tab row. Rather
+     than sit above it (which reads as the bar floating), the bar claims it
+     as its own bottom padding and the icons ride at the top of that — so
+     the row sits as low as iOS allows and the gap belongs to the bar.
+     Capped at 20px: the full 34px inset just recreates the empty strip. */
+  padding-bottom: min(env(safe-area-inset-bottom, 0px), 20px);
 }
 
 .tab {
@@ -142,10 +145,11 @@ html[data-theme="light"] body::before {
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  padding: 5px 0 6px;
-  min-height: 46px;
+  padding: 5px 0 2px;
+  min-height: 42px;
   color: var(--faint);
   font-size: 10px;
+  line-height: 1.1;
   letter-spacing: 0.02em;
 }
 
@@ -1062,31 +1066,39 @@ html[data-theme="light"] body::before {
 /* a committed side swipe owns the gesture — no vertical scrolling with it */
 #view-week.gesture-lock, #view-day.gesture-lock { touch-action: pan-x; }
 
-/* a single chevron pinned to the edge the gesture pulls toward */
+/* A bare chevron that rides in the gutter the view opens as it follows the
+   finger — the view translates away from the edge, and the glyph sits in the
+   revealed strip. No background plate: over content it would still read as
+   an overlay, and in the gutter there is nothing to plate against. It is
+   translated OUTSIDE the viewport at rest and slid in with the gesture, so
+   it can never cover a card. */
 .swipe-hint {
   position: fixed;
   z-index: 25;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
   color: var(--faint);
-  font-size: 17px;
+  font-size: 22px;
   line-height: 1;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s, color 0.12s, border-color 0.12s, background 0.12s;
+  transition: opacity 0.12s, color 0.12s;
 }
-.swipe-hint.show { opacity: 1; }
-.swipe-hint.armed { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); }
-.swipe-hint.blocked { opacity: 0.35; }
-.swipe-hint.top { top: calc(env(safe-area-inset-top, 0px) + 10px); left: 50%; margin-left: -15px; }
-.swipe-hint.left { left: 8px; top: 50%; margin-top: -15px; }
-.swipe-hint.right { right: 8px; top: 50%; margin-top: -15px; }
+/* only visible once the gutter is wide enough to hold the glyph, so it never
+   has to sit on top of a card */
+.swipe-hint.show { opacity: 0; }
+.swipe-hint.show.roomy { opacity: 1; }
+.swipe-hint.armed { color: var(--accent); }
+.swipe-hint.blocked.roomy { opacity: 0.3; }
+/* The glyph sits flush against the viewport edge. The view slides AWAY from
+   that edge by --hint-gap, so once the gap exceeds the glyph width (the
+   .roomy gate in JS) the glyph occupies empty gutter, never a card. */
+.swipe-hint.top { left: 50%; margin-left: -13px; top: 2px; }
+.swipe-hint.left { top: 50%; margin-top: -13px; left: 2px; }
+.swipe-hint.right { top: 50%; margin-top: -13px; right: 2px; }
 
 /* section dividers in the week detail */
 .wk-section-label {

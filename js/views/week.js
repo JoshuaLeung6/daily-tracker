@@ -112,6 +112,9 @@ function renderOverview(container, ctx) {
   container.ontouchend = null;
   container.ontouchcancel = null;
   container.classList.remove('gesture-live', 'gesture-lock');
+  // the hint is shared on <body>, so hide it explicitly when leaving detail
+  const sharedHint = document.getElementById('swipe-hint');
+  if (sharedHint) sharedHint.className = 'swipe-hint';
   container.style.transform = '';
   // returning from a scrolled detail view must land at the top
   container.scrollTop = 0;
@@ -222,8 +225,13 @@ function renderDetail(container, ctx) {
   // The content follows the finger and a hint pill appears once the gesture
   // has passed its threshold, so the outcome is visible before releasing.
   const DIST = 70;
-  const hint = el('div', { class: 'swipe-hint' });
-  container.append(hint);
+  const HINT_W = 30; // .swipe-hint width (26) + its 2px edge offset, both sides
+  // The hint lives on <body>, NOT inside the view: a transformed ancestor
+  // makes position:fixed resolve against that ancestor, so a hint inside the
+  // view would slide along with the content and always overlap it.
+  const hint = document.getElementById('swipe-hint')
+    || el('div', { class: 'swipe-hint', id: 'swipe-hint' });
+  if (hint.parentElement !== document.body) document.body.append(hint);
   // refresh the shared gesture state for this render (see `g` at module scope)
   g.hint = hint;
   g.canNext = addDays(start, 7) <= startOfWeek(today);
@@ -265,18 +273,24 @@ function renderDetail(container, ctx) {
       if ((g.axis === 'x' || g.axis === 'y') && e.cancelable) e.preventDefault();
       if (g.axis === 'x') {
         const blocked = dx < 0 && !g.canNext;
-        const shift = Math.max(-90, Math.min(90, dx * (blocked ? 0.15 : 0.35)));
+        // travel enough to open a gutter wider than the glyph (26px)
+        const shift = Math.max(-96, Math.min(96, dx * (blocked ? 0.15 : 0.55)));
         container.style.transform = `translateX(${shift}px)`;
         const armed = !blocked && Math.abs(dx) > DIST;
         g.hint.textContent = dx < 0 ? '›' : '‹';
+        // centre the glyph in the strip the view vacated
+        g.hint.style.setProperty('--hint-gap', Math.abs(shift) + 'px');
         g.hint.className = 'swipe-hint ' + (dx < 0 ? 'right' : 'left') + ' show'
+          + (Math.abs(shift) >= HINT_W ? ' roomy' : '')
           + (armed ? ' armed' : '') + (blocked ? ' blocked' : '');
       } else if (g.axis === 'y') {
-        const shift = Math.min(70, dy * 0.35);
+        const shift = Math.min(84, dy * 0.55);
         container.style.transform = `translateY(${shift}px)`;
         const armed = dy > DIST + 20;
         g.hint.textContent = '⌄';
-        g.hint.className = 'swipe-hint top show' + (armed ? ' armed' : '');
+        g.hint.style.setProperty('--hint-gap', shift + 'px');
+        g.hint.className = 'swipe-hint top show'
+          + (shift >= HINT_W ? ' roomy' : '') + (armed ? ' armed' : '');
       }
     }, { passive: false });
   }

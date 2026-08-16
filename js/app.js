@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.15.4';
+export const APP_VERSION = '2.15.5';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -80,6 +80,10 @@ function renderActive() {
 
 function switchTab(tab, opts = {}) {
   state.tab = tab;
+  // the swipe hint lives on <body> (outside the transformed views), so it
+  // must be cleared by hand when the view it belonged to goes away
+  const hint = document.getElementById('swipe-hint');
+  if (hint) hint.className = 'swipe-hint';
   if (views[tab].enter && !opts.keepMode) views[tab].enter();
   for (const [name, section] of Object.entries(sections)) section.hidden = name !== tab;
   for (const btn of document.querySelectorAll('.tab')) {
