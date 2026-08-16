@@ -166,21 +166,16 @@ const localISO = (offset) => {
   await page.click('.tab[data-tab="week"]');
   await page.waitForSelector('.wk-row');
   await page.click('.wk-row.is-current');
-  await page.waitForSelector('.week-totals');
-  const wkMet = await page.$(`.wt-row b.wk-met`);
-  check(`weekly weightlifting ${liftDays}/4 -> blue when met`, liftDays >= 4 ? wkMet !== null : wkMet === null);
+  await page.waitForSelector('.report-card');
+  const wkCard = await page.$eval('.report-card', (e) => e.textContent);
+  // workout days = checkbox days ∪ logged-workout days (today has a workout too)
+  check('week card workouts line shows N/days', /Workouts\d\/\d days/.test(wkCard), wkCard.slice(0, 200));
   const greenDays = await page.$$eval('.wr-date .dn.all-met', (els) => els.length);
   const monOffset = -((new Date().getDay() + 6) % 7);
   const expectedGreen = [-3, -2, 0].filter((off) => off >= monOffset).length;
   check(`week rows: ${expectedGreen} green day number(s) in current week`, greenDays === expectedGreen, `got ${greenDays}`);
 
-  await page.click('.tab[data-tab="month"]');
-  await page.waitForSelector('.month-cell');
-  const greenCells = await page.$$eval('.cell-day.all-met', (els) => els.length);
-  // met days are offsets -3, -2, 0 — only those in the displayed (current) month show
-  const monthPrefix = localISO(0).slice(0, 7);
-  const expectedMonthGreen = [-3, -2, 0].filter((off) => localISO(off).slice(0, 7) === monthPrefix).length;
-  check(`month: ${expectedMonthGreen} green day number(s) this month`, greenCells === expectedMonthGreen, `got ${greenCells}`);
+  check('month tab removed from tab bar', (await page.$('.tab[data-tab="month"]')) === null);
 
   // ---- 6. locked day shows only filled fields ----
   await page.click('.tab[data-tab="day"]');

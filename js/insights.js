@@ -395,27 +395,62 @@ export function liftingSessionTarget() {
   return 3;
 }
 
-// Grade a week on its applicable components: rate in band, protein hit on
-// ≥70% of target days (≈ the "80% adherence is enough" rule with slack),
-// and training sessions vs the weekly commitment.
+// Cardio days/week commitment: the Cardio tracker's weekly target if set,
+// else 3.
+export function cardioDayTarget() {
+  const t = cardioTracker();
+  if (t) {
+    const tgt = targetFor(t, todayISO());
+    if (tgt && tgt.period === 'week') return tgt.value;
+  }
+  return 3;
+}
+
+// Per-line status for the week card and overview rows: 'good' | 'bad' |
+// 'neutral' | null (not applicable). Shared so both views color alike.
+// - weight: band verdict (harmful direction = bad, other off-band = neutral)
+// - calories/protein: target hit on >=70% of days-so-far (the "80% is enough"
+//   rule with slack; a target must exist)
+// - cardio/workouts: on pace for the weekly commitment, scaled to days elapsed
+export function weekLineStatus(report) {
+  const out = { weight: null, calories: null, protein: null, cardio: null, workouts: null };
+  const today = todayISO();
+  const daysSoFar = report.days.filter((d) => d <= today).length;
+  const w = report.weight;
+  if (w && w.verdict) {
+    if (w.verdict === 'in') out.weight = 'good';
+    else {
+      const gaining = w.band.phase === 'gain';
+      const harmful = (gaining && w.verdict === 'above') || (!gaining && w.verdict === 'below');
+      out.weight = harmful ? 'bad' : 'neutral';
+    }
+  } else if (w && w.weekAvg != null) out.weight = 'neutral';
+  const hitLine = (x) => (x && x.of > 0 ? (x.hit / x.of >= 0.7 ? 'good' : 'neutral') : (x ? 'neutral' : null));
+  out.calories = hitLine(report.intake);
+  out.protein = hitLine(report.protein);
+  const pace = (done, weeklyTarget) => {
+    const need = Math.ceil(weeklyTarget * (daysSoFar / 7));
+    return done >= Math.max(1, need) ? 'good' : 'neutral';
+  };
+  if (report.cardio) out.cardio = pace(report.cardio.days, cardioDayTarget());
+  if (report.training) out.workouts = report.training.days > 0 || allWorkouts().length > 0
+    ? pace(report.training.days, liftingSessionTarget())
+    : null;
+  return out;
+}
+
+// Grade a week from its line statuses: all applicable good = green, none
+// good = red, mixed = yellow.
 export function weekGrade(iso) {
   const report = weekReport(iso);
-  const components = [];
-  if (report.weight && report.weight.rate && report.weight.band) {
-    components.push({ key: 'rate', met: report.weight.verdict === 'in' });
-  }
-  if (report.protein && report.protein.of > 0) {
-    components.push({ key: 'protein', met: report.protein.hit / report.protein.of >= 0.7 });
-  }
-  if (allWorkouts().length > 0) {
-    components.push({ key: 'training', met: report.training.sessions >= liftingSessionTarget() });
-  }
-  const met = components.filter((c) => c.met).length;
-  const grade = components.length === 0 ? null
-    : met === components.length ? 'green'
+  const status = weekLineStatus(report);
+  const applicable = Object.values(status).filter((s) => s !== null);
+  const met = applicable.filter((s) => s === 'good').length;
+  const grade = applicable.length === 0 ? null
+    : met === applicable.length ? 'green'
     : met === 0 ? 'red'
     : 'yellow';
-  return { grade, met, applicable: components.length, components, report };
+  return { grade, met, applicable: applicable.length, status, report };
 }
 
 function earliestDataISO() {

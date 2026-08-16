@@ -48,8 +48,9 @@ async function setNumberInput(page, selector, value) {
   await page.goto(URL, { waitUntil: 'networkidle0' });
   await page.waitForSelector('.card');
   const names = await page.$$eval('.card .t-name', (els) => els.map((e) => e.childNodes[0].textContent.trim()));
-  check('seeds are Calories, Protein, Cardio, Weightlifting',
-    JSON.stringify(names) === JSON.stringify(['Calories', 'Protein', 'Cardio', 'Weightlifting']), names.join(','));
+  // Weightlifting is seeded but has no day card (derived from the workout log)
+  check('day cards are Calories, Protein, Cardio',
+    JSON.stringify(names) === JSON.stringify(['Calories', 'Protein', 'Cardio']), names.join(','));
   const chips = await page.$$eval('.chip', (els) => els.map((e) => e.textContent));
   check('Cardio has 4 chips', JSON.stringify(chips) === JSON.stringify(['walk', 'run', 'squash', 'bike']), chips.join(','));
 
@@ -151,10 +152,10 @@ async function setNumberInput(page, selector, value) {
   await page.click('.tab[data-tab="week"]');
   await page.waitForSelector('.wk-row');
   await page.click('.wk-row.is-current');
-  await page.waitForSelector('.week-totals');
-  const weekText = await page.$eval('.week-totals', (e) => e.textContent);
-  check('week totals show weightlifting days vs 4/week target', /\d \/ 4 days/.test(weekText), weekText.slice(0, 200));
-  check('week totals show calories goal', /≤ 3,000 kcal\/day/.test(weekText));
+  await page.waitForSelector('.report-card');
+  const weekText = await page.$eval('.report-card', (e) => e.textContent);
+  check('week card shows workouts days', /Workouts\d\/\d days/.test(weekText), weekText.slice(0, 200));
+  check('week card shows calories line', /Calories/.test(weekText));
   const rowText = await page.$eval('.week-rows', (e) => e.textContent);
   check('week rows show multiselect values', /run|bike/.test(rowText));
   await page.screenshot({ path: path.join(SHOTS, 'v2-week-light.png') });

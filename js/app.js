@@ -4,25 +4,23 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.10.0';
+export const APP_VERSION = '2.11.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
 import { todayISO } from './dates.js';
 import * as dayView from './views/day.js';
 import * as weekView from './views/week.js';
-import * as monthView from './views/month.js';
 import * as statsView from './views/stats.js';
 import * as settingsView from './views/settings.js';
 
 const sections = {
   day: document.getElementById('view-day'),
   week: document.getElementById('view-week'),
-  month: document.getElementById('view-month'),
   stats: document.getElementById('view-stats'),
   settings: document.getElementById('view-settings'),
 };
-const views = { day: dayView, week: weekView, month: monthView, stats: statsView, settings: settingsView };
+const views = { day: dayView, week: weekView, stats: statsView, settings: settingsView };
 
 const state = {
   tab: 'day',

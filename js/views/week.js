@@ -5,7 +5,7 @@ import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
-import { weekReport, weekSuggestions, weeksOverview } from '../insights.js';
+import { weekReport, weekSuggestions, weeksOverview, weekLineStatus } from '../insights.js';
 import { currentSprint } from '../sprints.js';
 
 // The tab opens zoomed out: every week graded green/yellow/red; tapping a
@@ -38,48 +38,52 @@ function renderOverview(container, ctx) {
   if (weeks.length === 0) {
     list.append(el('div', { class: 'empty-state' }, 'Nothing logged yet — weeks appear here as you log.'));
   }
-  const total = weeks.length;
   let currentRow = null;
+  const today = todayISO();
   for (const wk of weeks) {
+    const edgeNum = wk.index ? el('span', { class: 'wk-num' }, String(wk.index)) : null;
     if (wk.isFuture) {
       list.append(el('div', { class: 'wk-row is-future' },
-        el('span', { class: 'wk-dot none' }),
+        edgeNum,
         el('span', { class: 'wk-main' },
           el('b', {}, weekLabel(wk.ws)),
-          el('span', { class: 'wk-bits' }, `week ${wk.index} of ${total} · upcoming`),
+          el('span', { class: 'wk-bits' }, 'upcoming'),
         ),
       ));
       continue;
     }
     const r = wk.report;
-    const bits = [];
-    if (r.weight && r.weight.weekAvg != null) {
-      bits.push(`${fmtN(r.weight.weekAvg)}${r.weight.tracker.unit ? ' ' + r.weight.tracker.unit : ''} avg`);
-    }
-    if (r.weight && r.weight.rate) {
-      bits.push(`${r.weight.rate.pct > 0 ? '+' : ''}${r.weight.rate.pct.toFixed(2)}%/wk`);
-    }
-    if (r.training && r.training.sessions > 0) {
-      bits.push(`${r.training.sessions} session${r.training.sessions === 1 ? '' : 's'}`);
-    }
-    if (r.protein && r.protein.of > 0) bits.push(`protein ${r.protein.hit}/${r.protein.of}`);
-    if (bits.length === 0) bits.push('nothing logged');
+    const st = weekLineStatus(r);
+    const daysSoFar = r.days.filter((d) => d <= today).length;
+    const cell = (label, value, status) => el('span', { class: 'wk-cell' + (status ? ' st-' + status : '') },
+      el('span', { class: 'wk-cell-v' }, value),
+      el('span', { class: 'wk-cell-l' }, label),
+    );
+    const w = r.weight;
+    const cells = el('span', { class: 'wk-cells' },
+      cell('weight', w && w.weekAvg != null ? fmtN(w.weekAvg) : '—', st.weight),
+      cell('kcal', r.intake && r.intake.avg != null ? Math.round(r.intake.avg).toLocaleString() : '—', st.calories),
+      cell('protein', r.protein && r.protein.avg != null ? Math.round(r.protein.avg) : '—', st.protein),
+      cell('cardio', r.cardio ? `${r.cardio.days}/${daysSoFar}` : '—', st.cardio),
+      cell('lifts', r.training ? `${r.training.days}/${daysSoFar}` : '—', st.workouts),
+    );
 
     const row = el('button', {
-      class: 'wk-row' + (wk.isCurrent ? ' is-current' : ''),
+      class: 'wk-row wk-row-ledger' + (wk.isCurrent ? ' is-current' : ''),
       onclick: () => { mode = 'detail'; ctx.setDate(wk.ws); },
     },
-      el('span', {
-        class: 'wk-dot ' + (wk.isCurrent ? 'current' : (wk.grade || 'none')),
-        'aria-label': wk.isCurrent ? 'in progress' : (wk.grade || 'no data'),
-      }),
+      edgeNum,
       el('span', { class: 'wk-main' },
-        el('b', {}, wk.isCurrent ? 'This week' : weekLabel(wk.ws)),
-        el('span', { class: 'wk-bits' },
-          wk.index ? el('span', { class: 'rp-dim' }, `wk ${wk.index}/${total} · `) : null,
-          bits.join(' · '), wk.isCurrent ? el('span', { class: 'rp-dim' }, ' · in progress') : null),
+        el('span', { class: 'wk-title' },
+          el('span', {
+            class: 'wk-dot ' + (wk.isCurrent ? 'current' : (wk.grade || 'none')),
+            'aria-label': wk.isCurrent ? 'in progress' : (wk.grade || 'no data'),
+          }),
+          el('b', {}, wk.isCurrent ? 'This week' : weekLabel(wk.ws)),
+          wk.isCurrent ? el('span', { class: 'rp-dim wk-inprog' }, 'in progress') : null,
+        ),
+        cells,
       ),
-      el('span', { class: 'wo-chevron' }, '›'),
     );
     if (wk.isCurrent) currentRow = row;
     list.append(row);
@@ -162,9 +166,6 @@ function renderDetail(container, ctx) {
 
   const report = buildReportCard(ctx);
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), back, ...report, rows);
-
-  const summary = buildSummary(trackers, days);
-  if (summary) container.append(summary);
 }
 
 // The report card: the week's verdict — rate vs band, intake, training —
@@ -178,6 +179,12 @@ function buildReportCard(ctx) {
   // the number of days in the week that have happened (7 for past weeks)
   const daysSoFar = r.days.filter((d) => d <= todayISO()).length;
   const outOf = (n) => el('span', { class: 'rp-dim' }, ` · ${n}/${daysSoFar} days`);
+  const st = weekLineStatus(r);
+  const rpRowC = (label, valueEl, status) => {
+    const row = rpRow(label, valueEl);
+    if (status) row.classList.add('st-' + status);
+    return row;
+  };
 
   // 1. weight: avg · % vs previous week · weigh-in count (+ band badge)
   if (r.weight) {
@@ -192,7 +199,7 @@ function buildReportCard(ctx) {
         badge = el('span', { class: 'rp-badge ' + (harmful ? 'bad' : 'off') },
           w.verdict === 'above' ? (gaining ? 'fast — fat risk' : 'slow') : (gaining ? 'slow' : 'fast — muscle risk'));
       }
-      card.append(rpRow(w.tracker.name,
+      card.append(rpRowC(w.tracker.name,
         el('span', {},
           el('b', {}, `${fmtN(w.weekAvg)}${unit}`), ' avg',
           w.pctVsPrev != null
@@ -202,7 +209,7 @@ function buildReportCard(ctx) {
           // trend rate drives the band verdict; keep it visible when known
           w.rate ? el('span', { class: 'rp-dim' }, ` · trend ${w.rate.pct > 0 ? '+' : ''}${w.rate.pct.toFixed(2)}%/wk`) : null,
           el('span', { class: 'rp-dim' }, ` · ${w.weighIns} weigh-in${w.weighIns === 1 ? '' : 's'}`),
-        )));
+        ), st.weight));
     } else {
       card.append(rpRow(w.tracker.name, el('span', { class: 'rp-dim' }, 'no weigh-ins this week')));
     }
@@ -211,29 +218,29 @@ function buildReportCard(ctx) {
 
   // 2. calories: avg · target days
   if (r.intake) {
-    card.append(rpRow('Calories',
+    card.append(rpRowC('Calories',
       el('span', {},
         r.intake.avg != null ? el('b', {}, Math.round(r.intake.avg).toLocaleString()) : el('span', { class: 'rp-dim' }, '—'),
         r.intake.avg != null ? ` ${r.intake.unit} avg` : '',
         r.intake.of > 0 ? outOf(r.intake.hit) : el('span', { class: 'rp-dim' }, ' · no target set'),
-      )));
+      ), st.calories));
     any = true;
   }
 
   // 3. protein: avg · target days
   if (r.protein) {
-    card.append(rpRow('Protein',
+    card.append(rpRowC('Protein',
       el('span', {},
         r.protein.avg != null ? el('b', {}, fmtN(r.protein.avg)) : el('span', { class: 'rp-dim' }, '—'),
         r.protein.avg != null ? ` ${r.protein.unit} avg` : '',
         r.protein.of > 0 ? outOf(r.protein.hit) : el('span', { class: 'rp-dim' }, ' · no target set'),
-      )));
+      ), st.protein));
     any = true;
   }
 
   // 4. cardio: days done
   if (r.cardio) {
-    card.append(rpRow('Cardio', el('span', {}, el('b', {}, `${r.cardio.days}/${daysSoFar}`), ' days')));
+    card.append(rpRowC('Cardio', el('span', {}, el('b', {}, `${r.cardio.days}/${daysSoFar}`), ' days'), st.cardio));
     any = true;
   }
 
@@ -242,11 +249,11 @@ function buildReportCard(ctx) {
     const t = r.training;
     const splitBits = SPLITS.filter((s) => t.bySplit[s])
       .map((s) => `${SPLIT_LABELS[s]} ${t.bySplit[s]}`).join(' · ');
-    card.append(rpRow('Workouts',
+    card.append(rpRowC('Workouts',
       el('span', {},
         el('b', {}, `${t.days}/${daysSoFar}`), ' days',
         splitBits ? el('span', { class: 'rp-dim' }, ` · ${splitBits}`) : null,
-      )));
+      ), st.workouts));
     any = true;
   }
 

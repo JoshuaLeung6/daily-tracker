@@ -78,12 +78,10 @@ const localISO = (offset) => {
   await page.click('.tab[data-tab="week"]');
   await page.waitForSelector('.wk-row');
   await page.click('.wk-row.is-current');
-  await page.waitForSelector('.week-totals');
-  const wkText = await page.$eval('.week-totals', (e) => e.textContent);
-  const weightLine = /Weight/.test(wkText);
-  check('week totals include weight line', weightLine, wkText);
-  check('weight shows latest, not sum', /186 lb/.test(wkText) && !/372|374\.5/.test(wkText), wkText);
-  check('weight line shows avg', /avg/.test(wkText));
+  await page.waitForSelector('.report-card');
+  const wkText = await page.$eval('.report-card', (e) => e.textContent);
+  check('week card includes weight line', /Weight/.test(wkText), wkText);
+  check('weight shows an average, never a sum', /lb avg/.test(wkText) && !/372|374\.5/.test(wkText), wkText);
 
   // ---- 4. settings: measurement has no target editor; kind switch works ----
   await page.click('.tab[data-tab="settings"]');

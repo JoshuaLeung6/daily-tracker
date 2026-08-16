@@ -85,7 +85,7 @@ const localISO = (offset) => {
   const futureRows = await page.$$eval('.wk-row.is-future', (els) => els.length);
   check('sprint timeline includes upcoming weeks', futureRows > 0, `future rows: ${futureRows}`);
   const upcomingText = await page.$eval('.wk-row.is-future', (e) => e.textContent);
-  check('future rows labeled week N of M · upcoming', /week \d+ of \d+ · upcoming/.test(upcomingText), upcomingText);
+  check('future rows: edge number + upcoming', /^\d+/.test(upcomingText) && /upcoming/.test(upcomingText), upcomingText);
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');
   const labels = await page.$$eval('.report-card .rp-label', (els) => els.map((e) => e.textContent));
@@ -142,12 +142,7 @@ const localISO = (offset) => {
       return all[0].blob.size;
     });
     check('photo downscaled to a small JPEG', size > 1000 && size < 400000, `bytes: ${size}`);
-    // month view marks the day
-    await page.click('.tab[data-tab="month"]');
-    await page.waitForFunction(() => document.querySelector('.cell-day.has-photo') !== null, { timeout: 5000 });
-    check('month cell marks photo day', true);
     // lightbox + delete
-    await page.click('.tab[data-tab="day"]');
     await page.waitForSelector('.photo-tile');
     await page.click('.photo-tile');
     await page.waitForSelector('.lightbox');

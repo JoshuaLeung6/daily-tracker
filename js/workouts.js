@@ -38,6 +38,11 @@ export function saveWorkout(iso, draft) {
 export function deleteWorkout(iso) {
   if (getData().workouts[iso]) {
     delete getData().workouts[iso];
+    // the Weightlifting checkbox mirrors the log — uncheck it too
+    const t = getData().trackers.find(
+      (x) => x.type === 'checkbox' && !x.archived && x.name.toLowerCase() === 'weightlifting',
+    );
+    if (t) setValue(iso, t.id, false);
     persistNow();
   }
 }

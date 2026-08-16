@@ -11,7 +11,6 @@ import {
   exportData, exportAnalysis, exportPhotos, readBackupFile, applyImport,
   canUndoImport, undoImport, lastExportDays,
 } from '../backup.js';
-import { listFoods, addFood, updateFood, deleteFood } from '../foods.js';
 import { themePref, setThemePref } from '../theme.js';
 
 let editingId = null;
@@ -69,31 +68,6 @@ export function render(container, ctx) {
     el('h2', {}, 'Trackers'),
     list,
     el('button', { class: 'ghost-btn', onclick: () => openAddSheet(rerender) }, '+ Add tracker'),
-  );
-
-  // ----- food library -----
-  const foodList = el('div', { class: 'tracker-list' });
-  for (const f of listFoods()) {
-    foodList.append(el('div', { class: 'tracker-row' },
-      el('div', { class: 'tr-main' },
-        el('div', { class: 'tr-info' },
-          el('div', { class: 'name' }, f.name),
-          el('div', { class: 'meta' },
-            `${f.kcal != null ? f.kcal.toLocaleString() + ' kcal' : ''}${f.protein != null ? ` · ${f.protein} g protein` : ''}`
-            + (f.uses ? ` · used ${f.uses}×` : '')),
-        ),
-        el('button', {
-          class: 'icon-btn', 'aria-label': `Edit ${f.name}`,
-          onclick: () => openFoodEditSheet(f, rerender),
-        }, '✎'),
-      ),
-    ));
-  }
-  const foodSection = el('div', { class: 'settings-section' },
-    el('h2', {}, 'Food library'),
-    foodList,
-    el('button', { class: 'ghost-btn', onclick: () => openFoodEditSheet(null, rerender) }, '+ Add food'),
-    el('div', { class: 'settings-note' }, 'Log servings from the Day tab — the ＋ food button on the Calories card.'),
   );
 
   // ----- profile (optional; travels with exports for analysis) -----
@@ -217,7 +191,7 @@ export function render(container, ctx) {
   );
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }),
-    appearanceSection, trackerSection, foodSection, profileSection, backupSection, aboutSection);
+    appearanceSection, trackerSection, profileSection, backupSection, aboutSection);
 }
 
 function targetDesc(t) {
@@ -486,54 +460,6 @@ function openAddSheet(rerender) {
   ));
   document.body.append(backdrop);
   nameInput.focus();
-}
-
-function openFoodEditSheet(food, rerender) {
-  const backdrop = el('div', { class: 'sheet-backdrop' });
-  const close = () => backdrop.remove();
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-
-  const nameIn = el('input', { type: 'text', 'aria-label': 'Food name', placeholder: 'e.g. Chicken & rice bowl', value: food ? food.name : '' });
-  const kcalIn = el('input', { type: 'text', inputmode: 'numeric', 'aria-label': 'Calories per serving', placeholder: 'kcal', value: food && food.kcal != null ? String(food.kcal) : '' });
-  const proIn = el('input', { type: 'text', inputmode: 'decimal', 'aria-label': 'Protein per serving', placeholder: 'g', value: food && food.protein != null ? String(food.protein) : '' });
-
-  backdrop.append(el('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': food ? 'Edit food' : 'New food' },
-    el('h2', {}, food ? 'Edit food' : 'New food'),
-    el('div', { class: 'field' }, el('label', {}, 'Name'), nameIn),
-    el('div', { class: 'field' }, el('label', {}, 'Calories per serving'), kcalIn),
-    el('div', { class: 'field' }, el('label', {}, 'Protein per serving (g)'), proIn),
-    el('div', { class: 'btn-row' },
-      el('button', {
-        class: 'btn primary',
-        onclick: () => {
-          const name = nameIn.value.trim();
-          const kcal = parseFloat(kcalIn.value);
-          const protein = parseFloat(proIn.value);
-          if (!name || !Number.isFinite(kcal)) { alert('A food needs a name and calories.'); return; }
-          const patch = { name, kcal: Math.round(kcal), protein: Number.isFinite(protein) ? Math.round(protein * 10) / 10 : null };
-          if (food) updateFood(food.id, patch);
-          else addFood(patch);
-          close();
-          rerender();
-        },
-      }, 'Save'),
-      el('button', { class: 'btn', onclick: close }, 'Cancel'),
-    ),
-    food && el('div', { class: 'btn-row' },
-      el('button', {
-        class: 'btn danger',
-        onclick: () => {
-          if (confirm(`Delete "${food.name}" from your library? Logged days keep their totals.`)) {
-            deleteFood(food.id);
-            close();
-            rerender();
-          }
-        },
-      }, 'Delete'),
-    ),
-  ));
-  document.body.append(backdrop);
-  if (!food) nameIn.focus();
 }
 
 function parseOptions(str) {
