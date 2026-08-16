@@ -112,14 +112,18 @@ const localISO = (offset) => {
   // ---- 2. sprint pane ----
   await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('#view-stats .seg-btn');
-  await clickByText('#view-stats .seg-btn', 'Sprint');
-  await page.waitForSelector('.goal-card');
+  await clickByText('#view-stats .seg-btn', 'Progress');
+  await page.waitForSelector('.hero-card');
   const spText = await page.$eval('#view-stats', (e) => e.textContent);
-  check('sprint header with dates + day count', /Sprint 1/.test(spText) && /→ Oct 31/.test(spText) && /day \d+ of \d+/.test(spText), spText.slice(0, 200));
-  check('start vs now comparison has Weight + Bench', /Start.*Now/.test(spText) && /Weight/.test(spText) && /Bench/.test(spText));
-  check('sprint goal card: → 145 lb with required pace', /Sprint goal/.test(spText) && /→ 145 lb/.test(spText) && /needs [+-]?[\d.]+ lb\/wk from here/.test(spText),
-    spText.slice(0, 500));
-  check('comparison table has a Target column', /Start.*Now.*Δ.*Target/.test(spText));
+  check('dashboard header: sprint name, dates, week N of M',
+    /Sprint 1/.test(spText) && /→ Oct 31/.test(spText) && /Week \d+ of \d+/.test(spText), spText.slice(0, 200));
+  check('heroes: weight + strength', /Weight/.test(spText) && /Strength/.test(spText) && /lifts up/.test(spText));
+  check('28-day adherence block', /Last 28 days/.test(spText) && /protein/.test(spText));
+  check('lifts ledger present', /Bench/.test(spText));
+  // the injected doc carries its own tracker goal (195), which wins over the
+  // sprint default — the hero shows a target and a required pace either way
+  check('weight hero: target + required pace', /→ \d+ lb · [\d.]+ to go/.test(spText) && /needs [+-][\d.]+ · trending/.test(spText),
+    spText.slice(0, 320));
   check('sprint totals: workouts + PRs + logged', /Workouts/.test(spText) && /PRs/.test(spText) && /Logged/.test(spText));
   await page.screenshot({ path: path.join(__dirname, 'shots', 'sprint-pane.png') });
 

@@ -63,7 +63,7 @@ const localISO = (offset) => {
   // ---- 1. lifting pane: verdict + badges ----
   await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('#view-stats .seg-btn');
-  await clickByText('#view-stats .seg-btn', 'Lifting');
+  await clickByText('#view-stats .seg-btn', 'Progress');
   await page.waitForSelector('.verdict-card');
   const verdict = await page.$eval('.verdict-card', (e) => e.textContent);
   check('verdict counts progressing lifts', /\d of \d lifts progressing/.test(verdict), verdict);

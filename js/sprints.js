@@ -8,7 +8,93 @@ import { allWorkouts, liftStats } from './workouts.js';
 import { todayISO, addDays } from './dates.js';
 import { activeTrackers, targetFor, dayMeets, ratePerWeek } from './trackers.js';
 import { getEntry } from './store.js';
-import { weightTracker, calorieTracker, proteinTracker, trendWeightOn } from './insights.js';
+import { weightTracker, calorieTracker, proteinTracker, trendWeightOn, isCardioDay, cardioTracker } from './insights.js';
+import { MAIN_LIFTS } from './config.js';
+
+// The main lifts: configured names (matched loosely — case/spacing/hyphens
+// ignored, and a configured name may be a prefix of the logged one, so
+// "Lat pulldown" matches "Lat Pulldown (cable)"). Falls back to the 3
+// most-logged lifts if nothing configured matches yet.
+const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+export function mainLiftNames() {
+  const stats = liftStats();
+  if (MAIN_LIFTS.length) {
+    const found = [];
+    for (const want of MAIN_LIFTS) {
+      const w = norm(want);
+      const hit = stats.find((s) => norm(s.name) === w) || stats.find((s) => norm(s.name).startsWith(w) || w.startsWith(norm(s.name)));
+      if (hit && !found.includes(hit.name)) found.push(hit.name);
+    }
+    if (found.length) return found;
+  }
+  return [...stats].sort((a, b) => b.sessions - a.sessions).slice(0, 3).map((s) => s.name);
+}
+
+// Strength total on a date: sum of each main lift's best e1RM up to that
+// date (within the sprint). Only counts lifts that have an e1RM by then.
+export function strengthTotalAt(iso, sprintStart, names) {
+  let total = 0;
+  let counted = 0;
+  for (const s of liftStats()) {
+    if (!names.some((n) => n.toLowerCase() === s.name.toLowerCase())) continue;
+    const upTo = s.history.filter((h) => h.date >= sprintStart && h.date <= iso && h.e1rm != null);
+    if (!upTo.length) continue;
+    total += Math.max(...upTo.map((h) => h.e1rm));
+    counted++;
+  }
+  return counted ? { total, counted } : null;
+}
+
+// Weekly series of the strength total across the sprint (for the chart).
+export function strengthSeries(sprintStart, endISO, names) {
+  const out = [];
+  for (let iso = addDays(sprintStart, 6); iso <= endISO; iso = addDays(iso, 7)) {
+    const v = strengthTotalAt(iso, sprintStart, names);
+    if (v && v.counted === names.length) out.push({ iso, value: Math.round(v.total) });
+  }
+  const last = strengthTotalAt(endISO, sprintStart, names);
+  if (last && last.counted === names.length && (!out.length || out[out.length - 1].iso !== endISO)) {
+    out.push({ iso: endISO, value: Math.round(last.total) });
+  }
+  return out;
+}
+
+// Rolling adherence over the last N completed days for the process habits.
+export function adherence28(days = 28) {
+  const realToday = todayISO();
+  const end = addDays(realToday, -1);
+  const start = addDays(end, -(days - 1));
+  const out = {};
+  const wt = weightTracker();
+  const cal = calorieTracker();
+  const pro = proteinTracker();
+  const cardio = cardioTracker();
+  const steps = activeTrackers().find((t) => t.type === 'checkbox' && /step/i.test(t.name));
+
+  // lifts: workout days out of the lifting weekly target scaled to N days
+  let liftDays = 0;
+  for (const w of allWorkouts()) if (w.date >= start && w.date <= end) liftDays++;
+  out.lifts = { done: liftDays, of: days };
+
+  let proHit = 0; let proOf = 0;
+  let calHit = 0; let calOf = 0;
+  let stepsHit = 0;
+  let weighIns = 0;
+  for (let i = 0; i < days; i++) {
+    const d = addDays(start, i);
+    const e = getEntry(d);
+    if (pro) { const t = targetFor(pro, d); if (t && t.period === 'day') { proOf++; if (dayMeets(pro, d)) proHit++; } }
+    if (cal) { const t = targetFor(cal, d); if (t && t.period === 'day') { calOf++; if (dayMeets(cal, d)) calHit++; } }
+    if (steps && e[steps.id] === true) stepsHit++;
+    if (wt && typeof e[wt.id] === 'number') weighIns++;
+  }
+  out.protein = { done: proHit, of: proOf || days };
+  out.calories = { done: calHit, of: calOf || days };
+  out.steps = steps ? { done: stepsHit, of: days } : null;
+  out.weighIns = wt ? { done: weighIns, of: days } : null;
+  out.days = days;
+  return out;
+}
 
 // Goals live ON the sprint: a weight target for the sprint end, plus optional
 // lift PR targets (best e1RM by the end). The required pace is derived from
@@ -80,6 +166,7 @@ export function sprintReport(sprint) {
   const today = addDays(realToday, -1);
   const s = resolveSprint(sprint);
   if (!s) return null;
+  const wt = weightTracker();
   const endEff = s.end <= today ? s.end : today;
   const totalDays = daysBetween(s.start, s.end) + 1;
   const elapsed = Math.max(0, Math.min(totalDays, daysBetween(s.start, endEff) + 1));
@@ -138,13 +225,20 @@ export function sprintReport(sprint) {
   report.sessionsPerWeek = workouts.length / weeksElapsed;
 
   // --- sprint goals: target, required pace from here, current pace ---
+  // A tracker-level goal (set in config or by an older doc) wins when present
+  // — it is the more specific statement; the sprint's goal is the default.
   report.goals = { weight: null, lifts: [] };
-  const g = s.goals || {};
+  const g = { ...(s.goals || {}) };
+  if (wt && wt.goal && typeof wt.goal.target === 'number') g.weight = wt.goal.target;
   if (g.weight != null && report.now.weight != null) {
     const remainingDays = Math.max(0, daysBetween(realToday, s.end));
     const remainingWeeks = remainingDays / 7;
     const toGo = g.weight - report.now.weight;
-    const startW = report.start.weight;
+    // progress is measured from the goal's own baseline when it has one
+    // (a goal set mid-sprint), else from the sprint's starting trend weight
+    const trackerGoal = wt && wt.goal && typeof wt.goal.startValue === 'number' && wt.goal.target === g.weight
+      ? wt.goal.startValue : null;
+    const startW = trackerGoal ?? report.start.weight;
     const pct = startW != null && g.weight !== startW
       ? Math.max(0, Math.min(1, (report.now.weight - startW) / (g.weight - startW)))
       : 0;
@@ -156,7 +250,7 @@ export function sprintReport(sprint) {
       pct,
       done: (g.weight >= (startW ?? g.weight)) ? report.now.weight >= g.weight : report.now.weight <= g.weight,
       requiredPerWeek: remainingWeeks > 0 ? toGo / remainingWeeks : null,
-      currentPerWeek: weightTracker() ? ratePerWeek(weightTracker().id, 28) : null,
+      currentPerWeek: wt ? ratePerWeek(wt.id, 28) : null,
       remainingWeeks,
     };
   }
@@ -165,6 +259,33 @@ export function sprintReport(sprint) {
     const best = st && st.bestE1rm ? st.bestE1rm.e1rm : null;
     report.goals.lifts.push({ name, target, best, pct: best != null ? Math.min(1, best / target) : 0, done: best != null && best >= target });
   }
+
+  // strength story: main-lift e1RM total, start vs now, plus lift counts
+  const names = mainLiftNames();
+  const stEnd = s.end <= realToday ? s.end : realToday;
+  const totalNow = strengthTotalAt(stEnd, s.start, names);
+  const totalStart = (() => {
+    // first date at which all main lifts have an e1RM in the sprint
+    for (let iso = s.start; iso <= stEnd; iso = addDays(iso, 1)) {
+      const v = strengthTotalAt(iso, s.start, names);
+      if (v && v.counted === names.length) return { iso, ...v };
+    }
+    return null;
+  })();
+  const stats = liftStats();
+  report.strength = {
+    names,
+    now: totalNow && totalNow.counted === names.length ? totalNow.total : null,
+    start: totalStart ? totalStart.total : null,
+    startISO: totalStart ? totalStart.iso : null,
+    progressing: stats.filter((x) => x.trend === 'up').length,
+    withTrend: stats.filter((x) => x.trend != null).length,
+    stalled: stats.filter((x) => x.stalled).length,
+    ready: stats.filter((x) => x.ready).length,
+    prs: report.totals.prs,
+    series: strengthSeries(s.start, stEnd, names),
+  };
+  report.adherence28 = adherence28(28);
 
   return report;
 }

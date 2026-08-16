@@ -134,7 +134,7 @@ const localISO = (offset) => {
   // ---- 5. lifting stats: e1RM trend ----
   await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('#view-stats .seg-btn');
-  await clickByText('#view-stats .seg-btn', 'Lifting');
+  await clickByText('#view-stats .seg-btn', 'Progress');
   await page.waitForSelector('.stat-row');
   const statsText = await page.$eval('#view-stats', (e) => e.textContent);
   check('bench shows e1RM 177.3 (140x8)', /e1RM 177\.3/.test(statsText), statsText.slice(0, 260));

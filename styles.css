@@ -131,9 +131,9 @@ html[data-theme="light"] body::before {
      it withholds below the web view with the page background, so a matching
      bar makes the two read as one continuous surface down to the edge */
   background: var(--bg);
-  /* clear the home indicator, but only just — the full inset (34px) plus
-     the tabs made a ~105px footer; this lands around 70px total */
-  padding-bottom: max(env(safe-area-inset-bottom, 0px) - 14px, 0px);
+  /* the tab row's own height keeps the icons above the home indicator;
+     no extra inset padding (it read as empty space under the icons) */
+  padding-bottom: 0;
 }
 
 .tab {
@@ -142,8 +142,8 @@ html[data-theme="light"] body::before {
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  padding: 5px 0 3px;
-  min-height: 44px;
+  padding: 5px 0 6px;
+  min-height: 46px;
   color: var(--faint);
   font-size: 10px;
   letter-spacing: 0.02em;
@@ -808,6 +808,48 @@ html[data-theme="light"] body::before {
 }
 .lightbox-actions { justify-content: center; }
 .lightbox-actions .btn { flex: 0 0 auto; min-width: 110px; }
+
+/* progress dashboard */
+.dash-pos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin: 14px 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.dash-pos-bar {
+  width: 100%;
+  max-width: 320px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+  margin: 0;
+}
+.dash-pos-bar .goal-fill { height: 100%; }
+
+.dash-heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dash-insight { margin-top: 8px; }
+.stats-summary { grid-template-columns: repeat(3, 1fr); margin: 10px 0; }
+.hero-card { flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 13px; }
+.hero-label { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.hero-num { font-family: var(--serif); font-size: 30px; font-weight: 600; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.hero-unit { font-family: var(--sans); font-size: 13px; font-weight: 400; color: var(--muted); }
+.hero-sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hero-pace { font-size: 11px; line-height: 1.35; margin-top: 2px; }
+.hero-foot { font-size: 11px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.gc-pace.pace-mid { color: var(--partial); }
+
+.adh-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 6px; padding: 12px 10px; }
+.adh-cell { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.adh-pct { font-size: 17px; }
+.adh-l { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+.adh-n { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* sprint comparison columns */
 .rp-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; min-width: 190px; text-align: right; }

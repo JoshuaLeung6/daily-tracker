@@ -66,15 +66,15 @@ const localISO = (offset) => {
   check('day summary shows ★ PR (bench e1RM record today)', /★ PR/.test(daySummary), daySummary);
 
   await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.goal-card');
+  await page.waitForSelector('.gc-insight');
   const insight = await page.$eval('.gc-insight', (e) => e.textContent);
   check('insight shows trending -0.5 lb/wk', /trending -0\.5 lb\/wk/.test(insight), insight);
   check('insight shows avg 2,400 kcal/day', /avg 2,400 kcal\/day/.test(insight), insight);
-  const pace = await page.$eval('.gc-pace', (e) => ({ text: e.textContent, cls: e.className }));
-  check('pace projection present + green', /on pace for 180 by /.test(pace.text) && /pace-good/.test(pace.cls),
-    JSON.stringify(pace));
+  check('insight keeps the long-range projection', /on pace for 180 by /.test(insight), insight.slice(0, 200));
+  const heroPace = await page.$eval('.hero-pace', (e) => e.textContent);
+  check('weight hero shows required vs trending pace', /needs [+-][\d.]+/.test(heroPace) && /trending/.test(heroPace), heroPace);
 
-  await clickByText('#view-stats .seg-btn', 'Lifting');
+  await clickByText('#view-stats .seg-btn', 'Progress');
   await page.waitForSelector('.stat-tile');
   const tiles = await page.$$eval('.stat-tile', (els) => els.map((e) => e.textContent.replace(/\s+/g, ' ')));
   check('push tile shows today', tiles.some((t) => /push.*today/i.test(t)), tiles.join(' | '));

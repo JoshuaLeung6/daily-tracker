@@ -112,11 +112,11 @@ const localISO = (offset) => {
   const wkText = await page.$eval('.report-card', (e) => e.textContent);
   check('custom aggressive band -> +0.18%/wk reads slow', /slow/.test(wkText) && !/in band/.test(wkText), wkText.slice(0, 140));
 
-  // goal card shows the stored band as its pace label
+  // the dashboard still surfaces the measured TDEE + suggestion
   await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.goal-card');
-  const paceLabel = await page.$eval('.goal-card', (e) => e.textContent);
-  check('goal card shows aggressive band as pace', /pace \+0\.25–0\.5%\/wk/.test(paceLabel), paceLabel.slice(0, 120));
+  await page.waitForSelector('.gc-tdee');
+  const tdeeAgain = await page.$eval('.gc-tdee', (e) => e.textContent);
+  check('dashboard shows measured TDEE', /maintenance ≈ 2,73\d kcal/.test(tdeeAgain), tdeeAgain.slice(0, 120));
 
   // ---- 4. e1RM filtered for >10-rep sets ----
   const injD = await inject({

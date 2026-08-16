@@ -37,28 +37,222 @@ const signed = (n) => `${n > 0 ? '+' : ''}${fmtN(n)}`;
 export function render(container, ctx) {
   const rerender = () => render(container, ctx);
 
-  const TITLES = { goals: 'Goals', lifting: 'Lifting', sprint: 'Sprint', coach: 'Coach' };
+  // Two segments: the sprint dashboard (one scroll, one story) and Coach.
+  if (pane !== 'coach') pane = 'sprint';
+  const sprint = currentSprint();
   const head = el('header', { class: 'view-head' },
     el('span'),
     el('div', { class: 'masthead' },
-      el('div', { class: 'eyebrow' }, 'Progress'),
-      el('h1', {}, TITLES[pane]),
+      el('div', { class: 'eyebrow' }, sprint ? sprint.name : 'Progress'),
+      el('h1', {}, pane === 'coach' ? 'Coach' : 'Progress'),
     ),
     el('span'),
   );
 
   const paneSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Progress section' },
-    ...['goals', 'lifting', 'sprint', 'coach'].map((p) => el('button', {
-      class: 'seg-btn', 'aria-pressed': String(pane === p),
-      onclick: () => { pane = p; rerender(); },
-    }, TITLES[p])),
+    el('button', { class: 'seg-btn', 'aria-pressed': String(pane === 'sprint'), onclick: () => { pane = 'sprint'; rerender(); } }, 'Progress'),
+    el('button', { class: 'seg-btn', 'aria-pressed': String(pane === 'coach'), onclick: () => { pane = 'coach'; rerender(); } }, 'Coach'),
   );
 
-  const paneEl = pane === 'goals' ? goalsPane(rerender)
-    : pane === 'lifting' ? liftingPane(rerender)
-    : pane === 'sprint' ? sprintPane(rerender)
-    : coachPane(rerender);
+  const paneEl = pane === 'coach' ? coachPane(rerender) : dashboardPane(rerender);
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), paneSeg, paneEl);
+}
+
+/* ================= Dashboard (the sprint story) ================= */
+
+function dashboardPane(rerender) {
+  const wrap = el('div', { class: 'pane' });
+  const sprint = currentSprint();
+  if (!sprint) {
+    wrap.append(el('div', { class: 'empty-state' }, 'The sprint starts with your first logged day — log something to begin.'));
+    return wrap;
+  }
+  const r = sprintReport(sprint);
+  const wt = weightTracker();
+  const unit = wt && wt.unit ? ` ${wt.unit}` : '';
+  const gw = r.goals && r.goals.weight;
+  const st = r.strength;
+
+  // 1. sprint position
+  const pct = Math.round((r.elapsed / r.totalDays) * 100);
+  const posFill = el('i', { class: 'goal-fill' });
+  posFill.style.width = pct + '%';
+  wrap.append(el('div', { class: 'dash-pos' },
+    el('span', {}, r.done ? 'Sprint complete' : `Week ${Math.ceil(Math.max(1, r.elapsed) / 7)} of ${Math.ceil(r.totalDays / 7)}`),
+    el('span', { class: 'wt-bar gc-bar dash-pos-bar' }, posFill),
+    el('span', { class: 'rp-dim' }, `${fmt(r.start.iso, { month: 'short', day: 'numeric' })} → ${fmt(r.end, { month: 'short', day: 'numeric' })}`),
+  ));
+
+  // 2. hero: weight pace vs goal + strength total, side by side
+  const heroes = el('div', { class: 'dash-heroes' });
+
+  // weight hero
+  if (gw) {
+    let paceEl;
+    let paceCls = '';
+    if (gw.done) { paceEl = 'goal reached'; paceCls = ' pace-good'; }
+    else if (r.done) paceEl = `ended ${fmtN(Math.abs(gw.toGo))}${unit} ${gw.toGo > 0 ? 'short' : 'past'}`;
+    else if (gw.requiredPerWeek != null) {
+      const req = gw.requiredPerWeek;
+      const cur = gw.currentPerWeek;
+      if (cur == null) paceEl = `needs ${req > 0 ? '+' : ''}${fmtN(req)}${unit}/wk · trend needs more weigh-ins`;
+      else {
+        const ratio = req !== 0 ? cur / req : 1;
+        const onPace = req >= 0 ? cur >= req * 0.9 : cur <= req * 0.9;
+        const close = req >= 0 ? cur >= req * 0.6 : cur <= req * 0.6;
+        paceCls = onPace ? ' pace-good' : close ? ' pace-mid' : ' pace-bad';
+        paceEl = `needs ${req > 0 ? '+' : ''}${fmtN(req)} · trending ${cur > 0 ? '+' : ''}${fmtN(Math.round(cur * 10) / 10)}${unit}/wk · ${onPace ? 'on pace' : close ? 'a bit behind' : 'behind pace'}`;
+      }
+    }
+    const wfill = el('i', { class: 'goal-fill' });
+    wfill.style.width = Math.round(gw.pct * 100) + '%';
+    heroes.append(el('div', { class: 'card hero-card' },
+      el('div', { class: 'hero-label' }, 'Weight'),
+      el('div', { class: 'hero-num' }, fmtN(gw.current), el('span', { class: 'hero-unit' }, unit)),
+      el('div', { class: 'hero-sub' }, `→ ${fmtN(gw.target)}${unit} · ${fmtN(Math.abs(gw.toGo))} to go`),
+      el('div', { class: 'wt-bar gc-bar' }, wfill),
+      paceEl && el('div', { class: 'gc-pace hero-pace' + paceCls }, paceEl),
+    ));
+  } else if (wt) {
+    heroes.append(el('div', { class: 'card hero-card' },
+      el('div', { class: 'hero-label' }, 'Weight'),
+      el('div', { class: 'hero-num' }, r.now.weight != null ? fmtN(r.now.weight) : '—', el('span', { class: 'hero-unit' }, unit)),
+      el('div', { class: 'hero-sub rp-dim' }, 'no sprint goal set — ask Claude'),
+    ));
+  }
+
+  // strength hero
+  if (st && st.names.length) {
+    const delta = st.now != null && st.start != null ? st.now - st.start : null;
+    heroes.append(el('div', { class: 'card hero-card' },
+      el('div', { class: 'hero-label' }, 'Strength'),
+      el('div', { class: 'hero-num' }, st.now != null ? Math.round(st.now).toLocaleString() : '—'),
+      el('div', { class: 'hero-sub' },
+        delta != null ? el('span', { class: delta > 0 ? 'met-day-text on' : '' }, `${delta > 0 ? '+' : ''}${Math.round(delta)} this sprint`) : `${st.names.length} main lifts`,
+      ),
+      el('div', { class: 'hero-foot rp-dim' },
+        `${st.progressing}/${st.withTrend} lifts up`,
+        st.prs ? el('span', { class: 'pr-star' }, ` · ★ ${st.prs}`) : null,
+        st.stalled ? el('span', { class: 'b-badge b-stall' }, `${st.stalled} stalled`) : null,
+      ),
+    ));
+  }
+  wrap.append(heroes);
+
+  // 2b. intake ↔ weight: measured TDEE + suggested intake (goals→actions link)
+  if (wt && wt.goal) {
+    const insight = buildInsight(wt, goalProgress(wt), rerender);
+    if (insight) wrap.append(el('div', { class: 'card goal-card dash-insight' },
+      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Intake')),
+      insight));
+  }
+
+  // 3. consistency: rolling 28-day adherence
+  const a = r.adherence28;
+  if (a) {
+    const ring = (label, done, of, target) => {
+      const p = of > 0 ? done / of : 0;
+      const need = target != null ? target : 0.8;
+      const cls = p >= need ? ' st-good' : p >= need * 0.6 ? ' st-neutral' : ' st-bad';
+      return el('div', { class: 'adh-cell' + cls },
+        el('div', { class: 'adh-pct wk-cell-v' }, `${Math.round(p * 100)}%`),
+        el('div', { class: 'adh-l' }, label),
+        el('div', { class: 'adh-n' }, `${done}/${of}`),
+      );
+    };
+    const liftTarget = liftingSessionTarget() / 7;
+    wrap.append(el('div', { class: 'settings-section' },
+      el('h2', {}, 'Last 28 days'),
+      el('div', { class: 'card adh-card' },
+        ring('lifts', a.lifts.done, a.lifts.of, liftTarget * 0.9),
+        ring('protein', a.protein.done, a.protein.of, 0.8),
+        ring('calories', a.calories.done, a.calories.of, 0.7),
+        a.steps ? ring('10k steps', a.steps.done, a.steps.of, 0.7) : null,
+        a.weighIns ? ring('weigh-ins', a.weighIns.done, a.weighIns.of, 0.6) : null,
+      ),
+    ));
+  }
+
+  // 4. charts: weight vs goal line, strength total over the sprint
+  const chartsSec = el('div', { class: 'settings-section' }, el('h2', {}, 'Trends'));
+  let anyChart = false;
+  if (wt) {
+    const series = measurementSeries(wt.id).filter((p) => p.iso >= r.start.iso);
+    if (series.length >= 2) {
+      chartsSec.append(el('div', { class: 'card chart-card' },
+        el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Weight'), gw ? el('span', { class: 'att-desc' }, `goal ${fmtN(gw.target)}`) : null),
+        lineChart({ points: series, goal: gw ? { value: gw.target, label: `goal ${fmtN(gw.target)}` } : null, unit: wt.unit || '', ariaLabel: 'Weight over the sprint' }),
+      ));
+      anyChart = true;
+    }
+  }
+  if (st && st.series.length >= 2) {
+    chartsSec.append(el('div', { class: 'card chart-card' },
+      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Strength total'), el('span', { class: 'att-desc' }, st.names.join(' + '))),
+      lineChart({ points: st.series, ariaLabel: 'Main-lift e1RM total over the sprint' }),
+    ));
+    anyChart = true;
+  }
+  if (anyChart) wrap.append(chartsSec);
+
+  // 5. lifts ledger (compact, tap to expand) with a one-line verdict
+  const stats = liftStats();
+  if (stats.length) {
+    const sec = el('div', { class: 'settings-section' }, el('h2', {}, 'Lifts'));
+    const withTrend = stats.filter((s) => s.trend != null);
+    if (withTrend.length) {
+      const up = withTrend.filter((s) => s.trend === 'up').length;
+      const readyCount = stats.filter((s) => s.ready).length;
+      const stalledCount = stats.filter((s) => s.stalled).length;
+      sec.append(el('div', { class: 'card verdict-card' },
+        el('b', {}, `${up} of ${withTrend.length} lift${withTrend.length === 1 ? '' : 's'} progressing`),
+        el('span', { class: 'rp-dim' },
+          readyCount > 0 ? ` · ${readyCount} ready to load` : '',
+          stalledCount > 0 ? ` · ${stalledCount} stalled` : ''),
+      ));
+    }
+    // split recency tiles + weekly volume
+    sec.append(el('div', { class: 'stats-summary' },
+      ...SPLITS.map((s) => {
+        const ds = daysSince(s);
+        const sub = ds === null ? '—' : ds === 0 ? 'today' : `${ds}d ago`;
+        return statTile(String(workoutCounts().bySplit[s] || 0), SPLIT_LABELS[s].toLowerCase(), sub, ds !== null && ds >= 7);
+      }),
+    ));
+    const weeks = weeklyVolume(8, null);
+    if (weeks.some((w) => w.value > 0)) {
+      sec.append(el('div', { class: 'card chart-card' },
+        el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Weekly volume'), el('span', { class: 'att-desc' }, 'all splits')),
+        barChart({ bars: weeks.map((w) => ({ label: fmt(w.startISO, { month: 'short', day: 'numeric' }), value: w.value })), ariaLabel: 'Weekly lifted volume, last 8 weeks' }),
+      ));
+    }
+    const list = el('div', { class: 'stat-list' });
+    for (const s of stats) list.append(liftRow(s, rerender));
+    sec.append(list);
+    wrap.append(sec);
+  }
+
+  // 6. attainment (targets)
+  const withTargets = activeTrackers()
+    .map((t) => ({ t, tgt: targetFor(t, todayISO()) }))
+    .filter((x) => x.tgt);
+  if (withTargets.length) {
+    const sec = el('div', { class: 'settings-section' }, el('h2', {}, 'Targets'));
+    for (const { t, tgt } of withTargets) sec.append(attainmentCard(t, tgt));
+    wrap.append(sec);
+  }
+
+  // 7. sprint totals
+  const t = r.totals;
+  const tot = el('div', { class: 'card report-card' });
+  tot.append(rpRowS('Workouts', el('span', {}, el('b', {}, String(t.workouts)), ` · ${r.sessionsPerWeek.toFixed(1)}/wk`,
+    el('span', { class: 'rp-dim' }, ` (target ${liftingSessionTarget()})`))));
+  tot.append(rpRowS('PRs', el('span', {}, el('b', { class: 'pr-star' }, `★ ${t.prs}`))));
+  tot.append(rpRowS('Logged', el('span', {}, el('b', {}, `${t.adherence.logged}/${r.elapsed}`), ' days')));
+  if (t.calAvg != null) tot.append(rpRowS('Calories', el('span', {}, el('b', {}, Math.round(t.calAvg).toLocaleString()), ' avg')));
+  wrap.append(el('div', { class: 'settings-section' }, el('h2', {}, r.done ? 'Sprint totals' : 'Sprint so far'), tot));
+
+  return wrap;
 }
 
 /* ================= Goals pane ================= */

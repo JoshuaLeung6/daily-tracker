@@ -16,6 +16,11 @@
 //   Without `from`, a changed target is stamped today and history is preserved.
 // Goal shape:    { startValue, target, deadline?: 'YYYY-MM-DD', pace?: 'conservative'|'standard'|'aggressive' }
 
+// Main lifts whose best e1RMs are summed into the sprint's strength total.
+// Names must match how they are logged (case-insensitive). Empty = the app
+// picks the 3 most-logged lifts automatically.
+export const MAIN_LIFTS = ['Flat dumbbell press', 'Lat pulldown', 'Leg press'];
+
 // Weekly-average calorie grading (kcal/day): >= good is green, >= ok is
 // yellow, below that is red. Tune as the bulk progresses.
 export const CALORIE_BANDS = { good: 3000, ok: 2800 };

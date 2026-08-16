@@ -61,7 +61,7 @@ const localISO = (offset) => {
   // ---- 1. trend ignores the volume day: weight-day e1RM 222 -> 234.3 = up ----
   await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('#view-stats .seg-btn');
-  await clickByText('#view-stats .seg-btn', 'Lifting');
+  await clickByText('#view-stats .seg-btn', 'Progress');
   await page.waitForSelector('.stat-row');
   const statsText = await page.$eval('#view-stats', (e) => e.textContent);
   check('latest weight day trends on e1RM 234.3', /e1RM 234\.3/.test(statsText), statsText.slice(0, 240));
@@ -82,7 +82,7 @@ const localISO = (offset) => {
   await page.removeScriptToEvaluateOnNewDocument(inj2.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="stats"]');
-  await clickByText('#view-stats .seg-btn', 'Lifting');
+  await clickByText('#view-stats .seg-btn', 'Progress');
   await page.waitForSelector('.stat-row');
   const statsText2 = await page.$eval('#view-stats', (e) => e.textContent);
   check('latest volume day trends on vol 4,650', /vol 4,650/.test(statsText2), statsText2.slice(0, 240));
@@ -93,11 +93,11 @@ const localISO = (offset) => {
   check('volume day compared to previous volume day = UP', /up/.test(trendClass2 || ''), String(trendClass2));
 
   // ---- 3. weight trendline chart with goal reference line ----
-  await clickByText('#view-stats .seg-btn', 'Goals');
-  await page.waitForSelector('.goal-card');
+  await clickByText('#view-stats .seg-btn', 'Progress');
+  await page.waitForSelector('.chart-card svg.chart');
   const chartInfo = await page.evaluate(() => {
-    const card = document.querySelector('.goal-card');
-    const svg = card.querySelector('svg.chart');
+    const card = [...document.querySelectorAll('.chart-card')].find((c) => /Weight/.test(c.textContent));
+    const svg = card && card.querySelector('svg.chart');
     return svg ? {
       dots: svg.querySelectorAll('.ch-dot').length,
       goalLine: svg.querySelector('.ch-goal') !== null,

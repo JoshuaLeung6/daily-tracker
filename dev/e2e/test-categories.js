@@ -109,7 +109,7 @@ const localISO = (offset) => {
   await page.waitForSelector('.goal-card');
   check('goals pane has no + Add goal button',
     !(await page.evaluate(() => [...document.querySelectorAll('.ghost-btn')].some((b) => /Add goal/.test(b.textContent)))));
-  check('goal card shows pace', await page.$eval('.goal-card', (e) => /pace/.test(e.textContent)));
+  check('weight hero shows the goal target', await page.$eval('#view-stats', (e) => /→ 175 lb/.test(e.textContent)));
 
   // ---- 7. attainment: only Calories (weight has no targets) ----
   const attNames = await page.$$eval('.att-card .gc-name', (els) => els.map((e) => e.textContent));

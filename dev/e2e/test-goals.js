@@ -130,12 +130,6 @@ const localISO = (offset) => {
       { name: 'Weight', type: 'measurement', unit: 'lb', goal: { startValue: 190, target: 175, deadline, pace: 'standard' } },
     ], (phase, pace) => ins.PACE_PRESETS[phase][pace]);
   }, localISO(70));
-  await page.click('.tab[data-tab="day"]');
-  await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.goal-card');
-  let goalText = await page.$eval('.goal-card', (e) => e.textContent);
-  check('goal card: 190 -> 175 lb', /190 → 175 lb/.test(goalText), goalText);
-  check('goal card: 70 days left + pace -1.5/wk', /70 days left/.test(goalText) && /-1\.5 lb\/wk/.test(goalText), goalText);
   const weightCreated = await page.evaluate(() => {
     const doc = JSON.parse(localStorage.getItem('pcal:data'));
     return doc.trackers.some((t) => t.name === 'Weight' && t.goal && t.goal.target === 175);
@@ -148,15 +142,17 @@ const localISO = (offset) => {
   await page.type('.card input[aria-label="Weight"]', '185');
   await new Promise((r) => setTimeout(r, 500));
   await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.goal-card');
-  goalText = await page.$eval('.goal-card', (e) => e.textContent);
-  check('goal card updates: now 185 (-5)', /now 185 \(-5\)/.test(goalText), goalText);
-  const goalPct = await page.$eval('.goal-card .goal-fill', (e) => e.style.width);
+  await page.waitForSelector('.hero-card');
+  const goalText = await page.$eval('#view-stats', (e) => e.textContent);
+  check('weight hero: → 175 lb target', /→ 175 lb/.test(goalText), goalText.slice(0, 240));
+  check('weight hero: required pace shown', /needs [+-][\d.]+/.test(goalText), goalText.slice(0, 240));
+  check('weight hero updates to the logged 185', /185/.test(goalText), goalText.slice(0, 240));
+  const goalPct = await page.$eval('.hero-card .goal-fill', (e) => e.style.width);
   check('goal progress ~33%', goalPct === '33%', goalPct);
   await page.screenshot({ path: path.join(__dirname, 'shots', 'goals-pane.png') });
 
   // ---- 4. lifting pane: PR goal ----
-  await clickByText('#view-stats .seg-btn', 'Lifting');
+  await clickByText('#view-stats .seg-btn', 'Progress');
   await page.waitForSelector('.stat-row');
   await page.evaluate(() => [...document.querySelectorAll('.stat-row')].find((r) => r.textContent.includes('Bench press')).click());
   await page.waitForSelector('.sr-goalrow input');
