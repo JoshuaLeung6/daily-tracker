@@ -180,14 +180,36 @@ export function render(container, ctx) {
     }
   };
 
+  // layout diagnostics (for debugging the tab-bar gap on device)
+  const diag = el('div', { class: 'settings-note', style: 'font-family: ui-monospace, monospace; font-size: 11px; white-space: pre-wrap;' });
+  const fillDiag = () => {
+    const tab = document.querySelector('.tabbar');
+    const r = tab ? tab.getBoundingClientRect() : null;
+    const cs = tab ? getComputedStyle(tab) : null;
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;bottom:0;height:env(safe-area-inset-bottom,0px);width:1px;visibility:hidden';
+    document.body.appendChild(probe);
+    const sab = probe.getBoundingClientRect().height;
+    probe.remove();
+    diag.textContent =
+      `standalone: ${window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true}\n`
+      + `innerH ${window.innerHeight} · docH ${document.documentElement.clientHeight} · screenH ${screen.height}\n`
+      + `visualViewport ${window.visualViewport ? Math.round(window.visualViewport.height) : 'n/a'}\n`
+      + `safe-area-bottom ${sab}px\n`
+      + `tabbar top ${r ? Math.round(r.top) : '?'} bottom ${r ? Math.round(r.bottom) : '?'} h ${r ? Math.round(r.height) : '?'} · pad-b ${cs ? cs.paddingBottom : '?'}\n`
+      + `gap below tabbar ${r ? Math.round(window.innerHeight - r.bottom) : '?'}px`;
+  };
+
   const aboutSection = el('div', { class: 'settings-section' },
     el('h2', {}, 'About'),
     el('div', { class: 'about-line' }, 'Version ', el('b', {}, ctx.version)),
     el('div', { class: 'about-line' }, el('b', {}, String(loggedDayCount())), ' days logged'),
     el('div', { class: 'btn-row' },
       el('button', { class: 'btn', onclick: checkUpdates }, 'Check for updates'),
+      el('button', { class: 'btn', onclick: fillDiag }, 'Layout info'),
     ),
     updateStatus,
+    diag,
   );
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }),

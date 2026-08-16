@@ -50,13 +50,21 @@ html[data-theme="light"] {
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body {
-  height: 100dvh;
+html {
+  height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  background: var(--bg);
 }
 
+/* Pin the shell to the real screen edges. In iOS standalone mode 100dvh can
+   fall short of the true window height, leaving a bare band under the tab
+   bar; a fixed inset:0 box always reaches the bottom edge. */
 body {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
   display: flex;
   flex-direction: column;
   background: var(--bg);
