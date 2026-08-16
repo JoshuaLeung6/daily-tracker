@@ -131,12 +131,12 @@ html[data-theme="light"] body::before {
      it withholds below the web view with the page background, so a matching
      bar makes the two read as one continuous surface down to the edge */
   background: var(--bg);
-  /* The home-indicator band is unavoidable space below the tab row. Rather
-     than sit above it (which reads as the bar floating), the bar claims it
-     as its own bottom padding and the icons ride at the top of that — so
-     the row sits as low as iOS allows and the gap belongs to the bar.
-     Capped at 20px: the full 34px inset just recreates the empty strip. */
-  padding-bottom: min(env(safe-area-inset-bottom, 0px), 20px);
+  /* No safe-area padding. The measured `gap below tabbar` on device is 0 —
+     the bar already reaches the screen bottom — so inset padding was not
+     closing a gap, it was ADDING dead space under the icons. iOS keeps the
+     home indicator legible over the bar's own background; a few px of
+     breathing room is all the row needs. */
+  padding-bottom: 4px;
 }
 
 .tab {
@@ -145,8 +145,8 @@ html[data-theme="light"] body::before {
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  padding: 5px 0 2px;
-  min-height: 42px;
+  padding: 4px 0 2px;
+  min-height: 38px;
   color: var(--faint);
   font-size: 10px;
   line-height: 1.1;
@@ -928,6 +928,10 @@ html[data-theme="light"] body::before {
 .ch-bar-zero { fill: var(--line); }
 .ch-goal { stroke: var(--goal); stroke-width: 1.5; stroke-dasharray: 5 4; }
 .ch-goal-lab { fill: var(--goal); font-size: 10px; font-weight: 600; }
+/* extrapolated trend: same hue as the data line but dashed and faded, so it
+   reads as a projection rather than as something that actually happened */
+.ch-proj { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 3; opacity: 0.5; }
+.ch-proj-lab { fill: var(--accent); font-size: 10px; font-weight: 600; opacity: 0.75; }
 .ch-lab { fill: var(--faint); font-size: 10px; }
 .ch-val { fill: var(--muted); font-size: 11px; font-weight: 600; }
 .ch-end { text-anchor: end; }
@@ -1061,8 +1065,13 @@ html[data-theme="light"] body::before {
 
 /* gesture feedback: the view follows the finger, an edge chevron shows the
    direction and brightens once the gesture is armed */
-#view-week, #view-day { transition: transform 0.18s ease-out; }
+/* Release springs back with a short ease-out; while the finger is down the
+   view tracks 1:1 with no transition, which is what makes it feel native. */
+#view-week, #view-day { transition: transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1); }
 #view-week.gesture-live, #view-day.gesture-live { transition: none; }
+/* past the commit point: the whole page dims a touch, so the threshold is
+   felt without having to watch the small edge chevron */
+#view-week.gesture-armed, #view-day.gesture-armed { opacity: 0.82; }
 /* scrolling stays unrestricted during a swipe: the drag is a visual follow
    only, and a strict distance threshold decides whether the page changes */
 
@@ -1195,6 +1204,51 @@ html[data-theme="light"] body::before {
 .mt-term:last-child .mt-val { color: var(--accent); }
 .mt-note { display: block; line-height: 1.45; }
 .mt-locked { font-size: 13px; line-height: 1.45; }
+
+/* the actionable line: what to eat to land the goal on time */
+.mt-aim {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+/* the explainer is a long sentence: it must wrap, not push the pane wide.
+   .gc-window is nowrap by default (it is used for short suffixes). */
+.mt-aim .gc-window {
+  display: block;
+  white-space: normal;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.mt-aim-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 3px;
+}
+.mt-aim-lab {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mt-aim-val {
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* compact segmented control inside a card header */
+.seg-mini { margin: 0; flex: 0 0 auto; }
+.seg-mini .seg-btn {
+  padding: 3px 9px;
+  font-size: 10px;
+  min-height: 0;
+  letter-spacing: 0.04em;
+}
+.ch-note { display: block; margin-top: 6px; line-height: 1.4; white-space: normal; }
 
 /* section dividers in the week detail */
 .wk-section-label {

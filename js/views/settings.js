@@ -190,7 +190,18 @@ export function render(container, ctx) {
       + `visualViewport ${window.visualViewport ? Math.round(window.visualViewport.height) : 'n/a'}\n`
       + `safe-area-bottom ${sab}px\n`
       + `tabbar top ${r ? Math.round(r.top) : '?'} bottom ${r ? Math.round(r.bottom) : '?'} h ${r ? Math.round(r.height) : '?'} · pad-b ${cs ? cs.paddingBottom : '?'}\n`
-      + `gap below tabbar ${r ? Math.round(window.innerHeight - r.bottom) : '?'}px`;
+      + `gap below tabbar ${r ? Math.round(window.innerHeight - r.bottom) : '?'}px\n`
+      + (() => {
+        // the space the user actually sees: from the bottom of the last icon
+        // to the bottom of the screen (bar padding + any withheld band)
+        const svg = document.querySelector('.tab svg');
+        const lbl = document.querySelector('.tab span');
+        const sr = svg ? svg.getBoundingClientRect() : null;
+        const lr = lbl ? lbl.getBoundingClientRect() : null;
+        const lowest = lr ? lr.bottom : (sr ? sr.bottom : null);
+        return `icon-b ${sr ? Math.round(sr.bottom) : '?'} · label-b ${lr ? Math.round(lr.bottom) : '?'}\n`
+          + `SPACE UNDER ICONS ${lowest != null ? Math.round(window.innerHeight - lowest) : '?'}px`;
+      })();
   };
 
   const aboutSection = el('div', { class: 'settings-section' },

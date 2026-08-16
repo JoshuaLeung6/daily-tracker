@@ -23,6 +23,20 @@ const localISO = (offset) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+
+  // Lift rows live in the Lifts subtab now (grouped by PPL, collapsed).
+  // Open that pane and expand every group so .stat-row is reachable.
+  const openLifts = async () => {
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((x) => x.textContent === 'Lifts');
+      if (b) b.click();
+    });
+    await new Promise((r) => setTimeout(r, 250));
+    await page.evaluate(() => {
+      for (const g of document.querySelectorAll('.lift-group:not(.open)')) g.click();
+    });
+    await new Promise((r) => setTimeout(r, 250));
+  };
   const clickByText = (sel, text) => page.evaluate(({ s, t }) => {
     const eln = [...document.querySelectorAll(s)].find((c) => c.textContent.trim() === t);
     if (!eln) throw new Error(`no ${s} "${t}"`);
@@ -61,7 +75,8 @@ const localISO = (offset) => {
   // ---- 1. trend ignores the volume day: weight-day e1RM 222 -> 234.3 = up ----
   await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('#view-stats .seg-btn');
-  await clickByText('#view-stats .seg-btn', 'Progress');
+  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Progress');
+  await openLifts();
   await page.waitForSelector('.stat-row');
   const statsText = await page.$eval('#view-stats', (e) => e.textContent);
   check('latest weight day trends on e1RM 234.3', /e1RM 234\.3/.test(statsText), statsText.slice(0, 240));
@@ -82,7 +97,7 @@ const localISO = (offset) => {
   await page.removeScriptToEvaluateOnNewDocument(inj2.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="stats"]');
-  await clickByText('#view-stats .seg-btn', 'Progress');
+  await openLifts();
   await page.waitForSelector('.stat-row');
   const statsText2 = await page.$eval('#view-stats', (e) => e.textContent);
   check('latest volume day trends on vol 4,650', /vol 4,650/.test(statsText2), statsText2.slice(0, 240));
@@ -93,7 +108,7 @@ const localISO = (offset) => {
   check('volume day compared to previous volume day = UP', /up/.test(trendClass2 || ''), String(trendClass2));
 
   // ---- 3. weight trendline chart with goal reference line ----
-  await clickByText('#view-stats .seg-btn', 'Progress');
+  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Progress');
   await page.waitForSelector('.chart-card svg.chart');
   const chartInfo = await page.evaluate(() => {
     const card = [...document.querySelectorAll('.chart-card')].find((c) => /Weight/.test(c.textContent));

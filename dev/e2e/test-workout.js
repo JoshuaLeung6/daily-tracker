@@ -24,6 +24,20 @@ const localISO = (offset) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+
+  // Lift rows live in the Lifts subtab now (grouped by PPL, collapsed).
+  // Open that pane and expand every group so .stat-row is reachable.
+  const openLifts = async () => {
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((x) => x.textContent === 'Lifts');
+      if (b) b.click();
+    });
+    await new Promise((r) => setTimeout(r, 250));
+    await page.evaluate(() => {
+      for (const g of document.querySelectorAll('.lift-group:not(.open)')) g.click();
+    });
+    await new Promise((r) => setTimeout(r, 250));
+  };
   const clickByText = (sel, text) => page.evaluate(({ s, t }) => {
     const eln = [...document.querySelectorAll(s)].find((c) => c.textContent.trim() === t);
     if (!eln) throw new Error(`no ${s} "${t}"`);
@@ -148,7 +162,8 @@ const localISO = (offset) => {
   // ---- 5. lifting stats: e1RM trend ----
   await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('#view-stats .seg-btn');
-  await clickByText('#view-stats .seg-btn', 'Progress');
+  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Progress');
+  await openLifts();
   await page.waitForSelector('.stat-row');
   const statsText = await page.$eval('#view-stats', (e) => e.textContent);
   check('bench shows e1RM 177.3 (140x8)', /e1RM 177\.3/.test(statsText), statsText.slice(0, 260));

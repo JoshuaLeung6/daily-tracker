@@ -40,25 +40,69 @@ function frame(svg, sc, yLoLabel, yHiLabel) {
 }
 
 // points: [{ iso, value }] sorted by date. goal: { value, label } | null
-export function lineChart({ points, goal = null, unit = '', ariaLabel = 'trend chart' }) {
+// `domain` forces the x-axis span (e.g. the whole sprint, so the chart shows
+// where you are within it rather than just the logged range). `project`
+// extrapolates the current trend to the domain end as a dashed line.
+export function lineChart({ points, goal = null, unit = '', ariaLabel = 'trend chart', domain = null, project = false }) {
   const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img', 'aria-label': ariaLabel });
   if (points.length < 2) return svg;
 
   const xs = points.map((p) => fromISO(p.iso).getTime());
-  const xLo = Math.min(...xs);
-  const xHi = Math.max(...xs);
+  const xLo = domain ? fromISO(domain.from).getTime() : Math.min(...xs);
+  const xHi = domain ? fromISO(domain.to).getTime() : Math.max(...xs);
   const x = (t) => PAD.left + (W - PAD.left - PAD.right) * (xHi === xLo ? 0.5 : (t - xLo) / (xHi - xLo));
   const vals = points.map((p) => p.value);
-  const sc = yScale(Math.min(...vals, goal ? goal.value : Infinity), Math.max(...vals, goal ? goal.value : -Infinity));
+
+  // least-squares fit over the logged points, extended to the domain end
+  let proj = null;
+  if (project && points.length >= 2) {
+    const t0 = xs[0];
+    const DAY = 86400000;
+    let sx = 0; let sy = 0; let sxy = 0; let sxx = 0;
+    for (let i = 0; i < points.length; i++) {
+      const xi = (xs[i] - t0) / DAY;
+      sx += xi; sy += vals[i]; sxy += xi * vals[i]; sxx += xi * xi;
+    }
+    const nP = points.length;
+    const denom = nP * sxx - sx * sx;
+    if (denom !== 0) {
+      const slope = (nP * sxy - sx * sy) / denom;
+      const intercept = (sy - slope * sx) / nP;
+      const endDays = (xHi - t0) / DAY;
+      proj = {
+        fromT: xs[xs.length - 1],
+        fromV: intercept + slope * ((xs[xs.length - 1] - t0) / DAY),
+        toT: xHi,
+        toV: intercept + slope * endDays,
+      };
+    }
+  }
+
+  const spanVals = [...vals, goal ? goal.value : null, proj ? proj.toV : null].filter((v) => v != null);
+  const sc = yScale(Math.min(...spanVals), Math.max(...spanVals));
 
   frame(svg, sc, fmtCompact(sc.lo + (sc.hi - sc.lo) * 0.08), fmtCompact(sc.hi - (sc.hi - sc.lo) * 0.08));
-  svg.append(s('text', { x: PAD.left, y: H - 5, class: 'ch-lab' }, fmt(points[0].iso, { month: 'short', day: 'numeric' })));
-  svg.append(s('text', { x: W - PAD.right, y: H - 5, class: 'ch-lab ch-end' }, fmt(points[points.length - 1].iso, { month: 'short', day: 'numeric' })));
+  const firstLab = domain ? domain.from : points[0].iso;
+  const lastLab = domain ? domain.to : points[points.length - 1].iso;
+  svg.append(s('text', { x: PAD.left, y: H - 5, class: 'ch-lab' }, fmt(firstLab, { month: 'short', day: 'numeric' })));
+  svg.append(s('text', { x: W - PAD.right, y: H - 5, class: 'ch-lab ch-end' }, fmt(lastLab, { month: 'short', day: 'numeric' })));
 
   if (goal) {
     const gy = sc.y(goal.value);
     svg.append(s('line', { x1: PAD.left, y1: gy, x2: W - PAD.right, y2: gy, class: 'ch-goal' }));
     svg.append(s('text', { x: W - PAD.right, y: gy - 4, class: 'ch-goal-lab ch-end' }, goal.label));
+  }
+
+  // projection first, so the real data line draws on top of it
+  if (proj) {
+    svg.append(s('line', {
+      x1: x(proj.fromT).toFixed(1), y1: sc.y(proj.fromV).toFixed(1),
+      x2: x(proj.toT).toFixed(1), y2: sc.y(proj.toV).toFixed(1),
+      class: 'ch-proj',
+    }));
+    svg.append(s('text', {
+      x: W - PAD.right, y: sc.y(proj.toV) - 6, class: 'ch-proj-lab ch-end',
+    }, `${Math.round(proj.toV * 10) / 10}`));
   }
 
   const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(fromISO(p.iso).getTime()).toFixed(1)},${sc.y(p.value).toFixed(1)}`).join(' ');

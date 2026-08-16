@@ -29,8 +29,9 @@ import { liftingSessionTarget, cardioDayTarget } from '../insights.js';
 import { CALORIE_BANDS } from '../config.js';
 
 let pane = 'sprint';
-let openSplit = null;   // which PPL group is expanded in the Lifts pane
+let openSplit = null;      // which PPL group is expanded in the Lifts pane
 let expandedLift = null;
+let weightScale = 'logged'; // 'logged' | 'sprint' — weight chart x-axis range
 
 const fmtN = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 const signed = (n) => `${n > 0 ? '+' : ''}${fmtN(n)}`;
@@ -38,14 +39,18 @@ const signed = (n) => `${n > 0 ? '+' : ''}${fmtN(n)}`;
 export function render(container, ctx) {
   const rerender = () => render(container, ctx);
 
-  // Two segments: the sprint dashboard (one scroll, one story) and Coach.
-  if (pane !== 'coach') pane = 'sprint';
+  // Three panes: the sprint dashboard, the lift ledger, and Coach.
+  // (This used to force anything non-Coach back to 'sprint', which silently
+  // made the Lifts tab unopenable once it was added.)
+  const PANES = ['sprint', 'lifts', 'coach'];
+  if (!PANES.includes(pane)) pane = 'sprint';
   const sprint = currentSprint();
+  const TITLES = { sprint: 'Progress', lifts: 'Lifts', coach: 'Coach' };
   const head = el('header', { class: 'view-head' },
     el('span'),
     el('div', { class: 'masthead' },
       el('div', { class: 'eyebrow' }, sprint ? sprint.name : 'Progress'),
-      el('h1', {}, pane === 'coach' ? 'Coach' : 'Progress'),
+      el('h1', {}, TITLES[pane]),
     ),
     el('span'),
   );
@@ -92,30 +97,36 @@ function dashboardPane(rerender) {
 
   // weight hero
   if (gw) {
-    let paceEl;
+    // Two facts only: what the scale is doing, and what it needs to do.
+    // Everything else (progress %, to-go, on/behind pace wording) was noise.
+    let trendEl = null;
+    let needEl = null;
     let paceCls = '';
-    if (gw.done) { paceEl = 'goal reached'; paceCls = ' pace-good'; }
-    else if (r.done) paceEl = `ended ${fmtN(Math.abs(gw.toGo))}${unit} ${gw.toGo > 0 ? 'short' : 'past'}`;
-    else if (gw.requiredPerWeek != null) {
-      const req = gw.requiredPerWeek;
-      const cur = gw.currentPerWeek;
-      if (cur == null) paceEl = `needs ${req > 0 ? '+' : ''}${fmtN(req)}${unit}/wk · trend needs more weigh-ins`;
-      else {
-        const ratio = req !== 0 ? cur / req : 1;
-        const onPace = req >= 0 ? cur >= req * 0.9 : cur <= req * 0.9;
-        const close = req >= 0 ? cur >= req * 0.6 : cur <= req * 0.6;
-        paceCls = onPace ? ' pace-good' : close ? ' pace-mid' : ' pace-bad';
-        paceEl = `needs ${req > 0 ? '+' : ''}${fmtN(req)} · trending ${cur > 0 ? '+' : ''}${fmtN(Math.round(cur * 10) / 10)}${unit}/wk · ${onPace ? 'on pace' : close ? 'a bit behind' : 'behind pace'}`;
+    const req = gw.requiredPerWeek;
+    const cur = gw.currentPerWeek;
+    if (gw.done) { needEl = 'goal reached'; paceCls = ' pace-good'; }
+    else if (r.done) needEl = `ended ${fmtN(Math.abs(gw.toGo))}${unit} ${gw.toGo > 0 ? 'short' : 'past'}`;
+    else {
+      trendEl = cur == null
+        ? 'trending — needs more weigh-ins'
+        : `trending ${cur > 0 ? '+' : ''}${fmtN(Math.round(cur * 10) / 10)}${unit}/wk`;
+      if (req != null) {
+        needEl = `need ${req > 0 ? '+' : ''}${fmtN(Math.round(req * 100) / 100)}${unit}/wk`;
+        if (cur != null) {
+          // Judge the RATIO, so overshooting is not scored as success:
+          // gaining double what the goal needs is fat gain, not being ahead.
+          const ratio = req !== 0 ? cur / req : (cur === 0 ? 1 : 0);
+          const onPace = ratio >= 0.8 && ratio <= 1.5;
+          const close = ratio >= 0.5 && ratio <= 2.2;
+          paceCls = onPace ? ' pace-good' : close ? ' pace-mid' : ' pace-bad';
+        }
       }
     }
-    const wfill = el('i', { class: 'goal-fill' });
-    wfill.style.width = Math.round(gw.pct * 100) + '%';
     heroes.append(el('div', { class: 'card hero-card' },
       el('div', { class: 'hero-label' }, 'Weight'),
       el('div', { class: 'hero-num' }, fmtN(gw.current), el('span', { class: 'hero-unit' }, unit)),
-      el('div', { class: 'hero-sub' }, `→ ${fmtN(gw.target)}${unit} · ${fmtN(Math.abs(gw.toGo))} to go`),
-      el('div', { class: 'wt-bar gc-bar' }, wfill),
-      paceEl && el('div', { class: 'gc-pace hero-pace' + paceCls }, paceEl),
+      trendEl && el('div', { class: 'hero-sub' }, trendEl),
+      needEl && el('div', { class: 'gc-pace hero-pace' + paceCls }, needEl),
     ));
   } else if (wt) {
     heroes.append(el('div', { class: 'card hero-card' },
@@ -143,10 +154,10 @@ function dashboardPane(rerender) {
   }
   wrap.append(heroes);
 
-  // 2b. intake ↔ weight: how maintenance is measured, shown as the actual sum
-  if (wt) wrap.append(maintenanceCard());
+  // 2b. intake: measured maintenance + what to eat to hit the sprint goal
+  if (wt) wrap.append(intakeCard(gw));
 
-  // 3. consistency: rolling 28-day adherence
+  // 3. consistency across the whole sprint so far — percentages only
   const a = r.adherence28;
   if (a) {
     const ring = (label, done, of, target) => {
@@ -156,12 +167,11 @@ function dashboardPane(rerender) {
       return el('div', { class: 'adh-cell' + cls },
         el('div', { class: 'adh-pct wk-cell-v' }, `${Math.round(p * 100)}%`),
         el('div', { class: 'adh-l' }, label),
-        el('div', { class: 'adh-n' }, `${done}/${of}`),
       );
     };
     const liftTarget = liftingSessionTarget() / 7;
     wrap.append(el('div', { class: 'settings-section' },
-      el('h2', {}, 'Last 28 days'),
+      el('h2', {}, 'Sprint consistency'),
       el('div', { class: 'card adh-card' },
         ring('lifts', a.lifts.done, a.lifts.of, liftTarget * 0.9),
         ring('protein', a.protein.done, a.protein.of, 0.8),
@@ -178,9 +188,34 @@ function dashboardPane(rerender) {
   if (wt) {
     const series = measurementSeries(wt.id).filter((p) => p.iso >= r.start.iso);
     if (series.length >= 2) {
+      // "Sprint" spans the full sprint on the x-axis and extrapolates the
+      // current trend to the end date, so you can see whether today's pace
+      // actually lands on the goal. "Logged" is just the data so far.
+      const full = weightScale === 'sprint';
       chartsSec.append(el('div', { class: 'card chart-card' },
-        el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Weight'), gw ? el('span', { class: 'att-desc' }, `goal ${fmtN(gw.target)}`) : null),
-        lineChart({ points: series, goal: gw ? { value: gw.target, label: `goal ${fmtN(gw.target)}` } : null, unit: wt.unit || '', ariaLabel: 'Weight over the sprint' }),
+        el('div', { class: 'gc-head' },
+          el('span', { class: 'gc-name' }, 'Weight'),
+          // distinct class: these are NOT pane segments, and sharing
+          // .seg-btn made "click the segment named X" ambiguous
+          el('span', { class: 'seg seg-mini', role: 'group', 'aria-label': 'Weight chart range' },
+            el('button', {
+              class: 'seg-btn range-btn', 'aria-pressed': String(!full),
+              onclick: () => { weightScale = 'logged'; rerender(); },
+            }, 'Logged'),
+            el('button', {
+              class: 'seg-btn range-btn', 'aria-pressed': String(full),
+              onclick: () => { weightScale = 'sprint'; rerender(); },
+            }, 'Sprint'))),
+        lineChart({
+          points: series,
+          goal: gw ? { value: gw.target, label: `goal ${fmtN(gw.target)}` } : null,
+          unit: wt.unit || '',
+          ariaLabel: 'Weight over the sprint',
+          domain: full ? { from: r.start.iso, to: r.end } : null,
+          project: full,
+        }),
+        full ? el('div', { class: 'gc-window ch-note' },
+          'Dashed line extrapolates your logged trend to the sprint end.') : null,
       ));
       anyChart = true;
     }
@@ -188,48 +223,16 @@ function dashboardPane(rerender) {
   if (st && st.series.length >= 2) {
     chartsSec.append(el('div', { class: 'card chart-card' },
       el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Strength total'), el('span', { class: 'att-desc' }, st.names.join(' + '))),
-      lineChart({ points: st.series, ariaLabel: 'Main-lift e1RM total over the sprint' }),
+      // same x-axis as the weight chart, so the two read against each other
+      lineChart({
+        points: st.series,
+        ariaLabel: 'Main-lift e1RM total over the sprint',
+        domain: { from: r.start.iso, to: weightScale === 'sprint' ? r.end : st.series[st.series.length - 1].iso },
+      }),
     ));
     anyChart = true;
   }
   if (anyChart) wrap.append(chartsSec);
-
-  // 5. lifts ledger (compact, tap to expand) with a one-line verdict
-  const stats = liftStats();
-  if (stats.length) {
-    const sec = el('div', { class: 'settings-section' }, el('h2', {}, 'Lifts'));
-    const withTrend = stats.filter((s) => s.trend != null);
-    if (withTrend.length) {
-      const up = withTrend.filter((s) => s.trend === 'up').length;
-      const readyCount = stats.filter((s) => s.ready).length;
-      const stalledCount = stats.filter((s) => s.stalled).length;
-      sec.append(el('div', { class: 'card verdict-card' },
-        el('b', {}, `${up} of ${withTrend.length} lift${withTrend.length === 1 ? '' : 's'} progressing`),
-        el('span', { class: 'rp-dim' },
-          readyCount > 0 ? ` · ${readyCount} ready to load` : '',
-          stalledCount > 0 ? ` · ${stalledCount} stalled` : ''),
-      ));
-    }
-    // split recency tiles + weekly volume
-    sec.append(el('div', { class: 'stats-summary' },
-      ...SPLITS.map((s) => {
-        const ds = daysSince(s);
-        const sub = ds === null ? '—' : ds === 0 ? 'today' : `${ds}d ago`;
-        return statTile(String(workoutCounts().bySplit[s] || 0), SPLIT_LABELS[s].toLowerCase(), sub, ds !== null && ds >= 7);
-      }),
-    ));
-    const weeks = weeklyVolume(8, null);
-    if (weeks.some((w) => w.value > 0)) {
-      sec.append(el('div', { class: 'card chart-card' },
-        el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Weekly volume'), el('span', { class: 'att-desc' }, 'all splits')),
-        barChart({ bars: weeks.map((w) => ({ label: fmt(w.startISO, { month: 'short', day: 'numeric' }), value: w.value })), ariaLabel: 'Weekly lifted volume, last 8 weeks' }),
-      ));
-    }
-    const list = el('div', { class: 'stat-list' });
-    for (const s of stats) list.append(liftRow(s, rerender));
-    sec.append(list);
-    wrap.append(sec);
-  }
 
   // 6. attainment (targets)
   const withTargets = activeTrackers()
@@ -333,10 +336,10 @@ function planSection(r, sprint) {
 // The whole method is: whatever you ate, minus whatever the scale says you
 // banked or burned. 1 lb of body mass ~ 3,500 kcal, so a weekly rate converts
 // to a daily calorie surplus/deficit by (rate * 3500) / 7.
-function maintenanceCard() {
+function intakeCard(gw) {
   const t = adaptiveTDEE();
   const card = el('div', { class: 'card goal-card dash-insight' },
-    el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Maintenance')));
+    el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Intake')));
 
   if (!t) return card;
   if (t.locked) {
@@ -359,7 +362,7 @@ function maintenanceCard() {
   const op = (sym) => el('div', { class: 'mt-op' }, sym);
 
   card.append(el('div', { class: 'mt-eq' },
-    term(n(t.intakeAvg), 'eaten', `avg ${unit}/day, 28 d`),
+    term(n(t.intakeAvg), 'eaten', `avg ${unit}/day`),
     op(perDay >= 0 ? '−' : '+'),
     term(n(Math.abs(perDay)), perDay >= 0 ? 'stored' : 'drawn on',
       `${signed(Math.round(t.ratePerWeek * 100) / 100)} ${wUnit}/wk`),
@@ -367,11 +370,23 @@ function maintenanceCard() {
     term(n(rounded), 'maintenance', `${unit}/day`),
   ));
 
-  card.append(el('div', { class: 'mt-note gc-window' },
-    `Measured from your own logs, not a formula: you averaged ${n(t.intakeAvg)} ${unit}/day and the scale `
-    + `${t.ratePerWeek >= 0 ? 'rose' : 'fell'} ${fmtN(Math.abs(Math.round(t.ratePerWeek * 100) / 100))} ${wUnit}/week, `
-    + `which is ${n(Math.abs(perDay))} ${unit}/day ${perDay >= 0 ? 'above' : 'below'} maintenance `
-    + `(1 ${wUnit} ≈ 3,500 ${unit}). Accurate to about ±200.`));
+  // --- what to eat to land the sprint goal on time ---
+  // The surplus is derived from the goal itself: how much weight is left and
+  // how many weeks remain -> lb/wk -> kcal/day on top of measured maintenance.
+  if (gw && gw.requiredPerWeek != null && gw.remainingWeeks > 0 && !gw.done) {
+    const reqPerDay = (gw.requiredPerWeek * 3500) / 7;
+    const aim = Math.round((rounded + reqPerDay) / 10) * 10;
+    const gaining = gw.requiredPerWeek >= 0;
+    card.append(el('div', { class: 'mt-aim' },
+      el('div', { class: 'mt-aim-row' },
+        el('span', { class: 'mt-aim-lab' }, gaining ? 'Eat to gain' : 'Eat to lose'),
+        el('span', { class: 'mt-aim-val' }, `${n(aim)} ${unit}/day`)),
+      el('div', { class: 'gc-window' },
+        `${fmtN(Math.abs(Math.round(gw.toGo * 10) / 10))} ${wUnit} to go in `
+        + `${fmtN(Math.round(gw.remainingWeeks * 10) / 10)} weeks `
+        + `= ${gaining ? '+' : ''}${fmtN(Math.round(gw.requiredPerWeek * 100) / 100)} ${wUnit}/wk, `
+        + `so ${n(Math.abs(reqPerDay))} ${unit}/day ${gaining ? 'above' : 'below'} maintenance.`)));
+  }
 
   return card;
 }

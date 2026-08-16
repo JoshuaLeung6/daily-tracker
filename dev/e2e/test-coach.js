@@ -24,6 +24,20 @@ const localISO = (offset) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+
+  // Lift rows live in the Lifts subtab now (grouped by PPL, collapsed).
+  // Open that pane and expand every group so .stat-row is reachable.
+  const openLifts = async () => {
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((x) => x.textContent === 'Lifts');
+      if (b) b.click();
+    });
+    await new Promise((r) => setTimeout(r, 250));
+    await page.evaluate(() => {
+      for (const g of document.querySelectorAll('.lift-group:not(.open)')) g.click();
+    });
+    await new Promise((r) => setTimeout(r, 250));
+  };
   const clickByText = (sel, text) => page.evaluate(({ s, t }) => {
     const eln = [...document.querySelectorAll(s)].find((c) => c.textContent.trim() === t);
     if (!eln) throw new Error(`no ${s} "${t}"`);
@@ -63,7 +77,8 @@ const localISO = (offset) => {
   // ---- 1. lifting pane: verdict + badges ----
   await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('#view-stats .seg-btn');
-  await clickByText('#view-stats .seg-btn', 'Progress');
+  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Progress');
+  await openLifts();
   await page.waitForSelector('.verdict-card');
   const verdict = await page.$eval('.verdict-card', (e) => e.textContent);
   check('verdict counts progressing lifts', /\d of \d lifts progressing/.test(verdict), verdict);
@@ -100,7 +115,7 @@ const localISO = (offset) => {
   check('custom rep range stored', prefs && prefs.repLo === 3 && prefs.repHi === 8, JSON.stringify(prefs));
 
   // ---- 3. Coach pane ----
-  await clickByText('#view-stats .seg-btn', 'Coach');
+  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Coach');
   await page.waitForSelector('.ref-card');
   const coachText = await page.$eval('#view-stats', (e) => e.textContent);
   check('coach: ready-to-load card lists Row', /Ready to add weight: Row \(try 160\)/.test(coachText), coachText.slice(0, 400));

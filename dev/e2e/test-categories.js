@@ -109,7 +109,9 @@ const localISO = (offset) => {
   await page.waitForSelector('.hero-card');
   check('goals pane has no + Add goal button',
     !(await page.evaluate(() => [...document.querySelectorAll('.ghost-btn')].some((b) => /Add goal/.test(b.textContent)))));
-  check('weight hero shows the goal target', await page.$eval('#view-stats', (e) => /→ 175 lb/.test(e.textContent)));
+  // the hero states pace, not the target: 175 is the tracker goal, so the
+  // required weekly rate is derived from it
+  check('weight hero shows the required pace', await page.$eval('#view-stats', (e) => /need [+-][\d.]+/.test(e.textContent)));
 
   // ---- 7. attainment: only Calories (weight has no targets) ----
   const attNames = await page.$$eval('.att-card .gc-name', (els) => els.map((e) => e.textContent));

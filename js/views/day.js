@@ -17,6 +17,19 @@ let unlockedISO = null;
 // the once-bound non-passive touchmove listener.
 const g = { hint: null, iso: null, ctx: null, startX: null, startY: null, startScroll: 0, axis: null };
 
+// Commit rule, shared by the live preview and touchend so the armed
+// indicator NEVER disagrees with what actually happens on release.
+// Distance OR velocity, like every native pager: a long deliberate drag
+// commits, and so does a short fast flick.
+export const SWIPE_DIST = 90;      // px of travel that commits on its own
+export const SWIPE_VELOCITY = 0.45; // px/ms (~450 px/s) that commits a flick
+export function willCommit(delta, velocity) {
+  if (Math.abs(delta) < 24) return false;              // ignore stray touches
+  if (Math.abs(delta) >= SWIPE_DIST) return true;
+  // a flick counts only if it is still moving the same way it was dragged
+  return Math.abs(velocity) >= SWIPE_VELOCITY && Math.sign(velocity) === Math.sign(delta);
+}
+
 export function render(container, ctx) {
   const iso = ctx.date;
   const today = todayISO();
@@ -94,9 +107,6 @@ export function render(container, ctx) {
   // needs addEventListener — so that one is bound once per container.
   //  - swipe left/right -> previous / next day
   //  - pull down at the top -> zoom out to this day's week
-  // Strict: the drag itself is unrestricted, so only a decisive swipe should
-  // actually change page. Scrolling is never blocked during the gesture.
-  const DIST = 120;
   const HINT_W = 30; // .swipe-hint width (26) + its 2px edge offset, both sides
   // The hint lives on <body>, NOT inside the view: a transformed ancestor
   // makes position:fixed resolve against that ancestor, so a hint inside the
@@ -128,6 +138,13 @@ export function render(container, ctx) {
     g.startY = e.touches[0].clientY;
     g.startScroll = container.scrollTop;
     g.axis = null;
+    // velocity tracking: a fast flick should commit even if it is short,
+    // which is how every native pager (UIPageViewController, ViewPager2) works
+    g.lastX = g.startX;
+    g.lastY = g.startY;
+    g.lastT = e.timeStamp;
+    g.vx = 0;
+    g.vy = 0;
   };
   // non-passive so a committed side swipe can preventDefault() and stop the
   // page scrolling vertically at the same time. Bound once per container.
@@ -137,34 +154,49 @@ export function render(container, ctx) {
       if (g.startY === null) return;
       const dx = e.touches[0].clientX - g.startX;
       const dy = e.touches[0].clientY - g.startY;
+      // rolling velocity in px/ms, used by touchend to accept a fast flick
+      const dt = e.timeStamp - g.lastT;
+      if (dt > 0) {
+        const nvx = (e.touches[0].clientX - g.lastX) / dt;
+        const nvy = (e.touches[0].clientY - g.lastY) / dt;
+        g.vx = g.vx * 0.7 + nvx * 0.3;   // smoothed: one jittery sample shouldn't decide
+        g.vy = g.vy * 0.7 + nvy * 0.3;
+        g.lastX = e.touches[0].clientX;
+        g.lastY = e.touches[0].clientY;
+        g.lastT = e.timeStamp;
+      }
       if (!g.axis && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
         g.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
           : (g.startScroll <= 0 && dy > 0 ? 'y' : 'scroll');
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
       }
-      // scrolling stays free during a swipe — the drag is only a visual
-      // follow, and the strict DIST threshold below decides what happens
+      // scrolling stays free during a swipe — the drag is only a visual follow
       if (g.axis === 'x') {
-        // swiping forward from today is blocked: heavy resistance, never arms
+        // swiping forward from today is blocked: heavy rubber-band resistance
         const blocked = dx < 0 && !g.canNext;
-        // no cap: the view follows the finger as far as it goes
-        const shift = dx * (blocked ? 0.15 : 0.55);
+        // 1:1 with the finger, the native pager feel. A blocked direction gets
+        // progressive resistance instead, so it reads as a wall, not a lag.
+        const shift = blocked ? Math.sign(dx) * Math.pow(Math.abs(dx), 0.6) * 1.2 : dx;
         container.style.transform = `translateX(${shift}px)`;
-        const armed = !blocked && Math.abs(dx) > DIST;
+        const armed = !blocked && willCommit(dx, g.vx);
         g.hint.textContent = dx < 0 ? '›' : '‹';
         // centre the glyph in the strip the view vacated
         g.hint.style.setProperty('--hint-gap', Math.abs(shift) + 'px');
         g.hint.className = 'swipe-hint ' + (dx < 0 ? 'right' : 'left') + ' show'
           + (Math.abs(shift) >= HINT_W ? ' roomy' : '')
           + (armed ? ' armed' : '') + (blocked ? ' blocked' : '');
+        // whole-view cue: once past the commit point the page dims slightly,
+        // so the threshold is visible without watching the small chevron
+        container.classList.toggle('gesture-armed', armed);
       } else if (g.axis === 'y') {
-        const shift = dy * 0.55;
+        const shift = dy;
         container.style.transform = `translateY(${shift}px)`;
-        const armed = dy > DIST + 20;
+        const armed = willCommit(dy, g.vy);
         g.hint.textContent = '⌄';
         g.hint.style.setProperty('--hint-gap', shift + 'px');
         g.hint.className = 'swipe-hint top show'
           + (shift >= HINT_W ? ' roomy' : '') + (armed ? ' armed' : '');
+        container.classList.toggle('gesture-armed', armed);
       }
     }, { passive: false });
   }
@@ -174,14 +206,19 @@ export function render(container, ctx) {
     const dy = e.changedTouches[0].clientY - g.startY;
     const usedAxis = g.axis;
     const scrolledTop = g.startScroll <= 0 && container.scrollTop <= 0;
+    const vx = g.vx;
+    const vy = g.vy;
     resetGesture();
-    if (usedAxis === 'x' && Math.abs(dx) > DIST) {
+    // same willCommit() the preview used, so the armed cue always tells truth
+    if (usedAxis === 'x' && willCommit(dx, vx)) {
       if (dx < 0) { if (g.canNext) g.ctx.setDate(addDays(g.iso, 1)); }
       else g.ctx.setDate(addDays(g.iso, -1));
       return;
     }
     // zoom out one level: this day's week
-    if (usedAxis === 'y' && scrolledTop && dy > DIST + 20 && g.ctx.goTab) g.ctx.goTab('week', { detail: true });
+    if (usedAxis === 'y' && scrolledTop && willCommit(dy, vy) && dy > 0 && g.ctx.goTab) {
+      g.ctx.goTab('week', { detail: true });
+    }
   };
   container.ontouchcancel = resetGesture;
 }

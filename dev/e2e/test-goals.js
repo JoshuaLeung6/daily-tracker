@@ -144,17 +144,21 @@ const localISO = (offset) => {
   await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('.hero-card');
   const goalText = await page.$eval('#view-stats', (e) => e.textContent);
-  check('weight hero: → 175 lb target', /→ 175 lb/.test(goalText), goalText.slice(0, 240));
-  check('weight hero: required pace shown', /needs [+-][\d.]+/.test(goalText), goalText.slice(0, 240));
+  // simplified hero: trending + what is needed, no target/to-go line
+  check('weight hero: trend line', /trending/.test(goalText), goalText.slice(0, 240));
+  check('weight hero: required pace shown', /need [+-][\d.]+/.test(goalText), goalText.slice(0, 240));
   check('weight hero updates to the logged 185', /185/.test(goalText), goalText.slice(0, 240));
-  const goalPct = await page.$eval('.hero-card .goal-fill', (e) => e.style.width);
-  check('goal progress ~33%', goalPct === '33%', goalPct);
+  // The hero is deliberately two facts now (trending / need) — no progress
+  // bar, no to-go figure. Assert the two lines instead of the removed bar.
+  const heroText = await page.$eval('.hero-card', (e) => e.textContent);
+  check('hero states the trend', /trending/.test(heroText), heroText);
+  check('hero states what is needed', /need [+-]/.test(heroText), heroText);
   await page.screenshot({ path: path.join(__dirname, 'shots', 'goals-pane.png') });
 
   // ---- 4. lifting pane: PR goal ----
   // Lift PR goals are configured in js/sprints.js, never set from the UI:
   // the Lifts pane must expose NO goal-editing controls.
-  await clickByText('#view-stats .seg-btn', 'Lifts');
+  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Lifts');
   await page.waitForSelector('#view-stats .pane');
   // expand every PPL group that exists, then assert the rows are read-only
   await page.evaluate(() => {

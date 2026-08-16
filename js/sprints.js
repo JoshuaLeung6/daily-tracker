@@ -51,6 +51,11 @@ export function strengthTotalAt(iso, sprintStart, names) {
 // which lift happened to be trained rather than on strength. Each point is
 // the best e1RM per lift achieved so far (strengthTotalAt is a running max),
 // which is the intra-week maximum by construction.
+// The series starts at the first week where EVERY main lift has an e1RM.
+// Plotting partial totals would show a jump the week a third lift first
+// appears, which reads as a strength gain that never happened. The chart
+// still spans the whole sprint on the x-axis, so the late start is visible
+// as empty space rather than as a rescaled axis.
 export function strengthSeries(sprintStart, endISO, names) {
   const out = [];
   for (let iso = addDays(sprintStart, 6); iso <= endISO; iso = addDays(iso, 7)) {
@@ -106,13 +111,14 @@ export const SPRINTS = [
     name: 'Sprint 1',
     // Pinned, not `null` (= "first logged day"). A derived start silently
     // moves if anything is ever backdated earlier, and every number keyed to
-    // it (week N of 16, start weight, adherence window) moves with it. This
-    // IS the first logged day — fixing it just stops it drifting.
-    start: '2026-07-11',
-    // Exactly 16 weeks, counted inclusively from the start: 16 * 7 = 112 days,
-    // 2026-07-11 → 2026-10-30. (Oct 31 would be 113 days, which the report
-    // rounds up to "of 17".)
-    end: '2026-10-30',
+    // it (week N of 16, start weight, adherence window) moves with it.
+    //
+    // Starts SUNDAY 2026-07-12, not the first logged day (Sat 2026-07-11):
+    // that orphan Saturday was its own one-day "week" in a Sun–Sat grid and
+    // its data has since been removed. From Jul 12 the sprint is 16 whole
+    // Sun–Sat weeks, 112 days inclusive, ending Sat 2026-10-31.
+    start: '2026-07-12',
+    end: '2026-10-31',
     focus: 'Lean bulk · PPL 5–6×/wk',
     goals: {
       weight: 145,          // lb, trend weight at sprint end (started ~134)
@@ -295,7 +301,10 @@ export function sprintReport(sprint) {
     prs: report.totals.prs,
     series: strengthSeries(s.start, stEnd, names),
   };
-  report.adherence28 = adherence28(28);
+  // Adherence across the WHOLE sprint so far, not a rolling 28 days: the
+  // sprint is the unit being judged, and a rolling window silently drops
+  // early weeks. `elapsed` counts completed days from the sprint start.
+  report.adherence28 = adherence28(Math.max(1, elapsed));
 
   return report;
 }

@@ -8,6 +8,8 @@ import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
 import { weekReport, weekSuggestions, weeksOverview, weekLineStatus, verdictBadge, isCardioDay } from '../insights.js';
 import { currentSprint } from '../sprints.js';
 import { CALORIE_BANDS } from '../config.js';
+// one commit rule for both views, so "armed" always matches what happens
+import { willCommit } from './day.js';
 
 // The tab opens zoomed out: every week graded green/yellow/red; tapping a
 // week drills into its report card. Switching away and back resets to the
@@ -227,9 +229,6 @@ function renderDetail(container, ctx) {
   //  - horizontal swipe -> previous / next week (never past the current week)
   // The content follows the finger and a hint pill appears once the gesture
   // has passed its threshold, so the outcome is visible before releasing.
-  // Strict: the drag itself is unrestricted, so only a decisive swipe should
-  // actually change page. Scrolling is never blocked during the gesture.
-  const DIST = 120;
   const HINT_W = 30; // .swipe-hint width (26) + its 2px edge offset, both sides
   // The hint lives on <body>, NOT inside the view: a transformed ancestor
   // makes position:fixed resolve against that ancestor, so a hint inside the
@@ -245,7 +244,7 @@ function renderDetail(container, ctx) {
   g.axis = null;
 
   const resetGesture = () => {
-    container.classList.remove('gesture-live');
+    container.classList.remove('gesture-live', 'gesture-armed');
     container.style.transform = '';
     g.hint.classList.remove('show');
     g.gx = g.gy = null;
@@ -257,6 +256,8 @@ function renderDetail(container, ctx) {
     g.gy = e.touches[0].clientY;
     g.startScroll = container.scrollTop;
     g.axis = null;
+    // velocity tracking so a fast flick commits like a native pager
+    g.lastX = g.gx; g.lastY = g.gy; g.lastT = e.timeStamp; g.vx = 0; g.vy = 0;
   };
   // non-passive so a committed side swipe can preventDefault() and stop the
   // page scrolling vertically at the same time. Bound once per container;
@@ -267,33 +268,41 @@ function renderDetail(container, ctx) {
       if (!g.live || g.gy === null) return;
       const dx = e.touches[0].clientX - g.gx;
       const dy = e.touches[0].clientY - g.gy;
+      const dt = e.timeStamp - g.lastT;
+      if (dt > 0) {
+        g.vx = g.vx * 0.7 + ((e.touches[0].clientX - g.lastX) / dt) * 0.3;
+        g.vy = g.vy * 0.7 + ((e.touches[0].clientY - g.lastY) / dt) * 0.3;
+        g.lastX = e.touches[0].clientX; g.lastY = e.touches[0].clientY; g.lastT = e.timeStamp;
+      }
       if (!g.axis && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
         g.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
           : (g.startScroll <= 0 && dy > 0 ? 'y' : 'scroll');
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
       }
       // scrolling stays free during a swipe — the drag is only a visual
-      // follow, and the strict DIST threshold below decides what happens
+      // follow; willCommit() (distance OR flick velocity) decides the outcome
       if (g.axis === 'x') {
         const blocked = dx < 0 && !g.canNext;
-        // no cap: the view follows the finger as far as it goes
-        const shift = dx * (blocked ? 0.15 : 0.55);
+        // 1:1 with the finger; a blocked direction rubber-bands instead
+        const shift = blocked ? Math.sign(dx) * Math.pow(Math.abs(dx), 0.6) * 1.2 : dx;
         container.style.transform = `translateX(${shift}px)`;
-        const armed = !blocked && Math.abs(dx) > DIST;
+        const armed = !blocked && willCommit(dx, g.vx);
         g.hint.textContent = dx < 0 ? '›' : '‹';
         // centre the glyph in the strip the view vacated
         g.hint.style.setProperty('--hint-gap', Math.abs(shift) + 'px');
         g.hint.className = 'swipe-hint ' + (dx < 0 ? 'right' : 'left') + ' show'
           + (Math.abs(shift) >= HINT_W ? ' roomy' : '')
           + (armed ? ' armed' : '') + (blocked ? ' blocked' : '');
+        container.classList.toggle('gesture-armed', armed);
       } else if (g.axis === 'y') {
-        const shift = dy * 0.55;
+        const shift = dy;
         container.style.transform = `translateY(${shift}px)`;
-        const armed = dy > DIST + 20;
+        const armed = willCommit(dy, g.vy);
         g.hint.textContent = '⌄';
         g.hint.style.setProperty('--hint-gap', shift + 'px');
         g.hint.className = 'swipe-hint top show'
           + (shift >= HINT_W ? ' roomy' : '') + (armed ? ' armed' : '');
+        container.classList.toggle('gesture-armed', armed);
       }
     }, { passive: false });
   }
@@ -302,13 +311,14 @@ function renderDetail(container, ctx) {
     const dx = e.changedTouches[0].clientX - g.gx;
     const dy = e.changedTouches[0].clientY - g.gy;
     const usedAxis = g.axis;
+    const vx = g.vx; const vy = g.vy;
     resetGesture();
-    if (usedAxis === 'x' && Math.abs(dx) > DIST) {
+    if (usedAxis === 'x' && willCommit(dx, vx)) {
       if (dx < 0) { if (g.canNext) ctx.setDate(addDays(ctx.date, 7)); }
       else ctx.setDate(addDays(ctx.date, -7));
       return;
     }
-    if (usedAxis === 'y' && g.startScroll <= 0 && container.scrollTop <= 0 && dy > DIST + 20) {
+    if (usedAxis === 'y' && g.startScroll <= 0 && container.scrollTop <= 0 && dy > 0 && willCommit(dy, vy)) {
       mode = 'overview';
       render(container, ctx);
     }

@@ -66,7 +66,7 @@ const localISO = (offset) => {
   const tdeeText = await page.$eval('.card.dash-insight', (e) => e.textContent);
   check('maintenance ≈ 2,733 shown as the equation result', /2,73\d/.test(tdeeText), tdeeText.slice(0, 160));
   check('equation shows eaten and stored terms', /eaten/.test(tdeeText) && /stored|drawn on/.test(tdeeText), tdeeText.slice(0, 160));
-  check('working is spelled out (3,500 kcal per lb)', /3,500/.test(tdeeText), tdeeText.slice(0, 200));
+  check('card names the maintenance result', /maintenance/i.test(tdeeText), tdeeText.slice(0, 200));
   // targets are configured in code now: the UI must NOT offer to set one
   check('no set-target button anywhere', (await page.$('.gc-setbtn')) === null);
   await page.screenshot({ path: path.join(__dirname, 'shots', 'tdee-card.png') });

@@ -24,6 +24,20 @@ const localISO = (offset) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+
+  // Lift rows live in the Lifts subtab now (grouped by PPL, collapsed).
+  // Open that pane and expand every group so .stat-row is reachable.
+  const openLifts = async () => {
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((x) => x.textContent === 'Lifts');
+      if (b) b.click();
+    });
+    await new Promise((r) => setTimeout(r, 250));
+    await page.evaluate(() => {
+      for (const g of document.querySelectorAll('.lift-group:not(.open)')) g.click();
+    });
+    await new Promise((r) => setTimeout(r, 250));
+  };
   const clickByText = (sel, text) => page.evaluate(({ s, t }) => {
     const eln = [...document.querySelectorAll(s)].find((c) => c.textContent.trim() === t);
     if (!eln) throw new Error(`no ${s} "${t}"`);
@@ -73,9 +87,10 @@ const localISO = (offset) => {
   check('maintenance locked below the weigh-in gate', /Not enough data yet/.test(insight), insight.slice(0, 200));
   check('locked reason names the shortfall', /10\/12 weigh-ins/.test(insight), insight.slice(0, 200));
   const heroPace = await page.$eval('.hero-pace', (e) => e.textContent);
-  check('weight hero shows required vs trending pace', /needs [+-][\d.]+/.test(heroPace) && /trending/.test(heroPace), heroPace);
+  check('weight hero shows required vs trending pace', /need [+-][\d.]+/.test(heroPace), heroPace);
 
-  await clickByText('#view-stats .seg-btn', 'Progress');
+  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Progress');
+  await openLifts();
   await page.waitForSelector('.stat-tile');
   const tiles = await page.$$eval('.stat-tile', (els) => els.map((e) => e.textContent.replace(/\s+/g, ' ')));
   check('push tile shows today', tiles.some((t) => /push.*today/i.test(t)), tiles.join(' | '));
@@ -84,12 +99,16 @@ const localISO = (offset) => {
     [...document.querySelectorAll('.stat-tile')].some((e) => /legs/i.test(e.textContent) && e.querySelector('.st-sub') && e.querySelector('.st-sub').textContent === '—'));
   check('legs tile shows — (never trained)', legsDash);
 
+  await openLifts();
   const benchName = await page.evaluate(() => {
     const r = [...document.querySelectorAll('.stat-row')].find((x) => x.textContent.includes('Bench press'));
     return r ? r.querySelector('.sr-name').textContent : '';
   });
   check('bench row has ★ (latest session was PR)', /★/.test(benchName), benchName);
-  await page.evaluate(() => [...document.querySelectorAll('.stat-row')].find((r) => r.textContent.includes('Bench press')).click());
+  await page.evaluate(() => {
+    const r = [...document.querySelectorAll('.stat-row')].find((x) => x.textContent.includes('Bench press'));
+    if (r) r.click();
+  });
   await page.waitForSelector('.sr-history');
   const starRows = await page.$$eval('.sr-hrow .pr-star', (els) => els.length);
   check('history: 2 PR stars (first session is not a PR)', starRows === 2, `stars: ${starRows}`);
