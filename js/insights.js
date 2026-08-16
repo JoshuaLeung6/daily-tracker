@@ -601,27 +601,21 @@ export function monthReport(iso) {
   return report;
 }
 
-// Weeks list. With a sprint window: every week from the sprint start to its
-// end, oldest first, future weeks as ungraded placeholders. Without: the
-// weeks since data began, newest first.
+// Weeks list, newest first. With a sprint window: the sprint's weeks that
+// have started (no future placeholders), each numbered from the sprint start
+// and carrying the sprint's total week count. Without: weeks since data began.
 export function weeksOverview(window = null, maxWeeks = 26) {
   const current = startOfWeek(todayISO());
   if (window) {
     const start = startOfWeek(window.start);
     const end = startOfWeek(window.end);
+    const totalWeeks = Math.round((Date.parse(end) - Date.parse(start)) / (7 * 86400000)) + 1;
     const out = [];
     let idx = 1;
-    for (let ws = start; ws <= end && out.length < 60; ws = addDays(ws, 7)) {
-      const isFuture = ws > current;
-      out.push({
-        ws,
-        index: idx++,
-        isCurrent: ws === current,
-        isFuture,
-        ...(isFuture ? { grade: null, met: 0, applicable: 0, components: [], report: null } : weekGrade(ws)),
-      });
+    for (let ws = start; ws <= end && ws <= current && out.length < 60; ws = addDays(ws, 7)) {
+      out.push({ ws, index: idx++, totalWeeks, isCurrent: ws === current, isFuture: false, ...weekGrade(ws) });
     }
-    return out;
+    return out.reverse();
   }
   const first = earliestDataISO();
   if (!first) return [];

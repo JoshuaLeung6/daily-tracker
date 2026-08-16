@@ -86,10 +86,14 @@ const localISO = (offset) => {
   await page.waitForSelector('.wk-row');
   const overviewText = await page.$eval('#view-week', (e) => e.textContent);
   check('overview titled by sprint', /Sprint 1/.test(overviewText));
-  const futureRows = await page.$$eval('.wk-row.is-future', (els) => els.length);
-  check('sprint timeline includes upcoming weeks', futureRows > 0, `future rows: ${futureRows}`);
-  const upcomingText = await page.$eval('.wk-row.is-future', (e) => e.textContent);
-  check('future rows: edge number + upcoming', /^\d+/.test(upcomingText) && /upcoming/.test(upcomingText), upcomingText);
+  check('no future placeholder rows', (await page.$$('.wk-row.is-future')).length === 0);
+  const progressText = await page.$eval('.wk-progress-label', (e) => e.textContent);
+  check('masthead shows Week N of M', /^Week \d+ of \d+$/.test(progressText), progressText);
+  const firstRowText = await page.$eval('.wk-row', (e) => e.textContent);
+  check('newest week (This week) is at the top', /This week/.test(firstRowText), firstRowText.slice(0, 60));
+  const cellLabels = await page.$$eval('.wk-row.is-current .wk-cell-l', (els) => els.map((e) => e.textContent));
+  check('overview cells: weight, kcal, protein, lifts (no cardio)',
+    JSON.stringify(cellLabels) === JSON.stringify(['weight', 'kcal', 'protein', 'lifts']), cellLabels.join(','));
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');
   const labels = await page.$$eval('.report-card .rp-label', (els) => els.map((e) => e.textContent));

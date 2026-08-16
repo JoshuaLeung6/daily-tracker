@@ -24,34 +24,37 @@ export function render(container, ctx) {
 
 function renderOverview(container, ctx) {
   const sprint = currentSprint();
+  const weeks = weeksOverview(sprint ? { start: sprint.start, end: sprint.end } : null);
+  const cur = weeks.find((w) => w.isCurrent);
+
+  // sprint progress in the masthead: "Week 6 of 17" + a slim bar
+  let progress = null;
+  if (sprint && cur && cur.totalWeeks) {
+    const fill = el('i', { class: 'goal-fill' });
+    fill.style.width = Math.round((cur.index / cur.totalWeeks) * 100) + '%';
+    progress = el('div', { class: 'wk-progress' },
+      el('span', { class: 'wk-progress-label' }, `Week ${cur.index} of ${cur.totalWeeks}`),
+      el('span', { class: 'wt-bar gc-bar wk-progress-bar' }, fill),
+    );
+  }
+
   const head = el('header', { class: 'view-head' },
     el('span'),
     el('div', { class: 'masthead' },
       el('div', { class: 'eyebrow' }, sprint ? sprint.name : 'Week by week'),
       el('h1', {}, 'Weeks'),
+      progress,
     ),
     el('span'),
   );
 
   const list = el('div', { class: 'week-rows' });
-  const weeks = weeksOverview(sprint ? { start: sprint.start, end: sprint.end } : null);
   if (weeks.length === 0) {
     list.append(el('div', { class: 'empty-state' }, 'Nothing logged yet — weeks appear here as you log.'));
   }
   let currentRow = null;
-  const today = todayISO();
   for (const wk of weeks) {
     const edgeNum = wk.index ? el('span', { class: 'wk-num' }, String(wk.index)) : null;
-    if (wk.isFuture) {
-      list.append(el('div', { class: 'wk-row is-future' },
-        edgeNum,
-        el('span', { class: 'wk-main' },
-          el('b', {}, weekLabel(wk.ws)),
-          el('span', { class: 'wk-bits' }, 'upcoming'),
-        ),
-      ));
-      continue;
-    }
     const r = wk.report;
     const st = weekLineStatus(r);
     const daysSoFar = r.daysDone;
@@ -63,8 +66,9 @@ function renderOverview(container, ctx) {
     const cells = el('span', { class: 'wk-cells' },
       cell('weight', w && w.weekAvg != null ? fmtN(w.weekAvg) : '—', st.weight),
       cell('kcal', r.intake && r.intake.avg != null ? Math.round(r.intake.avg).toLocaleString() : '—', st.calories),
-      cell('protein', r.protein && r.protein.avg != null ? Math.round(r.protein.avg) : '—', st.protein),
-      cell('cardio', r.cardio ? `${r.cardio.days}/${daysSoFar}` : '—', st.cardio),
+      // protein is judged daily, so show days hit (calories shows the avg it is judged on)
+      cell('protein', r.protein && r.protein.of > 0 ? `${r.protein.hit}/${r.protein.of}`
+        : (r.protein && r.protein.avg != null ? Math.round(r.protein.avg) : '—'), st.protein),
       cell('lifts', r.training ? `${r.training.days}/${daysSoFar}` : '—', st.workouts),
     );
 
@@ -90,10 +94,6 @@ function renderOverview(container, ctx) {
   }
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), list);
-  // in a long sprint timeline, land on the current week
-  if (currentRow && sprint) {
-    requestAnimationFrame(() => currentRow.scrollIntoView({ block: 'center' }));
-  }
 }
 
 function renderDetail(container, ctx) {

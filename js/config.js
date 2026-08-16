@@ -21,9 +21,8 @@ export const FLAGS = {
   warnFastGain: false,
 };
 
-// Cardio picks that count as a "cardio day". Walking stays in the picker
-// for logging but is background activity (NEAT), not conditioning — a
-// walk-only day is not a cardio day.
+// Cardio picks that count as a "cardio day". Walking is tracked separately
+// as the "10k steps" habit (NEAT floor), not as conditioning.
 export const CARDIO_COUNTS = ['run', 'squash', 'bike'];
 
 // NOTE: every target/goal below is `null` = "keep whatever is already stored
@@ -34,8 +33,10 @@ export const TRACKERS = [
     target: null },   // set from the measured TDEE (Goals pane one-tap)
   { name: 'Protein', type: 'number', unit: 'g',
     target: null },   // e.g. { period: 'day', value: 150, dir: 'atleast' }
-  { name: 'Cardio', type: 'multiselect', options: ['walk', 'run', 'squash', 'bike'],
+  { name: 'Cardio', type: 'multiselect', options: ['run', 'squash', 'bike'],
     target: null },
+  { name: '10k steps', type: 'checkbox',
+    target: { period: 'day', value: 1 } },   // daily habit; walking = NEAT floor
   { name: 'Weightlifting', type: 'checkbox',
     target: null },   // e.g. { period: 'week', value: 4 }
   { name: 'Weight', type: 'measurement', unit: 'lb',

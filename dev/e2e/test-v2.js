@@ -49,10 +49,10 @@ async function setNumberInput(page, selector, value) {
   await page.waitForSelector('.card');
   const names = await page.$$eval('.card .t-name', (els) => els.map((e) => e.childNodes[0].textContent.trim()));
   // config trackers; Weightlifting has no day card (derived from the workout log)
-  check('day cards are Calories, Protein, Cardio, Weight',
-    JSON.stringify(names) === JSON.stringify(['Calories', 'Protein', 'Cardio', 'Weight']), names.join(','));
+  check('day cards are Calories, Protein, Cardio, 10k steps, Weight',
+    JSON.stringify(names) === JSON.stringify(['Calories', 'Protein', 'Cardio', '10k steps', 'Weight']), names.join(','));
   const chips = await page.$$eval('.chip', (els) => els.map((e) => e.textContent));
-  check('Cardio has 4 chips', JSON.stringify(chips) === JSON.stringify(['walk', 'run', 'squash', 'bike']), chips.join(','));
+  check('Cardio has 3 chips (walk removed)', JSON.stringify(chips) === JSON.stringify(['run', 'squash', 'bike']), chips.join(','));
 
   // ---- 2. multiselect chips ----
   await clickByText('.chip', 'run');

@@ -992,24 +992,30 @@ html[data-theme="light"] body::before {
 .wk-row { position: relative; }
 .wk-num {
   position: absolute;
-  top: 8px;
+  top: 7px;
   right: 12px;
   font-family: var(--serif);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
 
-/* ledger-style overview rows: title + five mini cells */
-.wk-row-ledger { align-items: stretch; padding: 12px 14px 11px; }
-.wk-title { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-right: 26px; }
-.wk-title b { font-size: 15px; }
-.wk-inprog { font-size: 12px; }
-.wk-cells { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+/* ledger-style overview rows: title + four mini cells (compact) */
+.wk-row-ledger { align-items: stretch; padding: 10px 14px 9px; min-height: 0; }
+.wk-title { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; padding-right: 26px; }
+.wk-title b { font-size: 14px; }
+.wk-title .wk-dot { width: 10px; height: 10px; }
+.wk-inprog { font-size: 11px; }
+.wk-cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .wk-cell { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
-.wk-cell-v { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
-.wk-cell-l { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+.wk-cell-v { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+.wk-cell-l { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+
+/* sprint progress in the weeks masthead */
+.wk-progress { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top: 8px; }
+.wk-progress-label { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; }
+.wk-progress-bar { width: 140px; }
 
 /* shared line status coloring (week card rows + overview cells) */
 .st-good .wk-cell-v, .rp-row.st-good .rp-value b { color: var(--met-day); }

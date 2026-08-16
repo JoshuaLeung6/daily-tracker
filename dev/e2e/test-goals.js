@@ -100,7 +100,11 @@ const localISO = (offset) => {
   const attVals = await page.$$eval('.att-card .as-v', (els) => els.map((e) => e.textContent));
   check('calories: streak=1, best=2, 30-day=3/11',
     attVals[0] === '1' && attVals[1] === '2' && attVals[2] === '3/11', attVals.join(','));
-  const dotStates = await page.$$eval('.dstrip i', (els) => els.map((e) => e.className));
+  // scope to the Calories card (10k steps has its own strip now)
+  const dotStates = await page.evaluate(() => {
+    const card = [...document.querySelectorAll('.att-card')].find((c) => /Calories/.test(c.textContent));
+    return [...card.querySelectorAll('.dstrip i')].map((e) => e.className);
+  });
   check('dot strip: 14 dots, 3 met', dotStates.length === 14 && dotStates.filter((c) => c === 'met').length === 3,
     `${dotStates.length} dots, ${dotStates.filter((c) => c === 'met').length} met`);
   const greenStreak = await page.$eval('.att-card .as-v', (e) => e.className);
