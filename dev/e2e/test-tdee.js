@@ -107,7 +107,7 @@ const localISO = (offset) => {
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="week"]');
   await page.waitForSelector('.wk-row');
-  await page.click('.wk-row');
+  await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');
   const wkText = await page.$eval('.report-card', (e) => e.textContent);
   check('custom aggressive band -> +0.18%/wk reads slow', /slow/.test(wkText) && !/in band/.test(wkText), wkText.slice(0, 140));

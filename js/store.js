@@ -27,6 +27,7 @@ function seed() {
     liftGoals: {},
     profile: {},
     foods: [],
+    notes: {},
   };
 }
 
@@ -99,6 +100,7 @@ export function init({ onStorageError } = {}) {
   data.liftGoals ??= {};
   data.profile ??= {};
   data.foods ??= [];
+  data.notes ??= {};
 
   window.addEventListener('pagehide', () => persistNow());
   document.addEventListener('visibilitychange', () => {
@@ -187,6 +189,19 @@ export function getPreImportSnapshot() {
 
 export function clearPreImportSnapshot() {
   localStorage.removeItem(KEY_PRE_IMPORT);
+}
+
+// ----- day notes (free text, optional) -----
+
+export function getNote(iso) {
+  return data.notes[iso] || '';
+}
+
+export function setNote(iso, text) {
+  const t = (text || '').trim();
+  if (t) data.notes[iso] = text;
+  else delete data.notes[iso];
+  scheduleSave();
 }
 
 // ----- profile (optional personal context for analysis) -----

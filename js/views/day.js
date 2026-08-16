@@ -3,7 +3,8 @@
 
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
-import { getEntry, setValue, persistNow } from '../store.js';
+import { getEntry, setValue, persistNow, getNote, setNote } from '../store.js';
+import { photosOn, addPhoto, deletePhoto } from '../photos.js';
 import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets, previousValue } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, FOCUS_LABELS, sessionHadPR } from '../workouts.js';
 import { openWorkout } from './workout.js';
@@ -62,7 +63,9 @@ export function render(container, ctx) {
     }, lockIcon(locked), locked ? 'Locked — tap to edit' : 'Editing past day');
     pieces.push(el('div', { class: 'lock-row' }, pill));
   }
-  container.replaceChildren(...pieces, cards, workoutSection(iso, locked, () => render(container, ctx)));
+  container.replaceChildren(...pieces, cards,
+    workoutSection(iso, locked, () => render(container, ctx)),
+    journalSection(iso, locked));
 
   if (!locked && active.length === 0 && archivedWithData.length === 0) {
     cards.append(el('div', { class: 'empty-state' }, 'No trackers yet. Add one in Settings.'));
@@ -90,6 +93,95 @@ export function render(container, ctx) {
       ctx.setDate(addDays(iso, dx < 0 ? 1 : -1));
     }
   };
+}
+
+// Optional journal for the day: a free-text note and progress photos.
+// Both start collapsed behind quiet buttons — zero pressure when unused.
+function journalSection(iso, locked) {
+  const wrap = el('div', { class: 'journal-section' });
+  const note = getNote(iso);
+
+  // --- note ---
+  const noteBox = el('div', { class: 'card card-text journal-note' });
+  const buildNote = (open) => {
+    noteBox.replaceChildren();
+    if (!open) return;
+    const ta = el('textarea', {
+      rows: '2', placeholder: 'How did today go?', 'aria-label': 'Day note', readonly: locked,
+    });
+    ta.value = getNote(iso);
+    ta.addEventListener('input', () => { grow(ta); setNote(iso, ta.value); });
+    ta.addEventListener('blur', () => persistNow());
+    noteBox.append(el('span', { class: 't-name' }, 'Note'), ta);
+    requestAnimationFrame(() => grow(ta));
+  };
+  const hasNote = Boolean(note.trim());
+  buildNote(hasNote);
+  if (locked) noteBox.classList.add('is-locked');
+
+  // --- photos ---
+  const photoStrip = el('div', { class: 'photo-strip' });
+  const fileInput = el('input', { type: 'file', accept: 'image/*', hidden: true });
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    try {
+      await addPhoto(iso, file);
+      await loadPhotos();
+    } catch (e) {
+      alert('Could not save that photo. Try a smaller image.');
+    }
+  });
+
+  const loadPhotos = async () => {
+    const photos = await photosOn(iso);
+    photoStrip.replaceChildren();
+    for (const p of photos) {
+      const url = URL.createObjectURL(p.blob);
+      const img = el('img', { src: url, alt: `Progress photo ${iso}`, class: 'photo-thumb' });
+      img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+      const tile = el('div', { class: 'photo-tile' }, img);
+      tile.addEventListener('click', () => openLightbox(p, iso, locked, loadPhotos));
+      photoStrip.append(tile);
+    }
+    photoStrip.hidden = photos.length === 0;
+  };
+  loadPhotos();
+
+  const actions = el('div', { class: 'journal-actions' });
+  if (!locked) {
+    if (!hasNote) {
+      actions.append(el('button', {
+        class: 'ghost-btn journal-btn',
+        onclick: (e) => { buildNote(true); e.currentTarget.remove(); noteBox.querySelector('textarea').focus(); },
+      }, '+ Note'));
+    }
+    actions.append(el('button', { class: 'ghost-btn journal-btn', onclick: () => fileInput.click() }, '+ Photo'));
+  }
+
+  wrap.append(noteBox, photoStrip, actions, fileInput);
+  return wrap;
+}
+
+function openLightbox(photo, iso, locked, onChange) {
+  const backdrop = el('div', { class: 'sheet-backdrop lightbox' });
+  const close = () => { backdrop.remove(); URL.revokeObjectURL(url); };
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+  const url = URL.createObjectURL(photo.blob);
+  backdrop.append(el('div', { class: 'lightbox-body' },
+    el('img', { src: url, alt: `Progress photo ${iso}`, class: 'lightbox-img' }),
+    el('div', { class: 'btn-row lightbox-actions' },
+      el('button', { class: 'btn', onclick: close }, 'Close'),
+      !locked && el('button', {
+        class: 'btn danger',
+        onclick: async () => {
+          if (confirm('Delete this photo?')) { await deletePhoto(photo.id); close(); onChange(); }
+        },
+      }, 'Delete'),
+    ),
+  ));
+  document.body.append(backdrop);
 }
 
 // Below the trackers: the day's workout, or a quiet button to start one.

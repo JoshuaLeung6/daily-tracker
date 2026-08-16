@@ -77,7 +77,7 @@ const localISO = (offset) => {
   await new Promise((r) => setTimeout(r, 400));
   await page.click('.tab[data-tab="week"]');
   await page.waitForSelector('.wk-row');
-  await page.click('.wk-row');
+  await page.click('.wk-row.is-current');
   await page.waitForSelector('.week-totals');
   const wkText = await page.$eval('.week-totals', (e) => e.textContent);
   const weightLine = /Weight/.test(wkText);

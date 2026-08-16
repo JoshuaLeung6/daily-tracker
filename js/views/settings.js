@@ -8,7 +8,7 @@ import {
   deleteTracker, daysWithValue, targetFor, setTarget, clearGoal, TYPES,
 } from '../trackers.js';
 import {
-  exportData, exportAnalysis, readBackupFile, applyImport,
+  exportData, exportAnalysis, exportPhotos, readBackupFile, applyImport,
   canUndoImport, undoImport, lastExportDays,
 } from '../backup.js';
 import { listFoods, addFood, updateFood, deleteFood } from '../foods.js';
@@ -164,9 +164,16 @@ export function render(container, ctx) {
     exportStatusLine(),
     el('div', { class: 'btn-row' },
       el('button', { class: 'btn', onclick: () => exportAnalysis() }, 'Export for analysis'),
+      el('button', {
+        class: 'btn',
+        onclick: async () => {
+          const r = await exportPhotos();
+          if (r === 'none') alert('No progress photos yet.');
+        },
+      }, 'Export photos'),
     ),
     el('div', { class: 'settings-note' },
-      'Analysis export uses tracker names and includes precomputed stats — the file to hand to Claude for advice. It is not a restorable backup.'),
+      'Analysis export uses tracker names and includes precomputed stats — the file to hand to Claude for advice. Photos are stored separately and exported as image files; neither is a restorable backup.'),
     canUndoImport() && el('div', { class: 'btn-row' },
       el('button', {
         class: 'btn danger',

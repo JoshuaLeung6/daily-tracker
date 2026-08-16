@@ -6,6 +6,7 @@ import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
 import { weekReport, weekSuggestions, weeksOverview } from '../insights.js';
+import { currentSprint } from '../sprints.js';
 
 // The tab opens zoomed out: every week graded green/yellow/red; tapping a
 // week drills into its report card. Switching away and back resets to the
@@ -22,21 +23,34 @@ export function render(container, ctx) {
 }
 
 function renderOverview(container, ctx) {
+  const sprint = currentSprint();
   const head = el('header', { class: 'view-head' },
     el('span'),
     el('div', { class: 'masthead' },
-      el('div', { class: 'eyebrow' }, 'Week by week'),
+      el('div', { class: 'eyebrow' }, sprint ? sprint.name : 'Week by week'),
       el('h1', {}, 'Weeks'),
     ),
     el('span'),
   );
 
   const list = el('div', { class: 'week-rows' });
-  const weeks = weeksOverview();
+  const weeks = weeksOverview(sprint ? { start: sprint.start, end: sprint.end } : null);
   if (weeks.length === 0) {
     list.append(el('div', { class: 'empty-state' }, 'Nothing logged yet — weeks appear here as you log.'));
   }
+  const total = weeks.length;
+  let currentRow = null;
   for (const wk of weeks) {
+    if (wk.isFuture) {
+      list.append(el('div', { class: 'wk-row is-future' },
+        el('span', { class: 'wk-dot none' }),
+        el('span', { class: 'wk-main' },
+          el('b', {}, weekLabel(wk.ws)),
+          el('span', { class: 'wk-bits' }, `week ${wk.index} of ${total} · upcoming`),
+        ),
+      ));
+      continue;
+    }
     const r = wk.report;
     const bits = [];
     if (r.weight && r.weight.weekAvg != null) {
@@ -48,10 +62,10 @@ function renderOverview(container, ctx) {
     if (r.training && r.training.sessions > 0) {
       bits.push(`${r.training.sessions} session${r.training.sessions === 1 ? '' : 's'}`);
     }
-    if (r.protein) bits.push(`protein ${r.protein.hit}/${r.protein.of}`);
+    if (r.protein && r.protein.of > 0) bits.push(`protein ${r.protein.hit}/${r.protein.of}`);
     if (bits.length === 0) bits.push('nothing logged');
 
-    list.append(el('button', {
+    const row = el('button', {
       class: 'wk-row' + (wk.isCurrent ? ' is-current' : ''),
       onclick: () => { mode = 'detail'; ctx.setDate(wk.ws); },
     },
@@ -62,13 +76,20 @@ function renderOverview(container, ctx) {
       el('span', { class: 'wk-main' },
         el('b', {}, wk.isCurrent ? 'This week' : weekLabel(wk.ws)),
         el('span', { class: 'wk-bits' },
+          wk.index ? el('span', { class: 'rp-dim' }, `wk ${wk.index}/${total} · `) : null,
           bits.join(' · '), wk.isCurrent ? el('span', { class: 'rp-dim' }, ' · in progress') : null),
       ),
       el('span', { class: 'wo-chevron' }, '›'),
-    ));
+    );
+    if (wk.isCurrent) currentRow = row;
+    list.append(row);
   }
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), list);
+  // in a long sprint timeline, land on the current week
+  if (currentRow && sprint) {
+    requestAnimationFrame(() => currentRow.scrollIntoView({ block: 'center' }));
+  }
 }
 
 function renderDetail(container, ctx) {
@@ -154,12 +175,15 @@ function buildReportCard(ctx) {
   const card = el('div', { class: 'card report-card' });
   let any = false;
 
+  // the number of days in the week that have happened (7 for past weeks)
+  const daysSoFar = r.days.filter((d) => d <= todayISO()).length;
+  const outOf = (n) => el('span', { class: 'rp-dim' }, ` · ${n}/${daysSoFar} days`);
+
+  // 1. weight: avg · % vs previous week · weigh-in count (+ band badge)
   if (r.weight) {
     const w = r.weight;
     const unit = w.tracker.unit ? ` ${w.tracker.unit}` : '';
-    const label = w.tracker.name;
-    if (w.rate) {
-      const pct = `${w.rate.pct > 0 ? '+' : ''}${w.rate.pct.toFixed(2)}%/wk`;
+    if (w.weekAvg != null) {
       let badge = null;
       if (w.verdict === 'in') badge = el('span', { class: 'rp-badge in' }, 'in band');
       else if (w.verdict) {
@@ -168,46 +192,60 @@ function buildReportCard(ctx) {
         badge = el('span', { class: 'rp-badge ' + (harmful ? 'bad' : 'off') },
           w.verdict === 'above' ? (gaining ? 'fast — fat risk' : 'slow') : (gaining ? 'slow' : 'fast — muscle risk'));
       }
-      card.append(rpRow(label,
-        el('span', {}, el('b', {}, `${fmtN(w.rate.trend)}${unit}`), ` trend · ${pct} `, badge)));
-      any = true;
-    } else if (w.trend != null) {
-      card.append(rpRow(label,
-        el('span', {}, el('b', {}, `${fmtN(w.trend)}${unit}`), ' trend',
-          el('span', { class: 'rp-dim' }, ' · 3+ weigh-ins/wk unlock a rate'))));
-      any = true;
+      card.append(rpRow(w.tracker.name,
+        el('span', {},
+          el('b', {}, `${fmtN(w.weekAvg)}${unit}`), ' avg',
+          w.pctVsPrev != null
+            ? ` · ${w.pctVsPrev > 0 ? '+' : ''}${w.pctVsPrev.toFixed(2)}% vs last wk `
+            : el('span', { class: 'rp-dim' }, ' · no prior week '),
+          badge,
+          // trend rate drives the band verdict; keep it visible when known
+          w.rate ? el('span', { class: 'rp-dim' }, ` · trend ${w.rate.pct > 0 ? '+' : ''}${w.rate.pct.toFixed(2)}%/wk`) : null,
+          el('span', { class: 'rp-dim' }, ` · ${w.weighIns} weigh-in${w.weighIns === 1 ? '' : 's'}`),
+        )));
     } else {
-      card.append(rpRow(label, el('span', { class: 'rp-dim' }, 'not enough readings for a trend yet')));
-      any = true;
+      card.append(rpRow(w.tracker.name, el('span', { class: 'rp-dim' }, 'no weigh-ins this week')));
     }
+    any = true;
   }
 
-  if (r.intake || r.protein) {
-    card.append(rpRow('Intake',
+  // 2. calories: avg · target days
+  if (r.intake) {
+    card.append(rpRow('Calories',
       el('span', {},
-        r.intake ? el('b', {}, Math.round(r.intake.avg).toLocaleString()) : null,
-        r.intake ? ` ${r.intake.unit}/day avg` : null,
-        r.protein
-          ? el('span', { class: r.intake ? 'rp-dim' : '' },
-              `${r.intake ? ' · ' : ''}protein ${r.protein.hit}/${r.protein.of} days`)
-          : null,
+        r.intake.avg != null ? el('b', {}, Math.round(r.intake.avg).toLocaleString()) : el('span', { class: 'rp-dim' }, '—'),
+        r.intake.avg != null ? ` ${r.intake.unit} avg` : '',
+        r.intake.of > 0 ? outOf(r.intake.hit) : el('span', { class: 'rp-dim' }, ' · no target set'),
       )));
     any = true;
   }
 
-  if (r.training && r.training.sessions > 0) {
+  // 3. protein: avg · target days
+  if (r.protein) {
+    card.append(rpRow('Protein',
+      el('span', {},
+        r.protein.avg != null ? el('b', {}, fmtN(r.protein.avg)) : el('span', { class: 'rp-dim' }, '—'),
+        r.protein.avg != null ? ` ${r.protein.unit} avg` : '',
+        r.protein.of > 0 ? outOf(r.protein.hit) : el('span', { class: 'rp-dim' }, ' · no target set'),
+      )));
+    any = true;
+  }
+
+  // 4. cardio: days done
+  if (r.cardio) {
+    card.append(rpRow('Cardio', el('span', {}, el('b', {}, `${r.cardio.days}/${daysSoFar}`), ' days')));
+    any = true;
+  }
+
+  // 5. workouts: days trained (+ split breakdown when there is one)
+  if (r.training) {
     const t = r.training;
     const splitBits = SPLITS.filter((s) => t.bySplit[s])
       .map((s) => `${SPLIT_LABELS[s]} ${t.bySplit[s]}`).join(' · ');
-    card.append(rpRow('Training',
+    card.append(rpRow('Workouts',
       el('span', {},
-        el('b', {}, `${t.sessions} session${t.sessions === 1 ? '' : 's'}`),
-        splitBits ? ` · ${splitBits}` : '',
-        // a partial week vs full prior weeks reads as a false deficit —
-        // only compare completed weeks
-        t.volumeVsAvg != null && !r.isCurrent
-          ? el('span', { class: 'rp-dim' }, ` · vol ${t.volumeVsAvg >= 0 ? '+' : ''}${Math.round(t.volumeVsAvg)}% vs 4wk`)
-          : null,
+        el('b', {}, `${t.days}/${daysSoFar}`), ' days',
+        splitBits ? el('span', { class: 'rp-dim' }, ` · ${splitBits}`) : null,
       )));
     any = true;
   }

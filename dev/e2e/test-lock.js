@@ -29,7 +29,7 @@ function check(name, ok, extra = '') {
   await page.click('.nav-arrow[aria-label="Previous day"]');
   await page.waitForSelector('.lock-pill');
   check('yesterday shows lock pill (locked)', await page.$eval('.lock-pill', (p) => p.textContent.includes('Locked')));
-  const lockedCards = await page.$$eval('.card', (els) => els.length);
+  const lockedCards = await page.$$eval('.cards .card', (els) => els.length);
   check('locked empty day shows no tracker cards', lockedCards === 0, `cards: ${lockedCards}`);
   check('locked empty day says nothing logged',
     await page.$eval('#view-day', (e) => /Nothing logged this day/.test(e.textContent)));
@@ -37,7 +37,7 @@ function check(name, ok, extra = '') {
   await page.click('.lock-pill');
   await page.waitForSelector('.lock-pill.unlocked');
   check('pill flips to Editing', await page.$eval('.lock-pill', (p) => p.textContent.includes('Editing')));
-  const unlockedCards = await page.$$eval('.card', (els) => els.length);
+  const unlockedCards = await page.$$eval('.cards .card', (els) => els.length);
   check('unlocking reveals all 4 trackers', unlockedCards === 4, `cards: ${unlockedCards}`);
   await page.click('.card input[type="text"]');
   await page.keyboard.type('1800');

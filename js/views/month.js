@@ -6,6 +6,7 @@ import { getEntry } from '../store.js';
 import { dayAllMet } from '../trackers.js';
 import { getWorkout, SPLITS, SPLIT_LABELS } from '../workouts.js';
 import { monthReport } from '../insights.js';
+import { photoDates } from '../photos.js';
 
 export function render(container, ctx) {
   const today = todayISO();
@@ -42,6 +43,7 @@ export function render(container, ctx) {
     grid.append(el('button', {
       class: 'month-cell' + (iso === today ? ' is-today' : ''),
       'aria-label': fmt(iso, { weekday: 'long', month: 'long', day: 'numeric' }),
+      'data-iso': iso,
       onclick: () => ctx.openDay(iso),
     },
       el('span', { class: 'cell-day' + (dayAllMet(iso) ? ' all-met' : '') }, String(Number(iso.slice(8)))),
@@ -51,6 +53,16 @@ export function render(container, ctx) {
 
   const summary = buildMonthSummary(ctx.date);
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), ...(summary ? [summary] : []), grid);
+
+  // async: mark days that have progress photos (violet tick after the number)
+  photoDates().then((dates) => {
+    for (const cell of grid.querySelectorAll('.month-cell')) {
+      const label = cell.getAttribute('aria-label');
+      if (!label) continue;
+      const iso = cell.dataset.iso;
+      if (iso && dates.has(iso)) cell.querySelector('.cell-day').classList.add('has-photo');
+    }
+  }).catch(() => { /* photos unavailable — grid still fine */ });
 }
 
 // Month = consistency at scale: weight change vs band, training totals,

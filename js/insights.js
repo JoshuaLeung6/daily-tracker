@@ -49,6 +49,25 @@ export function proteinTracker() {
   return activeTrackers().find((t) => t.type === 'number' && t.name.toLowerCase() === 'protein') || null;
 }
 
+export function cardioTracker() {
+  return activeTrackers().find((t) => /cardio/i.test(t.name)) || null;
+}
+
+// Days in a week where a daily-target tracker met its target, plus the
+// number of those days that had a target in force at all.
+function targetHitDays(t, days, today) {
+  let hit = 0;
+  let of = 0;
+  for (const d of days) {
+    if (d > today) continue;
+    const tgt = targetFor(t, d);
+    if (!tgt || tgt.period !== 'day') continue;
+    of++;
+    if (dayMeets(t, d)) hit++;
+  }
+  return { hit, of };
+}
+
 function earliestValueISO(id) {
   let min = null;
   for (const [iso, day] of Object.entries(getData().entries)) {
@@ -133,10 +152,26 @@ export function weekReport(iso) {
       const v = getEntry(d)[wt.id];
       if (typeof v === 'number') { sum += v; n++; }
     }
+    // previous week's plain average, for the week-over-week % change
+    let psum = 0;
+    let pn = 0;
+    for (let i = 1; i <= 7; i++) {
+      const v = getEntry(addDays(ws, -i))[wt.id];
+      if (typeof v === 'number') { psum += v; pn++; }
+    }
+    const weekAvg = n > 0 ? sum / n : null;
+    const prevAvg = pn > 0 ? psum / pn : null;
     report.weight = {
       tracker: wt,
       trend: trendWeightOn(wt.id, end),
-      weekAvg: n > 0 ? sum / n : null,
+      weekAvg,
+      weighIns: n,
+      prevAvg,
+      // %change vs previous week's average — needs 3+ readings on both sides
+      // so two lone weigh-ins can't manufacture a swing
+      pctVsPrev: weekAvg != null && prevAvg != null && n >= 3 && pn >= 3
+        ? ((weekAvg - prevAvg) / prevAvg) * 100
+        : null,
       rate,
       band,
       verdict: rate && band
@@ -145,7 +180,7 @@ export function weekReport(iso) {
     };
   }
 
-  // --- intake ---
+  // --- intake: calories & protein, each avg + target-hit days ---
   const cal = calorieTracker();
   if (cal) {
     let sum = 0;
@@ -155,30 +190,57 @@ export function weekReport(iso) {
       const v = getEntry(d)[cal.id];
       if (typeof v === 'number') { sum += v; n++; }
     }
-    report.intake = n > 0 ? { avg: sum / n, loggedDays: n, unit: cal.unit || 'kcal' } : null;
+    const hits = targetHitDays(cal, days, today);
+    report.intake = n > 0 || hits.of > 0
+      ? { avg: n > 0 ? sum / n : null, loggedDays: n, unit: cal.unit || 'kcal', hit: hits.hit, of: hits.of }
+      : null;
   }
 
   const pro = proteinTracker();
-  if (pro && targetFor(pro, end)) {
-    let hit = 0;
-    let of = 0;
+  if (pro) {
+    let sum = 0;
+    let n = 0;
     for (const d of days) {
       if (d > today) continue;
-      const tgt = targetFor(pro, d);
-      if (!tgt || tgt.period !== 'day') continue;
-      of++;
-      if (dayMeets(pro, d)) hit++;
+      const v = getEntry(d)[pro.id];
+      if (typeof v === 'number') { sum += v; n++; }
     }
-    if (of > 0) report.protein = { hit, of };
+    const hits = targetHitDays(pro, days, today);
+    if (n > 0 || hits.of > 0) {
+      report.protein = { avg: n > 0 ? sum / n : null, loggedDays: n, unit: pro.unit || 'g', hit: hits.hit, of: hits.of };
+    }
+  }
+
+  // --- cardio: days with any cardio logged ---
+  const cardio = cardioTracker();
+  if (cardio) {
+    let daysDone = 0;
+    for (const d of days) {
+      if (d > today) continue;
+      const v = getEntry(d)[cardio.id];
+      if (v === true || (typeof v === 'string' && v) || (Array.isArray(v) && v.length > 0) || (typeof v === 'number' && v > 0)) daysDone++;
+    }
+    report.cardio = { days: daysDone };
   }
 
   // --- training ---
   const bySplit = { push: 0, pull: 0, legs: 0 };
   let sessions = 0;
+  const workoutDays = new Set();
   for (const w of allWorkouts()) {
     if (w.date < ws || w.date > days[6]) continue;
     sessions++;
+    workoutDays.add(w.date);
     bySplit[w.split] = (bySplit[w.split] || 0) + 1;
+  }
+  // a checked Weightlifting tracker counts as a training day too (logged
+  // without the workout editor)
+  const liftT = activeTrackers().find((x) => x.type === 'checkbox' && /weightlift/i.test(x.name));
+  if (liftT) {
+    for (const d of days) {
+      if (d > today) continue;
+      if (getEntry(d)[liftT.id] === true) workoutDays.add(d);
+    }
   }
   const vol = volumeBetween(ws, addDays(ws, 7));
   let prior = 0;
@@ -190,6 +252,7 @@ export function weekReport(iso) {
   }
   report.training = {
     sessions,
+    days: workoutDays.size,
     bySplit,
     volume: vol,
     volumeVsAvg: priorWeeks > 0 && vol > 0 ? (vol / (prior / priorWeeks) - 1) * 100 : null,
@@ -235,6 +298,7 @@ export function weekSuggestions(report) {
   }
 
   if (report.protein && report.protein.of >= 4 && report.protein.hit / report.protein.of < 0.6) {
+    // (unchanged: fires when protein hit-rate is poor)
     out.push({
       id: 'protein-low',
       text: `Protein target hit ${report.protein.hit}/${report.protein.of} days — anchor breakfast and lunch with 30–50 g each.`,
@@ -447,15 +511,34 @@ export function monthReport(iso) {
   return report;
 }
 
-// Newest-first list of weeks since data began (capped), graded.
-export function weeksOverview(maxWeeks = 26) {
+// Weeks list. With a sprint window: every week from the sprint start to its
+// end, oldest first, future weeks as ungraded placeholders. Without: the
+// weeks since data began, newest first.
+export function weeksOverview(window = null, maxWeeks = 26) {
   const current = startOfWeek(todayISO());
+  if (window) {
+    const start = startOfWeek(window.start);
+    const end = startOfWeek(window.end);
+    const out = [];
+    let idx = 1;
+    for (let ws = start; ws <= end && out.length < 60; ws = addDays(ws, 7)) {
+      const isFuture = ws > current;
+      out.push({
+        ws,
+        index: idx++,
+        isCurrent: ws === current,
+        isFuture,
+        ...(isFuture ? { grade: null, met: 0, applicable: 0, components: [], report: null } : weekGrade(ws)),
+      });
+    }
+    return out;
+  }
   const first = earliestDataISO();
   if (!first) return [];
   const start = startOfWeek(first);
   const out = [];
   for (let ws = current; ws >= start && out.length < maxWeeks; ws = addDays(ws, -7)) {
-    out.push({ ws, isCurrent: ws === current, ...weekGrade(ws) });
+    out.push({ ws, isCurrent: ws === current, isFuture: false, ...weekGrade(ws) });
   }
   return out;
 }

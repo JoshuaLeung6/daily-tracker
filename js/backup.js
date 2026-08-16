@@ -25,6 +25,7 @@ export async function exportData() {
     liftGoals: doc.liftGoals || {},
     profile: doc.profile || {},
     foods: doc.foods || [],
+    notes: doc.notes || {},
   };
   const result = await shareJSON(JSON.stringify(payload, null, 2), `tracker-backup-${todayISO()}.json`, 'Tracker backup');
   if (result !== 'cancelled') setLastExport();
@@ -122,6 +123,7 @@ export function buildAnalysisPayload() {
       currentTarget: targetFor(t, today), targetHistory: t.targets || [], goal: t.goal || null,
     })),
     days,
+    notes: doc.notes || {},
     workouts: doc.workouts,
     stats: {
       targets: targetStats,
@@ -147,6 +149,35 @@ export function buildAnalysisPayload() {
 export async function exportAnalysis() {
   const json = JSON.stringify(buildAnalysisPayload(), null, 2);
   return shareJSON(json, `fitness-analysis-${todayISO()}.json`, 'Fitness analysis export');
+}
+
+// Progress photos are stored separately (IndexedDB) and are too large for
+// the JSON backup — export them as one file per photo via the share sheet.
+export async function exportPhotos() {
+  const { allPhotos } = await import('./photos.js');
+  const photos = await allPhotos();
+  if (photos.length === 0) return 'none';
+  const files = photos.map((p, i) => new File([p.blob], `progress-${p.date}-${i + 1}.jpg`, { type: 'image/jpeg' }));
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try {
+      await navigator.share({ files, title: 'Progress photos' });
+      return 'shared';
+    } catch (e) {
+      if (e.name === 'AbortError') return 'cancelled';
+    }
+  }
+  // fallback: sequential downloads
+  for (const f of files) {
+    const url = URL.createObjectURL(f);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = f.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+  return 'downloaded';
 }
 
 export function validateBackup(obj) {
@@ -196,6 +227,7 @@ export function applyImport(backup) {
     liftGoals: backup.liftGoals || {},
     profile: backup.profile || {},
     foods: backup.foods || [],
+    notes: backup.notes || {},
   });
 }
 

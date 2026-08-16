@@ -704,6 +704,53 @@ html[data-theme="light"] body::before {
 .food-sum { font-variant-numeric: tabular-nums; }
 .food-idea .icon-btn { flex-shrink: 0; }
 
+/* day journal: note + photos */
+.journal-section { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.journal-note:empty { display: none; }
+.journal-actions { display: flex; gap: 8px; }
+.journal-actions .journal-btn { min-height: 44px; font-size: 14px; }
+
+.photo-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.photo-tile {
+  flex-shrink: 0;
+  width: 84px;
+  height: 112px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  cursor: pointer;
+}
+.photo-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.lightbox { justify-content: center; align-items: center; background: rgba(0, 0, 0, 0.88); }
+.lightbox-body { display: flex; flex-direction: column; gap: 12px; padding: 16px; max-width: 100%; }
+.lightbox-img {
+  max-width: 92vw;
+  max-height: 72dvh;
+  border-radius: 12px;
+  object-fit: contain;
+  background: var(--surface);
+}
+.lightbox-actions { justify-content: center; }
+.lightbox-actions .btn { flex: 0 0 auto; min-width: 110px; }
+
+/* sprint comparison columns */
+.rp-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; min-width: 190px; text-align: right; }
+.rp-headrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+.rp-headrow .rp-cols span { color: var(--faint); }
+
+.month-cell .cell-day.has-photo::after {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 3px;
+  vertical-align: middle;
+  border-radius: 1px;
+  background: var(--goal);
+}
+
 .sr-goalrow {
   display: flex;
   gap: 8px;
@@ -939,6 +986,7 @@ html[data-theme="light"] body::before {
 }
 
 .wk-row.is-current { border-color: var(--accent); }
+.wk-row.is-future { opacity: 0.5; cursor: default; }
 
 .wk-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; }
 .wk-dot.green { background: var(--met-day); }
