@@ -98,9 +98,14 @@ function renderOverview(container, ctx) {
   // no dismiss gesture on the overview
   container.ontouchstart = null;
   container.ontouchend = null;
+  // returning from a scrolled detail view must land at the top
+  container.scrollTop = 0;
+  requestAnimationFrame(() => { container.scrollTop = 0; });
 }
 
 function renderDetail(container, ctx) {
+  // entering a week (or switching weeks) starts at the top
+  container.scrollTop = 0;
   const today = todayISO();
   const start = startOfWeek(ctx.date);
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
