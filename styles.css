@@ -130,7 +130,9 @@ html[data-theme="light"] body::before {
      it withholds below the web view with the page background, so a matching
      bar makes the two read as one continuous surface down to the edge */
   background: var(--bg);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* clear the home indicator, but only just — the full inset (34px) plus
+     the tabs made a ~105px footer; this lands around 70px total */
+  padding-bottom: max(env(safe-area-inset-bottom, 0px) - 14px, 0px);
 }
 
 .tab {
@@ -138,15 +140,15 @@ html[data-theme="light"] body::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 7px 0 5px;
-  min-height: var(--tap);
+  gap: 1px;
+  padding: 5px 0 3px;
+  min-height: 44px;
   color: var(--faint);
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.02em;
 }
 
-.tab svg { width: 23px; height: 23px; }
+.tab svg { width: 20px; height: 20px; }
 
 .tab[aria-current="page"] { color: var(--accent); }
 
