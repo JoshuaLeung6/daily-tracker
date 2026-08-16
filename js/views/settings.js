@@ -45,7 +45,6 @@ export function render(container, ctx) {
           onclick: () => { setThemePref(value); rerender(); },
         }, label)),
     ),
-    el('div', { class: 'settings-note' }, 'Auto follows your phone’s appearance.'),
   );
 
   // ----- trackers (read-only summary) -----
@@ -68,8 +67,6 @@ export function render(container, ctx) {
   const trackerSection = el('div', { class: 'settings-section' },
     el('h2', {}, 'Trackers'),
     list,
-    el('div', { class: 'settings-note' },
-      'Trackers, targets and goals are set up in code with Claude so the app stays simple. Ask to change any of them.'),
   );
 
   // ----- profile (optional; travels with exports for analysis) -----
@@ -107,8 +104,6 @@ export function render(container, ctx) {
     profileField('Height', 'height', { placeholder: 'e.g. 5\'10" or 178 cm' }),
     el('div', { class: 'field' }, el('label', {}, 'Sex'), sexSel),
     el('div', { class: 'field' }, el('label', {}, 'Units'), unitsSel),
-    el('div', { class: 'settings-note' },
-      'Optional — included in exports so future analysis has context. Leave anything blank.'),
   );
 
   // ----- backup -----
@@ -147,8 +142,6 @@ export function render(container, ctx) {
         },
       }, 'Export photos'),
     ),
-    el('div', { class: 'settings-note' },
-      'Analysis export uses tracker names and includes precomputed stats — the file to hand to Claude for advice. Photos are stored separately and exported as image files; neither is a restorable backup.'),
     canUndoImport() && el('div', { class: 'btn-row' },
       el('button', {
         class: 'btn danger',

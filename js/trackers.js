@@ -107,12 +107,23 @@ export function applyConfig(configTrackers, paceLookup) {
       const dir = c.type === 'number' ? (c.target.dir === 'atmost' ? 'atmost' : 'atleast') : undefined;
       const same = cur && cur.period === c.target.period && cur.value === c.target.value
         && (c.type !== 'number' || (cur.dir || 'atleast') === dir);
-      if (!same) {
+      const wantFrom = c.target.from || today;
+      // with an explicit `from`, also require that it is the target in force
+      // from that date (i.e. history was actually rewritten)
+      const backdatedOK = !c.target.from || (t.targets || []).some((x) => x.from === c.target.from
+        && x.value === c.target.value && x.period === c.target.period);
+      if (!same || !backdatedOK) {
         t.targets ??= [];
-        const entry = { from: today, value: c.target.value, period: c.target.period };
+        const entry = { from: wantFrom, value: c.target.value, period: c.target.period };
         if (dir) entry.dir = dir;
-        const idx = t.targets.findIndex((x) => x.from === today);
-        if (idx >= 0) t.targets[idx] = entry; else t.targets.push(entry);
+        if (c.target.from) {
+          // backdate: drop everything on/after `from`, then insert
+          t.targets = t.targets.filter((x) => x.from < c.target.from);
+          t.targets.push(entry);
+        } else {
+          const idx = t.targets.findIndex((x) => x.from === today);
+          if (idx >= 0) t.targets[idx] = entry; else t.targets.push(entry);
+        }
         t.targets.sort((a, b) => (a.from < b.from ? -1 : 1));
         changed = true;
       }
@@ -138,6 +149,31 @@ export function applyConfig(configTrackers, paceLookup) {
     if (!seen.has(t.name.trim().toLowerCase()) && !t.archived) { t.archived = true; changed = true; }
   }
 
+  if (changed) persistNow();
+  return changed;
+}
+
+// Backdated seed values: fill only where the day has no value for that
+// tracker. Idempotent and never destructive.
+export function applySeedValues(seeds, anchorISO) {
+  const doc = getData();
+  // only the real dataset (whose history reaches the anchor date) gets seeded
+  if (anchorISO) {
+    const hasAnchor = Object.keys(doc.entries).some((iso) => iso <= anchorISO)
+      || Object.keys(doc.workouts || {}).some((iso) => iso <= anchorISO);
+    if (!hasAnchor) return false;
+  }
+  let changed = false;
+  for (const [name, byDate] of Object.entries(seeds || {})) {
+    const t = doc.trackers.find((x) => x.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (!t) continue;
+    for (const [iso, value] of Object.entries(byDate)) {
+      const day = doc.entries[iso];
+      if (day && t.id in day) continue; // already logged — leave it
+      (doc.entries[iso] ??= {})[t.id] = value;
+      changed = true;
+    }
+  }
   if (changed) persistNow();
   return changed;
 }

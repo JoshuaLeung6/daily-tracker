@@ -13,7 +13,7 @@ import { todayISO, addDays, startOfWeek, fromISO, toLocalISO } from './dates.js'
 import { getEntry, getData } from './store.js';
 import { activeTrackers, targetFor, dayMeets, dayAllMet, ratePerWeek, avgOverDays } from './trackers.js';
 import { allWorkouts, liftVolume, liftStats, SPLITS, SPLIT_LABELS } from './workouts.js';
-import { FLAGS, CARDIO_COUNTS } from './config.js';
+import { FLAGS, CARDIO_COUNTS, CALORIE_BANDS } from './config.js';
 
 // Does a day's cardio value count as a cardio day? Walk-only doesn't.
 export function isCardioDay(v) {
@@ -472,24 +472,29 @@ export function weekLineStatus(report) {
     else out.weight = verdictIsHarmful(w.band, w.verdict) ? 'bad' : 'neutral';
   } else if (w && w.weekAvg != null) out.weight = 'neutral';
   const hitLine = (x) => (x && x.of > 0 ? (x.hit / x.of >= 0.7 ? 'good' : 'neutral') : (x ? 'neutral' : null));
-  // Calories are judged on the WEEKLY AVERAGE vs target — energy balance
-  // works on a rolling window, not day by day. Protein stays daily.
-  const cal = calorieTracker();
+  // Calories are judged on the WEEKLY AVERAGE — energy balance works on a
+  // rolling window, not day by day — against the owner's bands
+  // (>= good green, >= ok yellow, else red). Protein stays daily.
   if (report.intake) {
-    const tgt = cal ? targetFor(cal, report.end) : null;
-    if (tgt && tgt.period === 'day' && report.intake.avg != null) {
-      const ok = tgt.dir === 'atmost' ? report.intake.avg <= tgt.value : report.intake.avg >= tgt.value;
-      out.calories = ok ? 'good' : 'neutral';
-    } else out.calories = 'neutral';
+    const avg = report.intake.avg;
+    if (avg == null) out.calories = 'neutral';
+    else if (avg >= CALORIE_BANDS.good) out.calories = 'good';
+    else if (avg >= CALORIE_BANDS.ok) out.calories = 'neutral';
+    else out.calories = 'bad';
   }
   out.protein = hitLine(report.protein);
-  const pace = (done, weeklyTarget) => {
-    const need = Math.ceil(weeklyTarget * (daysSoFar / 7));
-    return done >= Math.max(1, need) ? 'good' : 'neutral';
+  // Weekly-count lines (cardio, workouts) use the owner's grading bands,
+  // scaled to completed days: full week 6–7 = good, 3–5 = neutral, 0–2 = bad.
+  const bandFor = (done) => {
+    const scaled = daysSoFar >= 7 ? done : done * (7 / daysSoFar);
+    if (scaled >= 6) return 'good';
+    if (scaled >= 3) return 'neutral';
+    return 'bad';
   };
-  if (report.cardio) out.cardio = pace(report.cardio.days, cardioDayTarget());
+  // cardio: a once-a-week commitment — good once hit, neutral until then
+  if (report.cardio) out.cardio = report.cardio.days >= cardioDayTarget() ? 'good' : 'neutral';
   if (report.training) out.workouts = report.training.days > 0 || allWorkouts().length > 0
-    ? pace(report.training.days, liftingSessionTarget())
+    ? bandFor(report.training.days)
     : null;
   return out;
 }

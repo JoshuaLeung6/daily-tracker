@@ -49,8 +49,9 @@ async function setNumberInput(page, selector, value) {
   await page.waitForSelector('.card');
   const names = await page.$$eval('.card .t-name', (els) => els.map((e) => e.childNodes[0].textContent.trim()));
   // config trackers; Weightlifting has no day card (derived from the workout log)
-  check('day cards are Calories, Protein, Cardio, 10k steps, Weight',
-    JSON.stringify(names) === JSON.stringify(['Calories', 'Protein', 'Cardio', '10k steps', 'Weight']), names.join(','));
+  // weight (measurement) sorts first
+  check('day cards are Weight, Calories, Protein, Cardio, 10k steps',
+    JSON.stringify(names) === JSON.stringify(['Weight', 'Calories', 'Protein', 'Cardio', '10k steps']), names.join(','));
   const chips = await page.$$eval('.chip', (els) => els.map((e) => e.textContent));
   check('Cardio has 3 chips (walk removed)', JSON.stringify(chips) === JSON.stringify(['run', 'squash', 'bike']), chips.join(','));
 
@@ -140,16 +141,17 @@ async function setNumberInput(page, selector, value) {
   await page.waitForSelector('.card');
   const dayText = await page.$eval('#view-day', (e) => e.textContent);
   check('calories card shows 5-day streak + ≤ target', /target ≤ 3,000 kcal · 5-day streak/.test(dayText), dayText.slice(0, 300));
-  check('cardio card shows 5-day streak', (dayText.match(/5-day streak/g) || []).length >= 2);
+  // config backdates Cardio to a WEEKLY target, so it no longer carries a daily streak line
+  check('cardio has no daily streak (weekly target from config)', (dayText.match(/5-day streak/g) || []).length === 1);
   await page.screenshot({ path: path.join(SHOTS, 'v2-day-streaks.png') });
 
   // over-target: set 3500 calories -> bar .over, streak falls back to yesterday's 4
-  await setNumberInput(page, '.card input[type="text"]', '3500');
+  await setNumberInput(page, '.card input[aria-label="Calories"]', '3500');
   const overBar = await page.$eval('.target-line .bar i', (e) => e.className);
   const textAfterBust = await page.$eval('#view-day', (e) => e.textContent);
   check('exceeding at-most target marks bar .over', /over/.test(overBar), overBar);
   check('busting today falls back to 4-day streak', /target ≤ 3,000 kcal · 4-day streak/.test(textAfterBust));
-  await setNumberInput(page, '.card input[type="text"]', '2500');
+  await setNumberInput(page, '.card input[aria-label="Calories"]', '2500');
 
   // ---- 7. week view: totals, weekly goal, days count ----
   await page.click('.tab[data-tab="week"]');

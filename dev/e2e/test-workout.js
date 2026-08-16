@@ -66,7 +66,7 @@ const localISO = (offset) => {
   // ---- 2. add lifts via picker; numbers empty; first-time preview ----
   await addLiftViaPicker('Bench press');
   await page.waitForSelector('.lift-row');
-  const nameVal = await page.$eval('.lift-row .lift-name', (e) => e.value);
+  const nameVal = await page.$eval('.lift-row .lift-label', (e) => e.textContent);
   const weightVal = await page.$eval('.lift-row input[aria-label="Weight"]', (e) => e.value);
   check('picker adds named row with EMPTY numbers', nameVal === 'Bench press' && weightVal === '');
   check('first-time preview', await page.$eval('.lift-preview', (e) => /first time/.test(e.textContent)));

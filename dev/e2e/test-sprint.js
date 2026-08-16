@@ -102,7 +102,7 @@ const localISO = (offset) => {
   const rows = await page.$$eval('.report-card .rp-row', (els) => els.map((e) => e.textContent));
   check('weight line: avg · % vs last wk · weigh-ins', /avg · [+-]\d\.\d\d% vs last wk/.test(rows[0]) && /weigh-in/.test(rows[0]), rows[0]);
   if (daysSoFar > 0) {
-    check(`calories line: avg vs target · ${daysSoFar}/${daysSoFar} days`, new RegExp(`2,900 kcal avg vs ≥ 2,800 · ${daysSoFar}/${daysSoFar} days`).test(rows[1]), rows[1]);
+    check(`calories line: avg · aim · ${daysSoFar}/${daysSoFar} days`, new RegExp(`2,900 kcal avg · aim 3,000\\+ · ${daysSoFar}/${daysSoFar} days`).test(rows[1]), rows[1]);
     check('protein line: avg · hit/days', /g avg · \d\/\d days/.test(rows[2]), rows[2]);
     check(`cardio line: N/${daysSoFar} (walk-only excluded)`, new RegExp(`\\d/${daysSoFar} days`).test(rows[3]), rows[3]);
     check(`workouts line: N/${daysSoFar} + splits`, new RegExp(`\\d/${daysSoFar} days`).test(rows[4]) && /Push|Pull|Legs/.test(rows[4]), rows[4]);
@@ -117,6 +117,9 @@ const localISO = (offset) => {
   const spText = await page.$eval('#view-stats', (e) => e.textContent);
   check('sprint header with dates + day count', /Sprint 1/.test(spText) && /→ Oct 31/.test(spText) && /day \d+ of \d+/.test(spText), spText.slice(0, 200));
   check('start vs now comparison has Weight + Bench', /Start.*Now/.test(spText) && /Weight/.test(spText) && /Bench/.test(spText));
+  check('sprint goal card: → 145 lb with required pace', /Sprint goal/.test(spText) && /→ 145 lb/.test(spText) && /needs [+-]?[\d.]+ lb\/wk from here/.test(spText),
+    spText.slice(0, 500));
+  check('comparison table has a Target column', /Start.*Now.*Δ.*Target/.test(spText));
   check('sprint totals: workouts + PRs + logged', /Workouts/.test(spText) && /PRs/.test(spText) && /Logged/.test(spText));
   await page.screenshot({ path: path.join(__dirname, 'shots', 'sprint-pane.png') });
 
@@ -137,6 +140,24 @@ const localISO = (offset) => {
   const noteBack = await page.$eval('textarea[aria-label="Day note"]', (e) => e.value);
   check('note reopens expanded after reload', noteBack === 'Slept badly, still hit bench.', noteBack);
   check('+ Note button gone once a note exists', !(await page.evaluate(() => [...document.querySelectorAll('.journal-btn')].some((b) => b.textContent === '+ Note'))));
+  // clear it and blur -> reverts to no note + button returns
+  await page.evaluate(() => {
+    const ta = document.querySelector('textarea[aria-label="Day note"]');
+    ta.focus();
+    ta.value = '';
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    ta.blur();
+  });
+  await new Promise((r) => setTimeout(r, 300));
+  const notesAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')).notes);
+  check('emptied note reverts to no note', !notesAfter[localISO(0)] && (await page.$('textarea[aria-label="Day note"]')) === null
+    && await page.evaluate(() => [...document.querySelectorAll('.journal-btn')].some((b) => b.textContent === '+ Note')),
+    JSON.stringify(notesAfter));
+
+  // backdated config target: protein 120 from data start replaces the injected one
+  const proTargets = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')).trackers.find((t) => t.name === 'Protein').targets);
+  check('protein target backdated to 120 from 2026-07-11', proTargets && proTargets.length === 1
+    && proTargets[0].value === 120 && proTargets[0].from === '2026-07-11', JSON.stringify(proTargets));
 
   // ---- 4. photo upload (real PNG through the file input) ----
   const pngPath = path.join(__dirname, 'shots', 'lock-locked.png');

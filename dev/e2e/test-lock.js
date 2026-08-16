@@ -52,7 +52,8 @@ function check(name, ok, extra = '') {
   await page.click('.nav-arrow[aria-label="Next day"]');
   check('returning to the day re-locks it', await page.$eval('.lock-pill', (p) => p.textContent.includes('Locked')));
   const relockedNames = await page.$$eval('.card .t-name', (els) => els.map((e) => e.textContent));
-  check('re-locked day shows only Calories', JSON.stringify(relockedNames) === JSON.stringify(['Calories']), relockedNames.join(','));
+  // (weight sorts first, so the typed value landed in the Weight card)
+  check('re-locked day shows only the filled tracker', JSON.stringify(relockedNames) === JSON.stringify(['Weight']), relockedNames.join(','));
   check('value shown readonly', await page.$eval('.card input[type="text"]', (i) => i.readOnly && i.value === '1800'));
   await page.click('.card input[type="text"]');
   await page.keyboard.type('9');

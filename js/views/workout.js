@@ -30,14 +30,14 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
   };
 
   const addLift = (name) => {
-    draft.lifts.push({ name, weight: null, reps: null, sets: null });
-    if (name) touch();
+    if (!name || !name.trim()) return;
+    draft.lifts.push({ name: name.trim(), weight: null, reps: null, sets: null });
+    touch();
     renderRows();
     renderSuggestions();
-    if (!name) {
-      const inputs = rows.querySelectorAll('.lift-name');
-      if (inputs.length) inputs[inputs.length - 1].focus();
-    }
+    // land in the new row's weight cell, ready to log
+    const inputs = rows.querySelectorAll('.lift-num');
+    if (inputs.length) inputs[inputs.length - 3].focus();
   };
 
   // classification segments
@@ -111,6 +111,10 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
       lift[key] = Number.isFinite(num) ? num : null;
       touch();
     });
+    // keep the focused cell above the iOS keyboard
+    input.addEventListener('focus', () => {
+      setTimeout(() => input.scrollIntoView({ block: 'center', behavior: 'smooth' }), 250);
+    });
     return input;
   };
 
@@ -130,24 +134,10 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     return text;
   };
 
+  // A log row: the lift NAME is a fixed label (names are chosen in the picker,
+  // never typed here) — the row is just three number cells + remove.
   const liftRow = (lift, index) => {
-    const name = el('input', {
-      type: 'text',
-      class: 'lift-name',
-      placeholder: 'Lift',
-      autocomplete: 'off',
-      'aria-label': 'Lift name',
-      readonly: locked,
-      value: lift.name || '',
-    });
     const preview = el('div', { class: 'lift-preview' }, previewText(lift.name));
-    name.addEventListener('input', () => {
-      lift.name = name.value;
-      touch();
-      preview.textContent = previewText(lift.name);
-      renderSuggestions();
-    });
-
     const remove = el('button', {
       class: 'row-x',
       'aria-label': `Remove ${lift.name || 'lift'}`,
@@ -162,7 +152,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
 
     return el('div', { class: 'lift-block' },
       el('div', { class: 'lift-row' },
-        name,
+        el('span', { class: 'lift-label', 'aria-label': 'Lift name' }, lift.name || '—'),
         numInput(lift, 'weight', 'Weight', false),
         numInput(lift, 'reps', 'Reps', true),
         numInput(lift, 'sets', 'Sets', true),
@@ -178,7 +168,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     const closePicker = () => backdrop.remove();
     backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closePicker(); });
 
-    const search = el('input', { type: 'text', placeholder: 'Search or type a new lift…', 'aria-label': 'Search lifts' });
+    const search = el('input', { type: 'text', placeholder: 'Find a lift — or type a new name to create it', 'aria-label': 'Search lifts' });
     const listEl = el('div', { class: 'pick-list' });
     const added = new Set(draft.lifts.map((l) => (l.name || '').trim().toLowerCase()));
     const splitNames = liftNames(draft.split);
@@ -212,7 +202,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     search.addEventListener('input', renderList);
     renderList();
 
-    backdrop.append(el('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Add lift' },
+    backdrop.append(el('div', { class: 'sheet sheet-top', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Add lift' },
       el('h2', {}, 'Add lift'),
       el('div', { class: 'field' }, search),
       listEl,

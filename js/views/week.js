@@ -5,8 +5,9 @@ import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
-import { weekReport, weekSuggestions, weeksOverview, weekLineStatus, verdictBadge, calorieTracker } from '../insights.js';
+import { weekReport, weekSuggestions, weeksOverview, weekLineStatus, verdictBadge } from '../insights.js';
 import { currentSprint } from '../sprints.js';
+import { CALORIE_BANDS } from '../config.js';
 
 // The tab opens zoomed out: every week graded green/yellow/red; tapping a
 // week drills into its report card. Switching away and back resets to the
@@ -209,17 +210,13 @@ function buildReportCard(ctx) {
     any = true;
   }
 
-  // 2. calories: avg vs target (weekly average is what counts) · target days as context
+  // 2. calories: weekly avg against the grading bands · target days as context
   if (r.intake) {
-    const calT = calorieTracker();
-    const tgt = calT ? targetFor(calT, r.end) : null;
     card.append(rpRowC('Calories',
       el('span', {},
         r.intake.avg != null ? el('b', {}, Math.round(r.intake.avg).toLocaleString()) : el('span', { class: 'rp-dim' }, '—'),
         r.intake.avg != null ? ` ${r.intake.unit} avg` : '',
-        tgt && tgt.period === 'day'
-          ? el('span', { class: 'rp-dim' }, ` vs ${tgt.dir === 'atmost' ? '≤' : '≥'} ${tgt.value.toLocaleString()}`)
-          : el('span', { class: 'rp-dim' }, ' · no target set'),
+        el('span', { class: 'rp-dim' }, ` · aim ${CALORIE_BANDS.good.toLocaleString()}+`),
         r.intake.of > 0 ? outOf(r.intake.hit) : null,
       ), st.calories));
     any = true;

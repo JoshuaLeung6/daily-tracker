@@ -6,12 +6,25 @@
 import { getData } from './store.js';
 import { allWorkouts, liftStats } from './workouts.js';
 import { todayISO, addDays } from './dates.js';
-import { activeTrackers, targetFor, dayMeets } from './trackers.js';
+import { activeTrackers, targetFor, dayMeets, ratePerWeek } from './trackers.js';
 import { getEntry } from './store.js';
 import { weightTracker, calorieTracker, proteinTracker, trendWeightOn } from './insights.js';
 
+// Goals live ON the sprint: a weight target for the sprint end, plus optional
+// lift PR targets (best e1RM by the end). The required pace is derived from
+// the target and the end date — no separate pace setting needed.
 export const SPRINTS = [
-  { id: 's1', name: 'Sprint 1', start: null, end: '2026-10-31', focus: 'Lean bulk · PPL 5–6×/wk' },
+  {
+    id: 's1',
+    name: 'Sprint 1',
+    start: null,
+    end: '2026-10-31',
+    focus: 'Lean bulk · PPL 5–6×/wk',
+    goals: {
+      weight: 145,          // lb, trend weight at sprint end (started ~134)
+      lifts: {},            // e.g. { 'Bench press': 155 } — e1RM targets
+    },
+  },
 ];
 
 export function firstLoggedISO() {
@@ -47,8 +60,12 @@ function snapshotAt(iso, sprintStart) {
   const wt = weightTracker();
   const snap = { iso, weight: null, lifts: {} };
   if (wt) {
-    // for the start, use the first week's trend (a single day rarely has one)
+    // for the start, use the first available trend within the sprint's first
+    // weeks (a single day rarely has one; the first weigh-in may come later)
     snap.weight = trendWeightOn(wt.id, iso) ?? trendWeightOn(wt.id, addDays(iso, 6));
+    if (snap.weight == null && iso === sprintStart) {
+      for (let i = 7; i <= 28 && snap.weight == null; i += 7) snap.weight = trendWeightOn(wt.id, addDays(iso, i));
+    }
   }
   for (const s of liftStats()) {
     const upTo = s.history.filter((h) => h.date <= iso && h.date >= sprintStart && h.e1rm != null);
@@ -119,6 +136,35 @@ export function sprintReport(sprint) {
   // weekly sessions pace vs the lifting commitment
   const weeksElapsed = Math.max(1, elapsed / 7);
   report.sessionsPerWeek = workouts.length / weeksElapsed;
+
+  // --- sprint goals: target, required pace from here, current pace ---
+  report.goals = { weight: null, lifts: [] };
+  const g = s.goals || {};
+  if (g.weight != null && report.now.weight != null) {
+    const remainingDays = Math.max(0, daysBetween(realToday, s.end));
+    const remainingWeeks = remainingDays / 7;
+    const toGo = g.weight - report.now.weight;
+    const startW = report.start.weight;
+    const pct = startW != null && g.weight !== startW
+      ? Math.max(0, Math.min(1, (report.now.weight - startW) / (g.weight - startW)))
+      : 0;
+    report.goals.weight = {
+      target: g.weight,
+      current: report.now.weight,
+      startValue: startW,
+      toGo,
+      pct,
+      done: (g.weight >= (startW ?? g.weight)) ? report.now.weight >= g.weight : report.now.weight <= g.weight,
+      requiredPerWeek: remainingWeeks > 0 ? toGo / remainingWeeks : null,
+      currentPerWeek: weightTracker() ? ratePerWeek(weightTracker().id, 28) : null,
+      remainingWeeks,
+    };
+  }
+  for (const [name, target] of Object.entries(g.lifts || {})) {
+    const st = liftStats().find((x) => x.name.toLowerCase() === name.toLowerCase());
+    const best = st && st.bestE1rm ? st.bestE1rm.e1rm : null;
+    report.goals.lifts.push({ name, target, best, pct: best != null ? Math.min(1, best / target) : 0, done: best != null && best >= target });
+  }
 
   return report;
 }

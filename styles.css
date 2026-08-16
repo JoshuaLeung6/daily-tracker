@@ -167,7 +167,7 @@ html[data-theme="light"] body::before {
 
 .nav-arrow:active { background: var(--surface-2); }
 
-.masthead { text-align: center; padding: 2px 0 12px; }
+.masthead { text-align: center; padding: 2px 0 8px; }
 
 .eyebrow {
   font-size: 12px;
@@ -190,7 +190,7 @@ html[data-theme="light"] body::before {
   height: 5px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
-  margin: 0 2px 18px;
+  margin: 0 2px 12px;
 }
 
 .today-pill {
@@ -218,9 +218,10 @@ html[data-theme="light"] body::before {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
-  padding: 14px 16px;
-  min-height: 64px;
+  padding: 10px 14px;
+  min-height: 52px;
 }
+.cards { gap: 7px; }
 
 .t-name {
   font-size: 13px;
@@ -245,7 +246,7 @@ html[data-theme="light"] body::before {
   border: none;
   color: var(--ink);
   font-family: var(--serif);
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -283,8 +284,8 @@ html[data-theme="light"] body::before {
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .chip {
-  min-height: 38px;
-  padding: 7px 16px;
+  min-height: 34px;
+  padding: 5px 14px;
   border-radius: 999px;
   border: 1px solid var(--line);
   color: var(--muted);
@@ -448,12 +449,13 @@ html[data-theme="light"] body::before {
 
 .wo-seg-label:first-child { margin-top: 0; }
 
+/* log rows: name is a label, three compact number cells */
 .lift-labels {
   display: grid;
-  grid-template-columns: 1fr 62px 46px 46px 30px;
-  gap: 6px;
-  margin: 20px 0 6px;
-  font-size: 11px;
+  grid-template-columns: 1fr 58px 44px 44px 26px;
+  gap: 5px;
+  margin: 16px 0 4px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -462,36 +464,62 @@ html[data-theme="light"] body::before {
 
 .lift-labels span:not(.ll-name) { text-align: center; }
 
-.lift-rows { display: flex; flex-direction: column; gap: 8px; }
+.lift-rows { display: flex; flex-direction: column; gap: 6px; }
 
 .lift-row {
   display: grid;
-  grid-template-columns: 1fr 62px 46px 46px 30px;
-  gap: 6px;
+  grid-template-columns: 1fr 58px 44px 44px 26px;
+  gap: 5px;
   align-items: center;
 }
 
-.lift-name, .lift-num {
+.lift-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 2px;
+}
+
+.lift-num {
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: 10px;
+  border-radius: 9px;
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 16px;
-  padding: 11px 10px;
+  font-size: 16px; /* keep ≥16px: iOS zooms on smaller inputs */
+  padding: 8px 2px;
   width: 100%;
   min-width: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
-.lift-num { text-align: center; padding: 11px 4px; font-variant-numeric: tabular-nums; }
+.lift-preview { font-size: 11px; }
+.lift-block { gap: 2px; }
 
 .row-x {
-  width: 30px;
-  height: 44px;
+  width: 26px;
+  height: 38px;
   color: var(--faint);
-  font-size: 15px;
+  font-size: 14px;
   border-radius: 8px;
 }
+
+/* sheets that hold a search box open from the TOP so the keyboard never
+   covers the field */
+.sheet-backdrop:has(.sheet-top) { justify-content: flex-start; }
+.sheet-top {
+  border-radius: 0 0 20px 20px;
+  border-top: none;
+  border-bottom: 1px solid var(--line);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 18px);
+  max-height: 60dvh;
+}
+.sheet-top .pick-list { max-height: 36dvh; }
 
 .wo-delete { width: 100%; margin-top: 22px; }
 
@@ -745,6 +773,7 @@ html[data-theme="light"] body::before {
 
 /* sprint comparison columns */
 .rp-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; min-width: 190px; text-align: right; }
+.rp-cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; min-width: 230px; }
 .rp-headrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
 .rp-headrow .rp-cols span { color: var(--faint); }
 
@@ -1020,13 +1049,25 @@ html[data-theme="light"] body::before {
 .wk-cell-v { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
 .wk-cell-l { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
 
-/* sprint progress in the weeks masthead */
-.wk-progress { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top: 8px; }
+/* sprint progress in the weeks masthead: full-width shaded track + fill */
+.wk-progress { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 8px; }
 .wk-progress-label { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; }
-.wk-progress-bar { width: 140px; }
+.wk-progress-bar {
+  width: 100%;
+  max-width: 320px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+  margin: 0;
+}
+.wk-progress-bar .goal-fill { height: 100%; }
 
-/* shared line status coloring (week card rows + overview cells) */
+/* shared line status coloring (week card rows + overview cells):
+   good = green, neutral = amber (partial), bad = red */
 .st-good .wk-cell-v, .rp-row.st-good .rp-value b { color: var(--met-day); }
+.st-neutral .wk-cell-v, .rp-row.st-neutral .rp-value b { color: var(--accent); }
 .st-bad .wk-cell-v, .rp-row.st-bad .rp-value b { color: var(--danger); }
 
 .wk-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; }

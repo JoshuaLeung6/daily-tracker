@@ -53,11 +53,14 @@ const localISO = (offset) => {
         { id: 't_lift', name: 'Weightlifting', type: 'checkbox', unit: null, order: 2, archived: false,
           targets: [{ from: iso(-30), value: 4, period: 'week' }] },
       ],
+      // protein 130 on the calorie-met days so "all daily targets met" holds
+      // under the config's backdated 120 g protein target (and 10k steps has
+      // no value here so its daily target does not apply... it does — see below)
       entries: {
-        [iso(-3)]: { t_cal: 2500 },
-        [iso(-2)]: { t_cal: 2800 },
-        [iso(-1)]: { t_cal: 3200 },
-        [iso(0)]: { t_cal: 2500 },
+        [iso(-3)]: { t_cal: 2500, t_pro: 130 },
+        [iso(-2)]: { t_cal: 2800, t_pro: 130 },
+        [iso(-1)]: { t_cal: 3200, t_pro: 130 },
+        [iso(0)]: { t_cal: 2500, t_pro: 130 },
       },
       workouts: {
         [iso(0)]: { split: 'push', focus: 'weight', lifts: [{ name: 'Bench press', weight: 135, reps: 8, sets: 3 }] },
@@ -113,7 +116,8 @@ const localISO = (offset) => {
   // weightlifting weekly card
   const wkCards = await page.$$eval('.att-card', (els) => els.map((e) => e.textContent));
   const liftCard = wkCards.find((t) => t.includes('Weightlifting'));
-  check(`weightlifting card shows ${liftDays}/4 this week`, liftCard && liftCard.includes(`${liftDays}/4`), liftCard);
+  // config backdates the lifting target to 6/week
+  check(`weightlifting card shows ${liftDays}/6 this week`, liftCard && liftCard.includes(`${liftDays}/6`), liftCard);
 
   // ---- 3. add a body-weight goal via code config (creates the Weight tracker) ----
   await page.evaluate(async (deadline) => {
@@ -185,7 +189,7 @@ const localISO = (offset) => {
   await page.click('.nav-arrow[aria-label="Previous day"]'); // yesterday: calories 3200 (+ maybe lifting)
   await page.waitForSelector('.lock-pill');
   const lockedNames = await page.$$eval('.card .t-name', (els) => els.map((e) => e.textContent));
-  check('locked yesterday hides empty trackers', !lockedNames.includes('Protein') && !lockedNames.includes('Weight'), lockedNames.join(','));
+  check('locked yesterday hides empty trackers', !lockedNames.includes('Cardio') && !lockedNames.includes('Weight') && !lockedNames.includes('10k steps'), lockedNames.join(','));
   // find the first past day with nothing logged, mirroring the injection
   // (calories on -3..0, weightlifting on up to 4 days from this week's Monday)
   const filled = new Set([0, -1, -2, -3]);

@@ -39,7 +39,10 @@ export function render(container, ctx) {
   // checkbox is derived from the workout log (logging a workout checks it),
   // so it has no card of its own — the workout section IS that checkbox.
   const isLiftBox = (t) => t.type === 'checkbox' && /weightlift/i.test(t.name);
-  const active = activeTrackers().filter((t) => !isLiftBox(t) && (!locked || t.id in entry));
+  // measurements (weight) first — the morning number leads the day
+  const active = activeTrackers()
+    .filter((t) => !isLiftBox(t) && (!locked || t.id in entry))
+    .sort((a, b) => (a.type === 'measurement' ? 0 : 1) - (b.type === 'measurement' ? 0 : 1));
   for (const t of active) cards.append(trackerCard(t, iso, entry, locked, rerender));
 
   // archived trackers still show on days where they have data
@@ -113,7 +116,20 @@ function journalSection(iso, locked) {
     });
     ta.value = getNote(iso);
     ta.addEventListener('input', () => { grow(ta); setNote(iso, ta.value); });
-    ta.addEventListener('blur', () => persistNow());
+    ta.addEventListener('blur', () => {
+      persistNow();
+      // opened but left empty -> revert to "no note" (collapse + restore the button)
+      if (!ta.value.trim()) {
+        setNote(iso, '');
+        buildNote(false);
+        if (!locked && !actions.querySelector('.journal-note-btn')) {
+          actions.prepend(el('button', {
+            class: 'ghost-btn journal-btn journal-note-btn',
+            onclick: (e) => { buildNote(true); e.currentTarget.remove(); noteBox.querySelector('textarea').focus(); },
+          }, '+ Note'));
+        }
+      }
+    });
     noteBox.append(el('span', { class: 't-name' }, 'Note'), ta);
     requestAnimationFrame(() => grow(ta));
   };
@@ -155,7 +171,7 @@ function journalSection(iso, locked) {
   if (!locked) {
     if (!hasNote) {
       actions.append(el('button', {
-        class: 'ghost-btn journal-btn',
+        class: 'ghost-btn journal-btn journal-note-btn',
         onclick: (e) => { buildNote(true); e.currentTarget.remove(); noteBox.querySelector('textarea').focus(); },
       }, '+ Note'));
     }
@@ -338,18 +354,19 @@ function selectCard(t, iso, entry, locked) {
   return card;
 }
 
-// For non-number cards with a daily target: show the running streak,
-// refreshed live as today's entry changes.
+// For non-number cards with a daily target: show the running streak once
+// there IS one (≥2 days) — no "daily target" filler text otherwise.
 function attachStreakLine(card, t, iso) {
   const target = targetFor(t, iso);
   if (!target || target.period !== 'day') return;
+  if (streakFor(t, iso) < 2) return;
   const line = el('span', { class: 'target-line' }, el('span', { class: 'tl-text' }, ''));
   const refresh = () => {
     const streak = streakFor(t, iso);
     const met = dayMeets(t, iso);
-    line.firstChild.textContent = (met ? 'done today' : 'daily target')
-      + (streak >= 2 ? ` · ${streak}-day streak` : '');
+    line.firstChild.textContent = streak >= 2 ? `${streak}-day streak` : '';
     line.firstChild.classList.toggle('met', met);
+    line.hidden = streak < 2;
   };
   refresh();
   card.append(line);
