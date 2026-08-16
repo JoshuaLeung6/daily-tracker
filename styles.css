@@ -67,6 +67,7 @@ body {
   inset: 0;
   overflow: hidden;
   overscroll-behavior: none;
+  touch-action: pan-y; /* vertical scroll only — no pinch-zoom, no horizontal pan */
   display: flex;
   flex-direction: column;
   background: var(--bg);
