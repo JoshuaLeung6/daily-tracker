@@ -9,7 +9,7 @@ import { fmt, weekdayName } from '../dates.js';
 import {
   SPLITS, SPLIT_LABELS, FOCUSES, FOCUS_LABELS,
   getWorkout, saveWorkout, deleteWorkout, templateFor, suggestedClass,
-  liftNames, lastLiftOfFocus, repRange, suggestedNextLoad,
+  liftsBySplit, lastLiftOfFocus, repRange, suggestedNextLoad,
 } from '../workouts.js';
 
 export function openWorkout(iso, { locked = false, onClose } = {}) {
@@ -54,8 +54,9 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
       class: 'seg-btn',
       'aria-pressed': String(draft.focus === f),
       disabled: locked,
+      'aria-label': FOCUS_LABELS[f],
       onclick: () => setClass({ focus: f }),
-    }, FOCUS_LABELS[f])));
+    }, f === 'weight' ? 'Weight' : 'Volume')));
   };
   const setClass = (patch) => {
     Object.assign(draft, patch);
@@ -162,53 +163,87 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     );
   };
 
-  // lift picker sheet — full history, search, add-new
+  // lift picker sheet — no keyboard: lifts grouped by Push / Pull / Legs in
+  // collapsible sections (current split open), tap to add. "New lift…" at
+  // the bottom reveals a text field only when actually creating one.
+  const openSections = new Set([draft.split]);
   const openPicker = () => {
     const backdrop = el('div', { class: 'sheet-backdrop' });
     const closePicker = () => backdrop.remove();
     backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closePicker(); });
 
-    const search = el('input', { type: 'text', placeholder: 'Find a lift — or type a new name to create it', 'aria-label': 'Search lifts' });
     const listEl = el('div', { class: 'pick-list' });
     const added = new Set(draft.lifts.map((l) => (l.name || '').trim().toLowerCase()));
-    const splitNames = liftNames(draft.split);
-    const otherNames = liftNames().filter((n) => !splitNames.includes(n));
+    const groups = liftsBySplit();
+    let showNew = false;
 
     const renderList = () => {
-      const q = search.value.trim().toLowerCase();
       listEl.replaceChildren();
-      const match = (n) => !q || n.toLowerCase().includes(q);
-      const pickRow = (n) => el('button', {
-        class: 'pick-row', disabled: added.has(n.toLowerCase()),
-        onclick: () => { addLift(n); closePicker(); },
-      },
-        el('span', {}, n),
-        el('span', { class: 'pick-hint' }, added.has(n.toLowerCase()) ? 'added' : previewText(n).replace(/^last [^:]*: /, '')),
-      );
-      const inSplit = splitNames.filter(match);
-      const others = otherNames.filter(match);
-      if (q && ![...splitNames, ...otherNames].some((n) => n.toLowerCase() === q)) {
+      let anyLift = false;
+      for (const sp of SPLITS) {
+        const items = groups[sp];
+        const open = openSections.has(sp);
+        listEl.append(el('button', {
+          class: 'pick-section' + (open ? ' open' : ''),
+          'aria-expanded': String(open),
+          onclick: () => { if (open) openSections.delete(sp); else openSections.add(sp); renderList(); },
+        },
+          el('span', {}, SPLIT_LABELS[sp]),
+          el('span', { class: 'pick-count' }, `${items.length}`),
+          el('span', { class: 'wo-chevron' }, open ? '⌄' : '›'),
+        ));
+        if (!open) continue;
+        if (items.length === 0) {
+          listEl.append(el('div', { class: 'pick-empty' }, `No ${SPLIT_LABELS[sp].toLowerCase()} lifts yet.`));
+        }
+        for (const it of items) {
+          anyLift = true;
+          const isAdded = added.has(it.name.toLowerCase());
+          listEl.append(el('button', {
+            class: 'pick-row', disabled: isAdded,
+            onclick: () => { addLift(it.name); closePicker(); },
+          },
+            el('span', {}, it.name),
+            el('span', { class: 'pick-hint' }, isAdded ? 'added' : previewText(it.name).replace(/^last [^:]*: /, '').replace(/^first time.*/, 'new')),
+          ));
+        }
+      }
+      if (!anyLift && SPLITS.every((s) => groups[s].length === 0)) {
+        listEl.append(el('div', { class: 'empty-state' }, 'No lifts yet — create your first below.'));
+      }
+
+      // new lift (typed) — only shows a field when asked for
+      if (showNew) {
+        const nameIn = el('input', { type: 'text', placeholder: 'Lift name', 'aria-label': 'New lift name', autocomplete: 'off' });
+        const create = () => {
+          const n = nameIn.value.trim();
+          if (!n) return;
+          addLift(n);
+          closePicker();
+        };
+        nameIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') create(); });
+        listEl.append(el('div', { class: 'food-newform' },
+          nameIn,
+          el('button', { class: 'btn primary sr-goalbtn', onclick: create }, 'Add'),
+        ));
+        setTimeout(() => nameIn.focus(), 50);
+      } else {
         listEl.append(el('button', {
           class: 'pick-row pick-new',
-          onclick: () => { addLift(search.value.trim()); closePicker(); },
-        }, `＋ New lift “${search.value.trim()}”`));
-      }
-      if (inSplit.length) listEl.append(el('div', { class: 'pick-head' }, `${SPLIT_LABELS[draft.split]} lifts`), ...inSplit.map(pickRow));
-      if (others.length) listEl.append(el('div', { class: 'pick-head' }, 'Other lifts'), ...others.map(pickRow));
-      if (!inSplit.length && !others.length && !q) {
-        listEl.append(el('div', { class: 'empty-state' }, 'No lifts logged yet — type a name above.'));
+          onclick: () => { showNew = true; renderList(); },
+        }, '＋ New lift…'));
       }
     };
-    search.addEventListener('input', renderList);
     renderList();
 
-    backdrop.append(el('div', { class: 'sheet sheet-top', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Add lift' },
-      el('h2', {}, 'Add lift'),
-      el('div', { class: 'field' }, search),
+    backdrop.append(el('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Add lift' },
+      el('div', { class: 'food-head' },
+        el('h2', {}, 'Add lift'),
+        el('button', { class: 'btn', onclick: closePicker }, 'Close'),
+      ),
       listEl,
     ));
     document.body.append(backdrop);
-    search.focus();
   };
 
   renderSegs();
@@ -216,10 +251,11 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
   renderSuggestions();
 
   const body = el('div', { class: 'wo-body' },
-    el('div', { class: 'wo-seg-label' }, 'Split'),
-    splitSeg,
-    el('div', { class: 'wo-seg-label' }, 'Day type'),
-    focusSeg,
+    // split + day type side by side
+    el('div', { class: 'wo-class-row' },
+      el('div', { class: 'wo-class-col' }, el('div', { class: 'wo-seg-label' }, 'Split'), splitSeg),
+      el('div', { class: 'wo-class-col' }, el('div', { class: 'wo-seg-label' }, 'Day type'), focusSeg),
+    ),
     suggestWrap,
     el('div', { class: 'lift-labels' },
       el('span', { class: 'll-name' }, 'Lift'),

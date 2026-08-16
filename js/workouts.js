@@ -85,6 +85,30 @@ export function suggestedClass(iso) {
   };
 }
 
+// Every known lift grouped by the split it is MOST OFTEN logged under
+// (a lift can appear in one group only). Returns { push: [...], pull: [...],
+// legs: [...] } with names sorted by usage, most-used first.
+export function liftsBySplit() {
+  const counts = new Map(); // name(lower) -> { name, bySplit: {push,pull,legs}, total }
+  for (const w of allWorkouts()) {
+    for (const l of w.lifts) {
+      const key = l.name.toLowerCase();
+      if (!counts.has(key)) counts.set(key, { name: l.name, bySplit: { push: 0, pull: 0, legs: 0 }, total: 0 });
+      const c = counts.get(key);
+      c.name = l.name;
+      c.bySplit[w.split] = (c.bySplit[w.split] || 0) + 1;
+      c.total++;
+    }
+  }
+  const out = { push: [], pull: [], legs: [] };
+  for (const c of counts.values()) {
+    const best = SPLITS.reduce((a, b) => (c.bySplit[b] > c.bySplit[a] ? b : a), 'push');
+    out[best].push(c);
+  }
+  for (const s of SPLITS) out[s].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  return out;
+}
+
 // Known lift names (optionally within one split), for autocomplete.
 export function liftNames(split) {
   const names = new Map();

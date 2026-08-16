@@ -30,14 +30,26 @@ const localISO = (offset) => {
     eln.click();
   }, { s: sel, t: text });
 
+  // picker is keyboard-free: expand every PPL section, tap the lift if it
+  // exists, else create it via "New lift…"
   const addLiftViaPicker = async (name) => {
     await clickByText('.workout-overlay .ghost-btn', '+ Add lift');
-    await page.waitForSelector('.sheet input[aria-label="Search lifts"]');
-    await page.type('.sheet input[aria-label="Search lifts"]', name);
+    await page.waitForSelector('.sheet .pick-section');
     await page.evaluate(() => {
-      const rows = [...document.querySelectorAll('.pick-row')];
-      (rows.find((r) => !r.disabled) || rows[0]).click();
+      for (const s of document.querySelectorAll('.pick-section:not(.open)')) s.click();
     });
+    const existed = await page.evaluate((n) => {
+      const row = [...document.querySelectorAll('.pick-row')].find((r) => r.textContent.startsWith(n) && !r.disabled);
+      if (row) { row.click(); return true; }
+      return false;
+    }, name);
+    if (!existed) {
+      await clickByText('.pick-row.pick-new', '＋ New lift…');
+      await page.waitForSelector('input[aria-label="New lift name"]');
+      await page.type('input[aria-label="New lift name"]', name);
+      await page.evaluate(() => [...document.querySelectorAll('.food-newform .btn')].find((b) => b.textContent === 'Add').click());
+    }
+    await page.waitForFunction(() => !document.querySelector('.sheet-backdrop'));
   };
   const fillRow = async (index, w, r, s2) => {
     const set = async (label, val) => {
@@ -59,7 +71,7 @@ const localISO = (offset) => {
   await page.click('.ghost-btn');
   await page.waitForSelector('.workout-overlay');
   const cls = await page.$$eval('.workout-overlay .seg-btn[aria-pressed="true"]', (els) => els.map((e) => e.textContent));
-  check('first workout defaults to Push + Weight day', JSON.stringify(cls) === JSON.stringify(['Push', 'Weight day']), cls.join(','));
+  check('first workout defaults to Push + Weight day', JSON.stringify(cls) === JSON.stringify(['Push', 'Weight']), cls.join(','));
   check('no lift rows auto-added', (await page.$$('.lift-row')).length === 0);
   check('no suggestion chips (no history)', (await page.$$('.chip-suggest')).length === 0);
 

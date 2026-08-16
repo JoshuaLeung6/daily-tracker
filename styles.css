@@ -512,6 +512,38 @@ html[data-theme="light"] body::before {
   border-radius: 8px;
 }
 
+/* split + day type on one line */
+.wo-class-row { display: grid; grid-template-columns: 3fr 2fr; gap: 8px; }
+.wo-class-col .wo-seg-label { margin-top: 0; }
+.wo-class-row .seg { padding: 3px; }
+.wo-class-row .seg-btn { min-height: 34px; font-size: 12px; padding: 0 2px; }
+
+/* PPL collapsible sections in the lift picker */
+.pick-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  min-height: 44px;
+  padding: 8px 4px;
+  font-size: 15px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--hairline);
+}
+.pick-section .pick-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.pick-section .wo-chevron { margin-left: auto; font-size: 18px; }
+.pick-section.open { color: var(--accent); }
+.pick-row { padding-left: 14px; }
+.pick-empty { font-size: 12px; color: var(--faint); padding: 8px 14px; }
+
 /* sheets that hold a search box open from the TOP so the keyboard never
    covers the field */
 .sheet-backdrop:has(.sheet-top) { justify-content: flex-start; }
