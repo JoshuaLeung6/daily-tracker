@@ -14,8 +14,18 @@ import { CALORIE_BANDS } from '../config.js';
 // overview.
 let mode = 'overview';
 
+// Live swipe-gesture state, shared between the per-render on* handlers and
+// the once-bound non-passive touchmove listener. `live` is false on the
+// overview, which has no gestures.
+const g = { hint: null, canNext: false, live: false, gx: null, gy: null, startScroll: 0, axis: null };
+
 export function enter() {
   mode = 'overview';
+}
+
+// Open the week containing a date directly (day view pull-down).
+export function openWeekDetail() {
+  mode = 'detail';
 }
 
 export function render(container, ctx) {
@@ -95,12 +105,13 @@ function renderOverview(container, ctx) {
   }
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), list);
-  // no dismiss gesture on the overview
+  // no dismiss gesture on the overview (g.live also gates the once-bound
+  // non-passive touchmove listener, which cannot be un-assigned)
+  g.live = false;
   container.ontouchstart = null;
-  container.ontouchmove = null;
   container.ontouchend = null;
   container.ontouchcancel = null;
-  container.classList.remove('gesture-live');
+  container.classList.remove('gesture-live', 'gesture-lock');
   container.style.transform = '';
   // returning from a scrolled detail view must land at the top
   container.scrollTop = 0;
@@ -213,64 +224,74 @@ function renderDetail(container, ctx) {
   const DIST = 70;
   const hint = el('div', { class: 'swipe-hint' });
   container.append(hint);
-  const canNext = addDays(start, 7) <= startOfWeek(today);
-  let gx = null;
-  let gy = null;
-  let gStartScroll = 0;
-  let axis = null;
+  // refresh the shared gesture state for this render (see `g` at module scope)
+  g.hint = hint;
+  g.canNext = addDays(start, 7) <= startOfWeek(today);
+  g.live = true;
+  g.gx = g.gy = null;
+  g.axis = null;
 
   const resetGesture = () => {
-    container.classList.remove('gesture-live');
+    container.classList.remove('gesture-live', 'gesture-lock');
     container.style.transform = '';
-    hint.classList.remove('show');
-    gx = gy = null;
-    axis = null;
+    g.hint.classList.remove('show');
+    g.gx = g.gy = null;
+    g.axis = null;
   };
 
   container.ontouchstart = (e) => {
-    gx = e.touches[0].clientX;
-    gy = e.touches[0].clientY;
-    gStartScroll = container.scrollTop;
-    axis = null;
+    g.gx = e.touches[0].clientX;
+    g.gy = e.touches[0].clientY;
+    g.startScroll = container.scrollTop;
+    g.axis = null;
   };
-  container.ontouchmove = (e) => {
-    if (gy === null) return;
-    const dx = e.touches[0].clientX - gx;
-    const dy = e.touches[0].clientY - gy;
-    if (!axis && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
-      axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
-        : (gStartScroll <= 0 && dy > 0 ? 'y' : 'scroll');
-      if (axis !== 'scroll') container.classList.add('gesture-live');
-    }
-    if (axis === 'x') {
-      const blocked = dx < 0 && !canNext;
-      const shift = Math.max(-90, Math.min(90, dx * (blocked ? 0.15 : 0.35)));
-      container.style.transform = `translateX(${shift}px)`;
-      const armed = !blocked && Math.abs(dx) > DIST;
-      hint.textContent = dx < 0
-        ? (canNext ? (armed ? 'Release for next week ›' : 'Next week ›') : 'No later week')
-        : (armed ? '‹ Release for previous week' : '‹ Previous week');
-      hint.className = 'swipe-hint side show' + (armed ? ' armed' : '');
-    } else if (axis === 'y') {
-      const shift = Math.min(70, dy * 0.35);
-      container.style.transform = `translateY(${shift}px)`;
-      const armed = dy > DIST + 20;
-      hint.textContent = armed ? 'Release for all weeks' : 'Pull for all weeks';
-      hint.className = 'swipe-hint top show' + (armed ? ' armed' : '');
-    }
-  };
+  // non-passive so a committed side swipe can preventDefault() and stop the
+  // page scrolling vertically at the same time. Bound once per container;
+  // g.live gates it off while the overview (which has no gestures) is showing.
+  if (!container.dataset.gestureBound) {
+    container.dataset.gestureBound = '1';
+    container.addEventListener('touchmove', (e) => {
+      if (!g.live || g.gy === null) return;
+      const dx = e.touches[0].clientX - g.gx;
+      const dy = e.touches[0].clientY - g.gy;
+      if (!g.axis && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
+        g.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
+          : (g.startScroll <= 0 && dy > 0 ? 'y' : 'scroll');
+        if (g.axis !== 'scroll') container.classList.add('gesture-live');
+        // committed to a side swipe: freeze scrolling for the rest of it
+        if (g.axis === 'x') container.classList.add('gesture-lock');
+      }
+      // once locked to an axis, own the gesture — no concurrent scroll
+      if ((g.axis === 'x' || g.axis === 'y') && e.cancelable) e.preventDefault();
+      if (g.axis === 'x') {
+        const blocked = dx < 0 && !g.canNext;
+        const shift = Math.max(-90, Math.min(90, dx * (blocked ? 0.15 : 0.35)));
+        container.style.transform = `translateX(${shift}px)`;
+        const armed = !blocked && Math.abs(dx) > DIST;
+        g.hint.textContent = dx < 0 ? '›' : '‹';
+        g.hint.className = 'swipe-hint ' + (dx < 0 ? 'right' : 'left') + ' show'
+          + (armed ? ' armed' : '') + (blocked ? ' blocked' : '');
+      } else if (g.axis === 'y') {
+        const shift = Math.min(70, dy * 0.35);
+        container.style.transform = `translateY(${shift}px)`;
+        const armed = dy > DIST + 20;
+        g.hint.textContent = '⌄';
+        g.hint.className = 'swipe-hint top show' + (armed ? ' armed' : '');
+      }
+    }, { passive: false });
+  }
   container.ontouchend = (e) => {
-    if (gy === null) return;
-    const dx = e.changedTouches[0].clientX - gx;
-    const dy = e.changedTouches[0].clientY - gy;
-    const usedAxis = axis;
+    if (g.gy === null) return;
+    const dx = e.changedTouches[0].clientX - g.gx;
+    const dy = e.changedTouches[0].clientY - g.gy;
+    const usedAxis = g.axis;
     resetGesture();
     if (usedAxis === 'x' && Math.abs(dx) > DIST) {
-      if (dx < 0) { if (canNext) ctx.setDate(addDays(ctx.date, 7)); }
+      if (dx < 0) { if (g.canNext) ctx.setDate(addDays(ctx.date, 7)); }
       else ctx.setDate(addDays(ctx.date, -7));
       return;
     }
-    if (usedAxis === 'y' && gStartScroll <= 0 && container.scrollTop <= 0 && dy > DIST + 20) {
+    if (usedAxis === 'y' && g.startScroll <= 0 && container.scrollTop <= 0 && dy > DIST + 20) {
       mode = 'overview';
       render(container, ctx);
     }

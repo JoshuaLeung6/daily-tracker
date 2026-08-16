@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.15.3';
+export const APP_VERSION = '2.15.4';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -67,17 +67,20 @@ const ctx = {
     switchTab('day');
   },
   version: APP_VERSION,
-  // let a view hand off to another tab (day pull-down -> week overview)
-  goTab(tab) { switchTab(tab); },
+  // let a view hand off to another tab (day pull-down -> that day's week)
+  goTab(tab, opts = {}) {
+    if (tab === 'week' && opts.detail) weekView.openWeekDetail();
+    switchTab(tab, { keepMode: tab === 'week' && opts.detail });
+  },
 };
 
 function renderActive() {
   views[state.tab].render(sections[state.tab], ctx);
 }
 
-function switchTab(tab) {
+function switchTab(tab, opts = {}) {
   state.tab = tab;
-  if (views[tab].enter) views[tab].enter();
+  if (views[tab].enter && !opts.keepMode) views[tab].enter();
   for (const [name, section] of Object.entries(sections)) section.hidden = name !== tab;
   for (const btn of document.querySelectorAll('.tab')) {
     if (btn.dataset.tab === tab) btn.setAttribute('aria-current', 'page');

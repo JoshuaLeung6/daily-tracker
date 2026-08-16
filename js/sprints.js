@@ -103,7 +103,10 @@ export const SPRINTS = [
   {
     id: 's1',
     name: 'Sprint 1',
-    start: null,
+    start: null,           // first logged day = 2026-07-11 (a Saturday)
+    // 16 weeks. The first full Sun–Sat week starts 2026-07-12, so 16 whole
+    // weeks run 2026-07-12 → 2026-10-31 (Sat). Keep this date Sunday-aligned
+    // to the week grid — an end mid-week makes the final week card partial.
     end: '2026-10-31',
     focus: 'Lean bulk · PPL 5–6×/wk',
     goals: {

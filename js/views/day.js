@@ -13,6 +13,10 @@ import { openWorkout } from './workout.js';
 // day and drops as soon as you navigate away.
 let unlockedISO = null;
 
+// Live swipe-gesture state, shared between the per-render on* handlers and
+// the once-bound non-passive touchmove listener.
+const g = { hint: null, iso: null, ctx: null, startX: null, startY: null, startScroll: 0, axis: null };
+
 export function render(container, ctx) {
   const iso = ctx.date;
   const today = todayISO();
@@ -81,67 +85,80 @@ export function render(container, ctx) {
     container.querySelectorAll('textarea').forEach(grow);
   });
 
-  // Gestures with live feedback (assignment keeps listeners from stacking):
+  // Gestures with live feedback. on* assignment replaces on re-render, but
+  // touchmove must be non-passive (to preventDefault a side swipe) which
+  // needs addEventListener — so that one is bound once per container.
   //  - swipe left/right -> previous / next day
-  //  - pull down at the top -> zoom out to the Weeks overview
+  //  - pull down at the top -> zoom out to this day's week
   const DIST = 70;
   const hint = el('div', { class: 'swipe-hint' });
   container.append(hint);
-  let startX = null;
-  let startY = null;
-  let startScroll = 0;
-  let axis = null;
+  // g holds the in-flight gesture; hint/iso/ctx are refreshed every render so
+  // the once-bound touchmove listener never reads a stale closure.
+  g.hint = hint;
+  g.iso = iso;
+  g.ctx = ctx;
+  g.startX = g.startY = null;
+  g.axis = null;
 
   const resetGesture = () => {
-    container.classList.remove('gesture-live');
+    container.classList.remove('gesture-live', 'gesture-lock');
     container.style.transform = '';
-    hint.classList.remove('show');
-    startX = startY = null;
-    axis = null;
+    g.hint.classList.remove('show');
+    g.startX = g.startY = null;
+    g.axis = null;
   };
 
   container.ontouchstart = (e) => {
-    if (e.target.closest('input, textarea, button')) { startX = startY = null; return; }
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    startScroll = container.scrollTop;
-    axis = null;
+    if (e.target.closest('input, textarea, button')) { g.startX = g.startY = null; return; }
+    g.startX = e.touches[0].clientX;
+    g.startY = e.touches[0].clientY;
+    g.startScroll = container.scrollTop;
+    g.axis = null;
   };
-  container.ontouchmove = (e) => {
-    if (startY === null) return;
-    const dx = e.touches[0].clientX - startX;
-    const dy = e.touches[0].clientY - startY;
-    if (!axis && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
-      axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
-        : (startScroll <= 0 && dy > 0 ? 'y' : 'scroll');
-      if (axis !== 'scroll') container.classList.add('gesture-live');
-    }
-    if (axis === 'x') {
-      container.style.transform = `translateX(${Math.max(-90, Math.min(90, dx * 0.35))}px)`;
-      const armed = Math.abs(dx) > DIST;
-      hint.textContent = dx < 0
-        ? (armed ? 'Release for next day ›' : 'Next day ›')
-        : (armed ? '‹ Release for previous day' : '‹ Previous day');
-      hint.className = 'swipe-hint side show' + (armed ? ' armed' : '');
-    } else if (axis === 'y') {
-      container.style.transform = `translateY(${Math.min(70, dy * 0.35)}px)`;
-      const armed = dy > DIST + 20;
-      hint.textContent = armed ? 'Release for weeks' : 'Pull for weeks';
-      hint.className = 'swipe-hint top show' + (armed ? ' armed' : '');
-    }
-  };
+  // non-passive so a committed side swipe can preventDefault() and stop the
+  // page scrolling vertically at the same time. Bound once per container.
+  if (!container.dataset.gestureBound) {
+    container.dataset.gestureBound = '1';
+    container.addEventListener('touchmove', (e) => {
+      if (g.startY === null) return;
+      const dx = e.touches[0].clientX - g.startX;
+      const dy = e.touches[0].clientY - g.startY;
+      if (!g.axis && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
+        g.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
+          : (g.startScroll <= 0 && dy > 0 ? 'y' : 'scroll');
+        if (g.axis !== 'scroll') container.classList.add('gesture-live');
+        // committed to a side swipe: freeze scrolling for the rest of it
+        if (g.axis === 'x') container.classList.add('gesture-lock');
+      }
+      // once locked to an axis, own the gesture — no concurrent scroll
+      if ((g.axis === 'x' || g.axis === 'y') && e.cancelable) e.preventDefault();
+      if (g.axis === 'x') {
+        container.style.transform = `translateX(${Math.max(-90, Math.min(90, dx * 0.35))}px)`;
+        const armed = Math.abs(dx) > DIST;
+        g.hint.textContent = dx < 0 ? '›' : '‹';
+        g.hint.className = 'swipe-hint ' + (dx < 0 ? 'right' : 'left') + ' show' + (armed ? ' armed' : '');
+      } else if (g.axis === 'y') {
+        container.style.transform = `translateY(${Math.min(70, dy * 0.35)}px)`;
+        const armed = dy > DIST + 20;
+        g.hint.textContent = '⌄';
+        g.hint.className = 'swipe-hint top show' + (armed ? ' armed' : '');
+      }
+    }, { passive: false });
+  }
   container.ontouchend = (e) => {
-    if (startY === null) return;
-    const dx = e.changedTouches[0].clientX - startX;
-    const dy = e.changedTouches[0].clientY - startY;
-    const usedAxis = axis;
-    const scrolledTop = startScroll <= 0 && container.scrollTop <= 0;
+    if (g.startY === null) return;
+    const dx = e.changedTouches[0].clientX - g.startX;
+    const dy = e.changedTouches[0].clientY - g.startY;
+    const usedAxis = g.axis;
+    const scrolledTop = g.startScroll <= 0 && container.scrollTop <= 0;
     resetGesture();
     if (usedAxis === 'x' && Math.abs(dx) > DIST) {
-      ctx.setDate(addDays(iso, dx < 0 ? 1 : -1));
+      g.ctx.setDate(addDays(g.iso, dx < 0 ? 1 : -1));
       return;
     }
-    if (usedAxis === 'y' && scrolledTop && dy > DIST + 20 && ctx.goTab) ctx.goTab('week');
+    // zoom out one level: this day's week
+    if (usedAxis === 'y' && scrolledTop && dy > DIST + 20 && g.ctx.goTab) g.ctx.goTab('week', { detail: true });
   };
   container.ontouchcancel = resetGesture;
 }
