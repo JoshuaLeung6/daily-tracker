@@ -121,7 +121,6 @@ function renderDetail(container, ctx) {
       el('div', { class: 'eyebrow' },
         inWeek ? 'This week' : (thisWk && thisWk.totalWeeks ? `Week ${thisWk.index} of ${thisWk.totalWeeks}` : fmt(start, { year: 'numeric' }))),
       el('h1', {}, weekLabel(ctx.date)),
-      !inWeek && el('button', { class: 'today-pill', onclick: () => ctx.setDate(today) }, 'Back to today'),
     ),
     el('button', {
       class: 'nav-arrow', 'aria-label': 'Next week',
@@ -158,13 +157,15 @@ function renderDetail(container, ctx) {
 
     // per-day R/Y/G: kcal by the calorie bands, protein vs its daily target,
     // cardio green when real cardio logged, lift green when a workout exists.
-    // Weight is a reading, not a judgment — left neutral.
-    const calCls = typeof cal !== 'number' ? ''
+    // Weight is a reading, not a judgment — left neutral. Today is still in
+    // progress, so it is not judged either.
+    const judged = !isFuture && iso !== today;
+    const calCls = !judged || typeof cal !== 'number' ? ''
       : cal >= CALORIE_BANDS.good ? ' st-good' : cal >= CALORIE_BANDS.ok ? ' st-neutral' : ' st-bad';
-    const proCls = typeof pro !== 'number' ? ''
+    const proCls = !judged || typeof pro !== 'number' ? ''
       : (proT && dayMeets(proT, iso)) ? ' st-good' : ' st-bad';
-    const cardioCls = isFuture ? '' : (isCardioDay(cardioV) ? ' st-good' : '');
-    const liftCls = wo ? ' st-good' : '';
+    const cardioCls = judged && isCardioDay(cardioV) ? ' st-good' : '';
+    const liftCls = judged && wo ? ' st-good' : '';
 
     rows.append(el('button', {
       class: 'week-row wr-ledger' + (iso === today ? ' is-today' : '') + (isFuture ? ' is-future' : ''),
