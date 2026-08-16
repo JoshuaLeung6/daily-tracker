@@ -1063,8 +1063,8 @@ html[data-theme="light"] body::before {
    direction and brightens once the gesture is armed */
 #view-week, #view-day { transition: transform 0.18s ease-out; }
 #view-week.gesture-live, #view-day.gesture-live { transition: none; }
-/* a committed side swipe owns the gesture — no vertical scrolling with it */
-#view-week.gesture-lock, #view-day.gesture-lock { touch-action: pan-x; }
+/* scrolling stays unrestricted during a swipe: the drag is a visual follow
+   only, and a strict distance threshold decides whether the page changes */
 
 /* A bare chevron that rides in the gutter the view opens as it follows the
    finger — the view translates away from the edge, and the glyph sits in the
@@ -1099,6 +1099,102 @@ html[data-theme="light"] body::before {
 .swipe-hint.top { left: 50%; margin-left: -13px; top: 2px; }
 .swipe-hint.left { top: 50%; margin-top: -13px; left: 2px; }
 .swipe-hint.right { top: 50%; margin-top: -13px; right: 2px; }
+
+/* current week: accent eyebrow + a live dot, so "now" reads at a glance
+   instead of looking like any other week in the sprint */
+.eyebrow-now {
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.now-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: 0 0 auto;
+}
+.masthead.is-now h1 { color: var(--accent-strong, var(--text)); }
+.masthead.is-now::after {
+  content: '';
+  display: block;
+  width: 26px;
+  height: 2px;
+  margin: 5px auto 0;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* collapsible PPL groups in the Lifts pane */
+.lift-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  text-align: left;
+}
+.lg-name { font-weight: 600; font-size: 14px; }
+.lg-meta { flex: 1; font-size: 11px; }
+
+/* the plan: outcome goals, process goals, tracking plan */
+.plan-card { padding: 12px 14px; margin-bottom: 8px; }
+.plan-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.plan-title { font-weight: 600; font-size: 14px; }
+.plan-why { font-size: 11px; }
+.plan-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid var(--hairline);
+  font-size: 12.5px;
+}
+.plan-row:first-of-type { border-top: 0; }
+.plan-k { flex: 0 0 38%; color: var(--muted); }
+.plan-v { flex: 1; text-align: right; }
+
+/* maintenance calories, shown as an equation: eaten − stored = maintenance */
+.mt-eq {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px;
+  margin: 10px 0 8px;
+}
+.mt-term { flex: 1; text-align: center; min-width: 0; }
+.mt-val {
+  font-family: var(--serif);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.mt-lab {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.mt-sub { font-size: 10px; color: var(--faint); margin-top: 2px; line-height: 1.25; }
+.mt-op {
+  flex: 0 0 auto;
+  padding-top: 3px;
+  font-size: 15px;
+  color: var(--faint);
+}
+.mt-term:last-child .mt-val { color: var(--accent); }
+.mt-note { display: block; line-height: 1.45; }
+.mt-locked { font-size: 13px; line-height: 1.45; }
 
 /* section dividers in the week detail */
 .wk-section-label {
@@ -1198,7 +1294,23 @@ html[data-theme="light"] body::before {
   min-height: 62px;
 }
 
-.wk-row.is-current { border-color: var(--accent); }
+/* the in-progress week: accent border, tinted ground, and a bar down the
+   leading edge — a border alone was too quiet to spot while scrolling */
+.wk-row.is-current {
+  border-color: var(--accent);
+  background: var(--accent-soft, var(--surface-2));
+  position: relative;
+  overflow: hidden;
+}
+.wk-row.is-current::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+}
 .wk-row.is-future { opacity: 0.5; cursor: default; }
 
 /* week number pinned to the card's edge */

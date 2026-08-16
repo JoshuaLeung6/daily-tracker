@@ -65,7 +65,19 @@ const localISO = (offset) => {
 
   await page.goto('http://localhost:8080/', { waitUntil: 'networkidle0' });
   await page.waitForSelector('.card');
-  const today = localISO(0);
+  // The app refuses to navigate into the future, and this scenario steps
+  // forward twice, so start 2 days back: day1 -> day2 -> today.
+  const today = localISO(-2);
+  // past days render read-only; tap the lock pill to edit them
+  const unlockIfPast = async () => {
+    const pill = await page.$('.lock-pill:not(.unlocked)');
+    if (pill) { await pill.click(); await page.waitForSelector('.lock-pill.unlocked'); }
+  };
+  for (let i = 0; i < 2; i++) {
+    await page.click('.nav-arrow[aria-label="Previous day"]');
+    await page.waitForSelector('.card');
+  }
+  await unlockIfPast();
 
   // ---- 1. new workout starts EMPTY ----
   await page.click('.ghost-btn');
@@ -96,6 +108,8 @@ const localISO = (offset) => {
 
   // ---- 3. next day: chips suggest last same-class lifts, tap-to-add name only ----
   await page.click('.nav-arrow[aria-label="Next day"]');
+  await page.waitForSelector('.card');
+  await unlockIfPast();
   await page.waitForSelector('.ghost-btn');
   await page.click('.ghost-btn');
   await page.waitForSelector('.workout-overlay');
@@ -120,7 +134,7 @@ const localISO = (offset) => {
   await fillRow(0, '140', '8', '3');
   await clickByText('.wo-head .btn.primary', 'Done');
   stored = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')));
-  check('tomorrow saved: bench 140', stored.workouts[localISO(1)].lifts[0].weight === 140);
+  check('day 2 saved: bench 140', stored.workouts[localISO(-1)].lifts[0].weight === 140);
 
   // ---- 4. open-and-close leaves no trace; removing rows deletes ----
   await page.click('.nav-arrow[aria-label="Next day"]');
@@ -129,7 +143,7 @@ const localISO = (offset) => {
   await page.waitForSelector('.workout-overlay');
   await clickByText('.wo-head .btn.primary', 'Done');
   stored = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')));
-  check('closing untouched editor saves nothing', !(localISO(2) in stored.workouts));
+  check('closing untouched editor saves nothing', !(localISO(0) in stored.workouts));
 
   // ---- 5. lifting stats: e1RM trend ----
   await page.click('.tab[data-tab="stats"]');

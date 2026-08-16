@@ -66,11 +66,12 @@ const localISO = (offset) => {
   check('day summary shows ★ PR (bench e1RM record today)', /★ PR/.test(daySummary), daySummary);
 
   await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.gc-insight');
-  const insight = await page.$eval('.gc-insight', (e) => e.textContent);
-  check('insight shows trending -0.5 lb/wk', /trending -0\.5 lb\/wk/.test(insight), insight);
-  check('insight shows avg 2,400 kcal/day', /avg 2,400 kcal\/day/.test(insight), insight);
-  check('insight keeps the long-range projection', /on pace for 180 by /.test(insight), insight.slice(0, 200));
+  await page.waitForSelector('.card.dash-insight');
+  const insight = await page.$eval('.card.dash-insight', (e) => e.textContent);
+  // this fixture logs only 10 weigh-ins in 28 days; the gate needs 12, so
+  // maintenance must REFUSE to estimate and say exactly what is missing
+  check('maintenance locked below the weigh-in gate', /Not enough data yet/.test(insight), insight.slice(0, 200));
+  check('locked reason names the shortfall', /10\/12 weigh-ins/.test(insight), insight.slice(0, 200));
   const heroPace = await page.$eval('.hero-pace', (e) => e.textContent);
   check('weight hero shows required vs trending pace', /needs [+-][\d.]+/.test(heroPace) && /trending/.test(heroPace), heroPace);
 

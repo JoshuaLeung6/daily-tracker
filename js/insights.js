@@ -14,6 +14,27 @@ import { getEntry, getData } from './store.js';
 import { activeTrackers, targetFor, dayMeets, dayAllMet, ratePerWeek, avgOverDays } from './trackers.js';
 import { allWorkouts, liftVolume, liftStats, SPLITS, SPLIT_LABELS } from './workouts.js';
 import { FLAGS, CARDIO_COUNTS, CALORIE_BANDS } from './config.js';
+// SPRINTS only — the plain config array, not the report functions. sprints.js
+// imports from here, so pulling anything computed back would be circular.
+import { SPRINTS } from './sprints.js';
+
+// The weight target from the sprint covering today (else the last sprint).
+function sprintWeightGoal() {
+  const today = todayISO();
+  const inRange = SPRINTS.find((s) => s.start && s.start <= today && today <= s.end);
+  const s = inRange || SPRINTS[SPRINTS.length - 1];
+  return s && s.goals && typeof s.goals.weight === 'number' ? s.goals.weight : null;
+}
+
+// Earliest logged value for a tracker — the baseline a sprint goal counts from.
+function firstWeightValue(id) {
+  const entries = getData().entries;
+  let best = null;
+  for (const iso of Object.keys(entries).sort()) {
+    if (typeof entries[iso][id] === 'number') { best = entries[iso][id]; break; }
+  }
+  return best;
+}
 
 // Does a day's cardio value count as a cardio day? Walk-only doesn't.
 export function isCardioDay(v) {
@@ -117,11 +138,22 @@ function earliestValueISO(id) {
 // Null when no goal, and null for non-bodyweight measurements — %BW bands
 // don't apply to waist or body fat.
 export function rateBand(t) {
-  if (!t || !t.goal || !/weight/i.test(t.name)) return null;
-  const gaining = t.goal.target > t.goal.startValue;
+  if (!t || !/weight/i.test(t.name)) return null;
+  // The goal normally lives on the SPRINT now (js/sprints.js), not on the
+  // tracker — fall back to it so clearing a stale tracker goal does not
+  // silently remove the pace band and every verdict that depends on it.
+  let goal = t.goal;
+  if (!goal) {
+    const sw = sprintWeightGoal();
+    if (sw == null) return null;
+    const start = firstWeightValue(t.id);
+    if (start == null) return null;
+    goal = { startValue: start, target: sw };
+  }
+  const gaining = goal.target > goal.startValue;
   const phase = gaining ? 'gain' : 'loss';
-  if (t.goal.band && typeof t.goal.band.lo === 'number' && typeof t.goal.band.hi === 'number') {
-    const b = t.goal.band;
+  if (goal.band && typeof goal.band.lo === 'number' && typeof goal.band.hi === 'number') {
+    const b = goal.band;
     return { lo: b.lo, hi: b.hi, phase, label: `${b.lo > 0 ? '+' : ''}${b.lo}–${b.hi}%/wk` };
   }
   return gaining

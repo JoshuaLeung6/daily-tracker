@@ -34,7 +34,11 @@ export function render(container, ctx) {
       el('h1', {}, fmt(iso, sameYear ? { month: 'long', day: 'numeric' } : { month: 'long', day: 'numeric', year: 'numeric' })),
       !isToday && el('button', { class: 'today-pill', onclick: () => ctx.setDate(today) }, 'Back to today'),
     ),
-    el('button', { class: 'nav-arrow', 'aria-label': 'Next day', onclick: () => ctx.setDate(addDays(iso, 1)) }, '›'),
+    // no forward navigation past today — nothing to log for a future day
+    el('button', {
+      class: 'nav-arrow', 'aria-label': 'Next day', disabled: iso >= today,
+      onclick: () => { if (iso < today) ctx.setDate(addDays(iso, 1)); },
+    }, '›'),
   );
 
   const rerender = () => render(container, ctx);
@@ -90,7 +94,9 @@ export function render(container, ctx) {
   // needs addEventListener — so that one is bound once per container.
   //  - swipe left/right -> previous / next day
   //  - pull down at the top -> zoom out to this day's week
-  const DIST = 70;
+  // Strict: the drag itself is unrestricted, so only a decisive swipe should
+  // actually change page. Scrolling is never blocked during the gesture.
+  const DIST = 120;
   const HINT_W = 30; // .swipe-hint width (26) + its 2px edge offset, both sides
   // The hint lives on <body>, NOT inside the view: a transformed ancestor
   // makes position:fixed resolve against that ancestor, so a hint inside the
@@ -103,11 +109,13 @@ export function render(container, ctx) {
   g.hint = hint;
   g.iso = iso;
   g.ctx = ctx;
+  // never swipe past today — there is nothing to log for a future day
+  g.canNext = iso < todayISO();
   g.startX = g.startY = null;
   g.axis = null;
 
   const resetGesture = () => {
-    container.classList.remove('gesture-live', 'gesture-lock');
+    container.classList.remove('gesture-live');
     container.style.transform = '';
     g.hint.classList.remove('show');
     g.startX = g.startY = null;
@@ -133,23 +141,24 @@ export function render(container, ctx) {
         g.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
           : (g.startScroll <= 0 && dy > 0 ? 'y' : 'scroll');
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
-        // committed to a side swipe: freeze scrolling for the rest of it
-        if (g.axis === 'x') container.classList.add('gesture-lock');
       }
-      // once locked to an axis, own the gesture — no concurrent scroll
-      if ((g.axis === 'x' || g.axis === 'y') && e.cancelable) e.preventDefault();
+      // scrolling stays free during a swipe — the drag is only a visual
+      // follow, and the strict DIST threshold below decides what happens
       if (g.axis === 'x') {
-        // travel enough to open a gutter wider than the glyph (26px)
-        const shift = Math.max(-96, Math.min(96, dx * 0.55));
+        // swiping forward from today is blocked: heavy resistance, never arms
+        const blocked = dx < 0 && !g.canNext;
+        // no cap: the view follows the finger as far as it goes
+        const shift = dx * (blocked ? 0.15 : 0.55);
         container.style.transform = `translateX(${shift}px)`;
-        const armed = Math.abs(dx) > DIST;
+        const armed = !blocked && Math.abs(dx) > DIST;
         g.hint.textContent = dx < 0 ? '›' : '‹';
         // centre the glyph in the strip the view vacated
         g.hint.style.setProperty('--hint-gap', Math.abs(shift) + 'px');
         g.hint.className = 'swipe-hint ' + (dx < 0 ? 'right' : 'left') + ' show'
-          + (Math.abs(shift) >= HINT_W ? ' roomy' : '') + (armed ? ' armed' : '');
+          + (Math.abs(shift) >= HINT_W ? ' roomy' : '')
+          + (armed ? ' armed' : '') + (blocked ? ' blocked' : '');
       } else if (g.axis === 'y') {
-        const shift = Math.min(84, dy * 0.55);
+        const shift = dy * 0.55;
         container.style.transform = `translateY(${shift}px)`;
         const armed = dy > DIST + 20;
         g.hint.textContent = '⌄';
@@ -167,7 +176,8 @@ export function render(container, ctx) {
     const scrolledTop = g.startScroll <= 0 && container.scrollTop <= 0;
     resetGesture();
     if (usedAxis === 'x' && Math.abs(dx) > DIST) {
-      g.ctx.setDate(addDays(g.iso, dx < 0 ? 1 : -1));
+      if (dx < 0) { if (g.canNext) g.ctx.setDate(addDays(g.iso, 1)); }
+      else g.ctx.setDate(addDays(g.iso, -1));
       return;
     }
     // zoom out one level: this day's week

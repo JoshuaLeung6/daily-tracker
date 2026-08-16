@@ -9,6 +9,8 @@
 // - a target/goal is only (re)written when it differs from what is in
 //   force today, so past effective-dated targets keep their history
 // - `null` target/goal = leave whatever is stored alone
+// - `clearGoalIfTarget: N` = delete the stored goal ONLY if its target is N
+//   (targeted cleanup for a goal that has since moved to the sprint)
 //
 // Target shape:  { period: 'day'|'week', value, dir?: 'atleast'|'atmost', from?: 'YYYY-MM-DD' }
 //   `from` backdates the target: it becomes the ONLY target from that date on
@@ -78,5 +80,11 @@ export const TRACKERS = [
     // 6 sessions/week (PPL x2) — backdated to the sprint start
     target: { period: 'week', value: 6, from: '2026-07-11' } },
   { name: 'Weight', type: 'measurement', unit: 'lb',
-    goal: null },     // e.g. { startValue: 185, target: 195, pace: 'standard' }
+    // The weight target lives on the SPRINT (js/sprints.js -> goals.weight).
+    // This clears only the specific stale tracker goal left over from the
+    // in-app days (target 150) so it cannot compete with the sprint's 145;
+    // it deliberately does NOT wipe every goal, which would also delete one
+    // deliberately set for another purpose. (`null` = keep whatever is stored.)
+    clearGoalIfTarget: 150,
+    goal: null },
 ];

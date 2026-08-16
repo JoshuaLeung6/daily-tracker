@@ -140,8 +140,11 @@ function renderDetail(container, ctx) {
       class: 'nav-arrow', 'aria-label': 'All weeks',
       onclick: () => { mode = 'overview'; render(container, ctx); },
     }, '‹'),
-    el('div', { class: 'masthead' },
-      el('div', { class: 'eyebrow' },
+    // the current week is marked with a live dot + accent eyebrow, so it is
+    // obvious at a glance whether you are looking at now or at history
+    el('div', { class: 'masthead' + (inWeek ? ' is-now' : '') },
+      el('div', { class: 'eyebrow' + (inWeek ? ' eyebrow-now' : '') },
+        inWeek ? el('i', { class: 'now-dot' }) : null,
         inWeek ? 'This week' : (thisWk && thisWk.totalWeeks ? `Week ${thisWk.index} of ${thisWk.totalWeeks}` : fmt(start, { year: 'numeric' }))),
       el('h1', {}, weekLabel(ctx.date)),
     ),
@@ -224,7 +227,9 @@ function renderDetail(container, ctx) {
   //  - horizontal swipe -> previous / next week (never past the current week)
   // The content follows the finger and a hint pill appears once the gesture
   // has passed its threshold, so the outcome is visible before releasing.
-  const DIST = 70;
+  // Strict: the drag itself is unrestricted, so only a decisive swipe should
+  // actually change page. Scrolling is never blocked during the gesture.
+  const DIST = 120;
   const HINT_W = 30; // .swipe-hint width (26) + its 2px edge offset, both sides
   // The hint lives on <body>, NOT inside the view: a transformed ancestor
   // makes position:fixed resolve against that ancestor, so a hint inside the
@@ -240,7 +245,7 @@ function renderDetail(container, ctx) {
   g.axis = null;
 
   const resetGesture = () => {
-    container.classList.remove('gesture-live', 'gesture-lock');
+    container.classList.remove('gesture-live');
     container.style.transform = '';
     g.hint.classList.remove('show');
     g.gx = g.gy = null;
@@ -266,15 +271,13 @@ function renderDetail(container, ctx) {
         g.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
           : (g.startScroll <= 0 && dy > 0 ? 'y' : 'scroll');
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
-        // committed to a side swipe: freeze scrolling for the rest of it
-        if (g.axis === 'x') container.classList.add('gesture-lock');
       }
-      // once locked to an axis, own the gesture — no concurrent scroll
-      if ((g.axis === 'x' || g.axis === 'y') && e.cancelable) e.preventDefault();
+      // scrolling stays free during a swipe — the drag is only a visual
+      // follow, and the strict DIST threshold below decides what happens
       if (g.axis === 'x') {
         const blocked = dx < 0 && !g.canNext;
-        // travel enough to open a gutter wider than the glyph (26px)
-        const shift = Math.max(-96, Math.min(96, dx * (blocked ? 0.15 : 0.55)));
+        // no cap: the view follows the finger as far as it goes
+        const shift = dx * (blocked ? 0.15 : 0.55);
         container.style.transform = `translateX(${shift}px)`;
         const armed = !blocked && Math.abs(dx) > DIST;
         g.hint.textContent = dx < 0 ? '›' : '‹';
@@ -284,7 +287,7 @@ function renderDetail(container, ctx) {
           + (Math.abs(shift) >= HINT_W ? ' roomy' : '')
           + (armed ? ' armed' : '') + (blocked ? ' blocked' : '');
       } else if (g.axis === 'y') {
-        const shift = Math.min(84, dy * 0.55);
+        const shift = dy * 0.55;
         container.style.transform = `translateY(${shift}px)`;
         const armed = dy > DIST + 20;
         g.hint.textContent = '⌄';

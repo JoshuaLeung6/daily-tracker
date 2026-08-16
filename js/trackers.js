@@ -129,7 +129,12 @@ export function applyConfig(configTrackers, paceLookup) {
       }
     }
 
-    // goal: only rewrite when it differs
+    // targeted cleanup: drop a stored goal only if it is the specific stale
+    // one named in config (a goal that has since moved to the sprint)
+    if (typeof c.clearGoalIfTarget === 'number' && t.goal && t.goal.target === c.clearGoalIfTarget) {
+      delete t.goal;
+      changed = true;
+    }
     if (c.goal) {
       const band = c.goal.pace && paceLookup ? paceLookup(c.goal.target > c.goal.startValue ? 'gain' : 'loss', c.goal.pace) : null;
       const g = t.goal;

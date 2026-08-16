@@ -46,15 +46,16 @@ export function strengthTotalAt(iso, sprintStart, names) {
 }
 
 // Weekly series of the strength total across the sprint (for the chart).
+// ONE point per week, on the week's last day: the total combines several
+// lifts trained on different days, so a per-session dot would zigzag on
+// which lift happened to be trained rather than on strength. Each point is
+// the best e1RM per lift achieved so far (strengthTotalAt is a running max),
+// which is the intra-week maximum by construction.
 export function strengthSeries(sprintStart, endISO, names) {
   const out = [];
   for (let iso = addDays(sprintStart, 6); iso <= endISO; iso = addDays(iso, 7)) {
     const v = strengthTotalAt(iso, sprintStart, names);
     if (v && v.counted === names.length) out.push({ iso, value: Math.round(v.total) });
-  }
-  const last = strengthTotalAt(endISO, sprintStart, names);
-  if (last && last.counted === names.length && (!out.length || out[out.length - 1].iso !== endISO)) {
-    out.push({ iso: endISO, value: Math.round(last.total) });
   }
   return out;
 }
@@ -103,11 +104,15 @@ export const SPRINTS = [
   {
     id: 's1',
     name: 'Sprint 1',
-    start: null,           // first logged day = 2026-07-11 (a Saturday)
-    // 16 weeks. The first full Sun–Sat week starts 2026-07-12, so 16 whole
-    // weeks run 2026-07-12 → 2026-10-31 (Sat). Keep this date Sunday-aligned
-    // to the week grid — an end mid-week makes the final week card partial.
-    end: '2026-10-31',
+    // Pinned, not `null` (= "first logged day"). A derived start silently
+    // moves if anything is ever backdated earlier, and every number keyed to
+    // it (week N of 16, start weight, adherence window) moves with it. This
+    // IS the first logged day — fixing it just stops it drifting.
+    start: '2026-07-11',
+    // Exactly 16 weeks, counted inclusively from the start: 16 * 7 = 112 days,
+    // 2026-07-11 → 2026-10-30. (Oct 31 would be 113 days, which the report
+    // rounds up to "of 17".)
+    end: '2026-10-30',
     focus: 'Lean bulk · PPL 5–6×/wk',
     goals: {
       weight: 145,          // lb, trend weight at sprint end (started ~134)
@@ -228,8 +233,10 @@ export function sprintReport(sprint) {
   report.sessionsPerWeek = workouts.length / weeksElapsed;
 
   // --- sprint goals: target, required pace from here, current pace ---
-  // A tracker-level goal (set in config or by an older doc) wins when present
-  // — it is the more specific statement; the sprint's goal is the default.
+  // A tracker goal that still EXISTS is deliberate, so it wins; the sprint
+  // goal is the default when the tracker has none. Stale tracker goals are
+  // removed at startup by config's `clearGoalIfTarget`, so the old in-app
+  // number cannot linger here and quietly outrank the sprint.
   report.goals = { weight: null, lifts: [] };
   const g = { ...(s.goals || {}) };
   if (wt && wt.goal && typeof wt.goal.target === 'number') g.weight = wt.goal.target;

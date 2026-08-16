@@ -152,17 +152,17 @@ const localISO = (offset) => {
   await page.screenshot({ path: path.join(__dirname, 'shots', 'goals-pane.png') });
 
   // ---- 4. lifting pane: PR goal ----
-  await clickByText('#view-stats .seg-btn', 'Progress');
-  await page.waitForSelector('.stat-row');
-  await page.evaluate(() => [...document.querySelectorAll('.stat-row')].find((r) => r.textContent.includes('Bench press')).click());
-  await page.waitForSelector('.sr-goalrow input');
-  await page.type('.sr-goalrow input', '225');
-  await clickByText('.sr-goalbtn', 'Save');
-  await new Promise((r) => setTimeout(r, 200));
-  const liftText = await page.$eval('#view-stats', (e) => e.textContent);
-  check('bench shows goal 225 · 60%', /goal 225 · 60%/.test(liftText), liftText.slice(0, 250));
-  const violetBar = await page.$('.stat-row .goal-fill, .stat-block .goal-fill');
-  check('violet goal bar on lift row', violetBar !== null);
+  // Lift PR goals are configured in js/sprints.js, never set from the UI:
+  // the Lifts pane must expose NO goal-editing controls.
+  await clickByText('#view-stats .seg-btn', 'Lifts');
+  await page.waitForSelector('#view-stats .pane');
+  // expand every PPL group that exists, then assert the rows are read-only
+  await page.evaluate(() => {
+    for (const g of document.querySelectorAll('.lift-group')) g.click();
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  check('no PR goal input in the UI', (await page.$('.sr-goalrow input')) === null);
+  check('no PR goal save button', (await page.$('.sr-goalbtn')) === null);
   await page.screenshot({ path: path.join(__dirname, 'shots', 'lifting-goals.png') });
 
   // ---- 5. week + month coloring ----

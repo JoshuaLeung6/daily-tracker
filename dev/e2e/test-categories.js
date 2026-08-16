@@ -106,7 +106,7 @@ const localISO = (offset) => {
 
   // ---- 6. goals pane: no add-goal UI, goal card present ----
   await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.goal-card');
+  await page.waitForSelector('.hero-card');
   check('goals pane has no + Add goal button',
     !(await page.evaluate(() => [...document.querySelectorAll('.ghost-btn')].some((b) => /Add goal/.test(b.textContent)))));
   check('weight hero shows the goal target', await page.$eval('#view-stats', (e) => /→ 175 lb/.test(e.textContent)));

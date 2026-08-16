@@ -6,30 +6,31 @@
 import { el } from '../ui.js';
 import { fmt, todayISO, addDays, startOfWeek } from '../dates.js';
 import { getEntry, getData } from '../store.js';
+// NOTE: no goal/target WRITE imports here on purpose — goals and targets are
+// configured in js/config.js and js/sprints.js, never set from the UI.
 import {
-  activeTrackers, allTrackers, addTracker, targetFor,
+  activeTrackers, targetFor,
   dayMeets, weekMeets, streakFor, weekStreakFor,
   longestStreak, longestWeekStreak, adherence, weekAdherence, dotStrip,
-  setGoal, clearGoal, goalProgress, latestValue, ratePerWeek, avgOverDays,
+  goalProgress, latestValue, ratePerWeek, avgOverDays,
 } from '../trackers.js';
 import {
   SPLITS, SPLIT_LABELS, FOCUS_LABELS, workoutCounts, liftStats,
-  liftGoal, setLiftGoal, weeklyVolume, daysSince,
+  weeklyVolume, daysSince,
   repRange, setRepRange,
 } from '../workouts.js';
-import { setTarget } from '../trackers.js';
 import {
-  suggestedIntake, calorieTracker, PACE_PRESETS,
+  suggestedIntake, calorieTracker, adaptiveTDEE,
   weightTracker, rateBand, weekReport, weekSuggestions,
 } from '../insights.js';
 import { lineChart, barChart, svgEl } from '../charts.js';
 import { SPRINTS, sprintReport, currentSprint } from '../sprints.js';
-import { liftingSessionTarget } from '../insights.js';
+import { liftingSessionTarget, cardioDayTarget } from '../insights.js';
+import { CALORIE_BANDS } from '../config.js';
 
-let pane = 'goals';
-let filterSplit = null;
+let pane = 'sprint';
+let openSplit = null;   // which PPL group is expanded in the Lifts pane
 let expandedLift = null;
-let editingGoalId = null; // tracker id, '__new__', or null
 
 const fmtN = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 const signed = (n) => `${n > 0 ? '+' : ''}${fmtN(n)}`;
@@ -51,10 +52,13 @@ export function render(container, ctx) {
 
   const paneSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Progress section' },
     el('button', { class: 'seg-btn', 'aria-pressed': String(pane === 'sprint'), onclick: () => { pane = 'sprint'; rerender(); } }, 'Progress'),
+    el('button', { class: 'seg-btn', 'aria-pressed': String(pane === 'lifts'), onclick: () => { pane = 'lifts'; rerender(); } }, 'Lifts'),
     el('button', { class: 'seg-btn', 'aria-pressed': String(pane === 'coach'), onclick: () => { pane = 'coach'; rerender(); } }, 'Coach'),
   );
 
-  const paneEl = pane === 'coach' ? coachPane(rerender) : dashboardPane(rerender);
+  const paneEl = pane === 'coach' ? coachPane(rerender)
+    : pane === 'lifts' ? liftingPane(rerender)
+      : dashboardPane(rerender);
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), paneSeg, paneEl);
 }
 
@@ -139,13 +143,8 @@ function dashboardPane(rerender) {
   }
   wrap.append(heroes);
 
-  // 2b. intake ↔ weight: measured TDEE + suggested intake (goals→actions link)
-  if (wt && wt.goal) {
-    const insight = buildInsight(wt, goalProgress(wt), rerender);
-    if (insight) wrap.append(el('div', { class: 'card goal-card dash-insight' },
-      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Intake')),
-      insight));
-  }
+  // 2b. intake ↔ weight: how maintenance is measured, shown as the actual sum
+  if (wt) wrap.append(maintenanceCard());
 
   // 3. consistency: rolling 28-day adherence
   const a = r.adherence28;
@@ -255,75 +254,125 @@ function dashboardPane(rerender) {
   return wrap;
 }
 
-/* ================= Goals pane ================= */
+// The sprint plan, stated plainly: what the sprint is FOR (outcome goals),
+// what has to happen for that to work (process goals), and what is being
+// tracked to know it is happening. Read from live config/targets so it can
+// never drift out of sync with what the app is actually grading.
+function planSection(r, sprint) {
+  const sec = el('div', { class: 'settings-section plan-sec' }, el('h2', {}, 'The plan'));
+  const wt = weightTracker();
+  const wUnit = wt && wt.unit ? ` ${wt.unit}` : '';
 
-function goalsPane(rerender) {
-  const wrap = el('div', { class: 'pane' });
-  const withGoals = activeTrackers().filter((t) => t.goal);
+  const block = (title, why, rows) => {
+    const b = el('div', { class: 'card plan-card' },
+      el('div', { class: 'plan-head' },
+        el('span', { class: 'plan-title' }, title),
+        el('span', { class: 'plan-why rp-dim' }, why)));
+    for (const [k, v] of rows.filter(Boolean)) {
+      b.append(el('div', { class: 'plan-row' },
+        el('span', { class: 'plan-k' }, k),
+        el('span', { class: 'plan-v' }, v)));
+    }
+    return b;
+  };
 
-  const goalSection = el('div', { class: 'settings-section' }, el('h2', {}, 'Goals'));
-  for (const t of withGoals) goalSection.append(goalCard(t, rerender));
-  if (withGoals.length === 0) {
-    goalSection.append(el('div', { class: 'empty-state' }, 'No goal set yet — ask Claude to set one up.'));
+  // --- outcomes: the destination ---
+  const gw = r.goals && r.goals.weight;
+  const outcomes = [];
+  if (gw) {
+    outcomes.push(['Body weight',
+      `${fmtN(gw.startValue)} → ${fmtN(gw.target)}${wUnit}` + (gw.toGo != null ? ` · ${fmtN(Math.abs(gw.toGo))} to go` : '')]);
+  } else if (sprint.goals && sprint.goals.weight != null) {
+    outcomes.push(['Body weight', `${fmtN(sprint.goals.weight)}${wUnit} by sprint end`]);
   }
-  wrap.append(goalSection);
-
-  const withTargets = activeTrackers()
-    .map((t) => ({ t, tgt: targetFor(t, todayISO()) }))
-    .filter((x) => x.tgt);
-  const attSection = el('div', { class: 'settings-section' }, el('h2', {}, 'Target attainment'));
-  if (withTargets.length === 0) {
-    attSection.append(el('div', { class: 'empty-state' }, 'No targets set. Add one from a tracker’s ✎ in Settings.'));
+  const liftGoals = Object.entries((sprint.goals && sprint.goals.lifts) || {});
+  for (const [name, target] of liftGoals) outcomes.push([name, `${fmtN(target)} e1RM`]);
+  if (r.strength && r.strength.names.length) {
+    outcomes.push(['Strength total', `${r.strength.names.join(' + ')} e1RM`]);
   }
-  for (const { t, tgt } of withTargets) attSection.append(attainmentCard(t, tgt));
-  wrap.append(attSection);
+  if (outcomes.length) {
+    sec.append(block('Outcome goals', 'where this sprint ends up', outcomes));
+  }
 
-  return wrap;
+  // --- process: the behaviours that produce the outcome ---
+  const liftT = liftingSessionTarget();
+  const cardioT = cardioDayTarget();
+  const proT = (() => {
+    const p = activeTrackers().find((x) => x.type === 'number' && /protein/i.test(x.name));
+    const tg = p ? targetFor(p, todayISO()) : null;
+    return tg ? `≥ ${fmtN(tg.value)} ${p.unit || 'g'}/day` : null;
+  })();
+  const calT = (() => {
+    const c = calorieTracker();
+    const tg = c ? targetFor(c, todayISO()) : null;
+    if (tg) return `${tg.dir === 'atmost' ? '≤' : '≥'} ${fmtN(tg.value)} ${c.unit || 'kcal'}/day`;
+    return `${CALORIE_BANDS.good.toLocaleString()}+ kcal/day (green band)`;
+  })();
+  sec.append(block('Process goals', 'what has to happen every week', [
+    ['Lifting', `PPL · ${liftT}×/week`],
+    ['Cardio', `${cardioT}×/week`],
+    ['Steps', '10k/day'],
+    ['Calories', calT],
+    proT && ['Protein', proT],
+  ]));
+
+  // --- tracking: what is logged, and why it earns its place ---
+  sec.append(block('Tracking plan', 'what gets logged, and what it is for', [
+    ['Calories', 'drives the surplus — and measures maintenance'],
+    ['Protein', 'keeps the gain lean rather than fat'],
+    ['Weight', 'the feedback signal for pace'],
+    ['Cardio + 10k steps', 'health and body-fat maintenance'],
+    ['Workouts', 'PPL sessions, lifts, and e1RM progression'],
+  ]));
+
+  return sec;
 }
 
-function goalCard(t, rerender) {
-  const p = goalProgress(t);
-  const unit = t.unit ? ` ${t.unit}` : '';
 
-  let status;
-  if (p.done) status = 'Goal reached';
-  else if (p.deadline) {
-    status = p.daysLeft > 0
-      ? `${p.daysLeft} day${p.daysLeft === 1 ? '' : 's'} left · needs ${signed(p.pacePerWeek)}${unit}/wk`
-      : `deadline passed · ${fmtN(Math.abs(p.remaining))}${unit} to go`;
-  } else status = `${fmtN(Math.abs(p.remaining))}${unit} to go`;
+// Maintenance calories, with the arithmetic shown rather than asserted.
+// The whole method is: whatever you ate, minus whatever the scale says you
+// banked or burned. 1 lb of body mass ~ 3,500 kcal, so a weekly rate converts
+// to a daily calorie surplus/deficit by (rate * 3500) / 7.
+function maintenanceCard() {
+  const t = adaptiveTDEE();
+  const card = el('div', { class: 'card goal-card dash-insight' },
+    el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Maintenance')));
 
-  const fill = el('i', { class: 'goal-fill' });
-  fill.style.width = Math.round(p.pct * 100) + '%';
-
-  const card = el('div', { class: 'card goal-card' },
-    el('div', { class: 'gc-head' },
-      el('span', { class: 'gc-name' }, t.name),
-      rateBand(t) ? el('span', { class: 'att-desc' }, `pace ${rateBand(t).label}`) : null,
-    ),
-    el('div', { class: 'gc-route' },
-      `${fmtN(p.startValue)} → ${fmtN(p.target)}${unit}`,
-      el('span', { class: 'gc-now' },
-        p.currentDate ? ` · now ${fmtN(p.current)} (${signed(p.change)})` : ' · nothing logged yet'),
-    ),
-    el('div', { class: 'wt-bar gc-bar' }, fill),
-    el('div', { class: 'gc-status' + (p.done ? ' done' : '') }, status),
-  );
-
-  // intake <-> weight insight: trend rate, calorie average, pace projection
-  const insight = buildInsight(t, p, rerender);
-  if (insight) card.append(insight);
-
-  // trendline of every logged measurement, with the goal as a reference line
-  const series = measurementSeries(t.id);
-  if (series.length >= 2) {
-    card.append(lineChart({
-      points: series,
-      goal: { value: p.target, label: `goal ${fmtN(p.target)}` },
-      unit: t.unit || '',
-      ariaLabel: `${t.name} over time`,
-    }));
+  if (!t) return card;
+  if (t.locked) {
+    card.append(el('div', { class: 'mt-locked rp-dim' }, `Not enough data yet — ${t.reason}.`));
+    return card;
   }
+
+  const unit = t.unit;
+  const wt = weightTracker();
+  const wUnit = wt && wt.unit ? wt.unit : 'lb';
+  const perDay = (t.ratePerWeek * 3500) / 7;
+  const rounded = Math.round(t.tdee);
+  const n = (v) => Math.round(v).toLocaleString();
+
+  // the sum, as three labelled terms
+  const term = (value, label, sub) => el('div', { class: 'mt-term' },
+    el('div', { class: 'mt-val' }, value),
+    el('div', { class: 'mt-lab' }, label),
+    sub ? el('div', { class: 'mt-sub' }, sub) : null);
+  const op = (sym) => el('div', { class: 'mt-op' }, sym);
+
+  card.append(el('div', { class: 'mt-eq' },
+    term(n(t.intakeAvg), 'eaten', `avg ${unit}/day, 28 d`),
+    op(perDay >= 0 ? '−' : '+'),
+    term(n(Math.abs(perDay)), perDay >= 0 ? 'stored' : 'drawn on',
+      `${signed(Math.round(t.ratePerWeek * 100) / 100)} ${wUnit}/wk`),
+    op('='),
+    term(n(rounded), 'maintenance', `${unit}/day`),
+  ));
+
+  card.append(el('div', { class: 'mt-note gc-window' },
+    `Measured from your own logs, not a formula: you averaged ${n(t.intakeAvg)} ${unit}/day and the scale `
+    + `${t.ratePerWeek >= 0 ? 'rose' : 'fell'} ${fmtN(Math.abs(Math.round(t.ratePerWeek * 100) / 100))} ${wUnit}/week, `
+    + `which is ${n(Math.abs(perDay))} ${unit}/day ${perDay >= 0 ? 'above' : 'below'} maintenance `
+    + `(1 ${wUnit} ≈ 3,500 ${unit}). Accurate to about ±200.`));
+
   return card;
 }
 
@@ -371,19 +420,20 @@ function buildInsight(t, p, rerender) {
     const mid = Math.round((sug.lo + sug.hi) / 2 / 10) * 10;
     const calT = calorieTracker();
     const cur = calT ? targetFor(calT, todayISO()) : null;
-    const showBtn = calT && (!cur || cur.period !== 'day' || Math.abs(cur.value - mid) > 50);
+    // The suggestion is INFORMATION only. Targets are set in js/config.js,
+    // not from the UI, so there is no "apply this" button — if the suggested
+    // number differs from the configured one, say so and leave the change
+    // to a config edit.
+    const drifted = calT && (!cur || cur.period !== 'day' || Math.abs(cur.value - mid) > 50);
     tdeeEl = el('div', { class: 'gc-tdee' },
       el('div', {}, 'maintenance ≈ ', el('b', {}, `${Math.round(sug.tdee).toLocaleString()} ${sug.unit}`),
         el('span', { class: 'gc-window' }, ' measured from your logs, ±200')),
       el('div', {}, `suggested for this ${sug.phase === 'gain' ? 'bulk' : 'cut'}: `,
         el('b', {}, `${sug.lo.toLocaleString()}–${sug.hi.toLocaleString()} ${sug.unit}/day`)),
-      showBtn && el('button', {
-        class: 'btn primary gc-setbtn',
-        onclick: () => {
-          setTarget(calT.id, { value: mid, period: 'day', dir: sug.phase === 'gain' ? 'atleast' : 'atmost' });
-          rerender();
-        },
-      }, `Set ${mid.toLocaleString()} ${sug.unit}/day as my calorie target`),
+      drifted && el('div', { class: 'gc-window' },
+        cur && cur.period === 'day'
+          ? `your target is ${cur.value.toLocaleString()} — change it in config if you want ${mid.toLocaleString()}`
+          : `no daily calorie target set — add one in config (${mid.toLocaleString()} suggested)`),
     );
   }
 
@@ -401,98 +451,6 @@ function measurementSeries(id) {
     .sort((a, b) => (a.iso < b.iso ? -1 : 1));
 }
 
-function goalForm(t, rerender) {
-  // destination goals apply to measurements (weight, body fat, …), not
-  // to daily amounts like calories — those use recurring targets instead
-  const measurements = activeTrackers().filter((x) => x.type === 'measurement');
-  const eligible = t ? [t] : measurements.filter((x) => !x.goal);
-  const hasWeightTracker = allTrackers().some((x) => x.name.toLowerCase() === 'weight');
-
-  if (!t && eligible.length === 0 && hasWeightTracker) {
-    return el('div', { class: 'tracker-row' },
-      el('div', { class: 'tr-edit' },
-        el('div', { class: 'settings-note' },
-          'Every measurement tracker already has a goal. Add a new measurement tracker in Settings first (type: Measurement).'),
-        el('button', { class: 'btn', onclick: () => { editingGoalId = null; rerender(); } }, 'Close'),
-      ),
-    );
-  }
-
-  const trackerSel = el('select', { 'aria-label': 'Goal tracker' },
-    ...eligible.map((x) => el('option', { value: x.id }, x.name)),
-    !t && !hasWeightTracker && el('option', { value: '__new_weight__' }, '＋ New “Weight” tracker'),
-  );
-  if (t) trackerSel.disabled = true;
-
-  const startInput = el('input', { type: 'text', inputmode: 'decimal', 'aria-label': 'Starting value' });
-  const targetInput = el('input', { type: 'text', inputmode: 'decimal', 'aria-label': 'Goal target' });
-  const deadlineInput = el('input', { type: 'date', 'aria-label': 'Deadline (optional)' });
-  const paceSel = el('select', { 'aria-label': 'Pace' },
-    el('option', { value: 'conservative' }, 'Conservative'),
-    el('option', { value: 'standard' }, 'Standard (recommended)'),
-    el('option', { value: 'aggressive' }, 'Aggressive'),
-  );
-  paceSel.value = 'standard';
-  if (t && t.goal && t.goal.band) {
-    for (const phase of ['gain', 'loss']) {
-      for (const [key, preset] of Object.entries(PACE_PRESETS[phase])) {
-        if (preset.lo === t.goal.band.lo && preset.hi === t.goal.band.hi) paceSel.value = key;
-      }
-    }
-  }
-
-  const prefillStart = () => {
-    if (t && t.goal) { startInput.value = String(t.goal.startValue); return; }
-    const id = trackerSel.value;
-    if (id === '__new_weight__') { startInput.value = ''; return; }
-    const latest = latestValue(id);
-    startInput.value = latest ? String(latest.value) : '';
-  };
-  prefillStart();
-  trackerSel.addEventListener('change', prefillStart);
-  if (t && t.goal) {
-    targetInput.value = String(t.goal.target);
-    if (t.goal.deadline) deadlineInput.value = t.goal.deadline;
-  }
-
-  const save = () => {
-    const start = parseFloat(startInput.value.replace(',', '.'));
-    const target = parseFloat(targetInput.value.replace(',', '.'));
-    if (!Number.isFinite(start) || !Number.isFinite(target)) { alert('Enter a starting value and a target.'); return; }
-    if (start === target) { alert('Target must differ from the starting value.'); return; }
-    let id = t ? t.id : trackerSel.value;
-    if (id === '__new_weight__') id = addTracker({ name: 'Weight', type: 'measurement', unit: 'lb' }).id;
-    const preset = PACE_PRESETS[target > start ? 'gain' : 'loss'][paceSel.value];
-    setGoal(id, {
-      startValue: start, target, deadline: deadlineInput.value || null,
-      band: preset ? { lo: preset.lo, hi: preset.hi } : null,
-    });
-    editingGoalId = null;
-    rerender();
-  };
-
-  return el('div', { class: 'tracker-row' },
-    el('div', { class: 'tr-edit' },
-      el('div', { class: 'field' }, el('label', {}, 'Tracker'), trackerSel),
-      el('div', { class: 'field' }, el('label', {}, 'Starting value'), startInput),
-      el('div', { class: 'field' }, el('label', {}, 'Target'), targetInput),
-      el('div', { class: 'field' }, el('label', {}, 'Pace (weight goals)'), paceSel),
-      el('div', { class: 'field' }, el('label', {}, 'By date (optional)'), deadlineInput),
-      el('div', { class: 'btn-row' },
-        el('button', { class: 'btn primary', onclick: save }, 'Save goal'),
-        el('button', { class: 'btn', onclick: () => { editingGoalId = null; rerender(); } }, 'Cancel'),
-      ),
-      t && t.goal && el('div', { class: 'btn-row' },
-        el('button', {
-          class: 'btn danger',
-          onclick: () => {
-            if (confirm(`Remove the ${t.name} goal?`)) { clearGoal(t.id); editingGoalId = null; rerender(); }
-          },
-        }, 'Remove goal'),
-      ),
-    ),
-  );
-}
 
 function attainmentCard(t, tgt) {
   const unit = t.unit ? ` ${t.unit}` : '';
@@ -599,24 +557,13 @@ function liftingPane(rerender) {
     ));
   }
 
-  wrap.append(el('div', { class: 'seg', role: 'group', 'aria-label': 'Filter by split' },
-    el('button', {
-      class: 'seg-btn', 'aria-pressed': String(filterSplit === null),
-      onclick: () => { filterSplit = null; rerender(); },
-    }, 'All'),
-    ...SPLITS.map((s) => el('button', {
-      class: 'seg-btn', 'aria-pressed': String(filterSplit === s),
-      onclick: () => { filterSplit = s; rerender(); },
-    }, SPLIT_LABELS[s])),
-  ));
-
-  // weekly training volume (respects the split filter)
-  const weeks = weeklyVolume(8, filterSplit);
+  // weekly training volume across all splits
+  const weeks = weeklyVolume(8, null);
   if (weeks.some((w) => w.value > 0)) {
     wrap.append(el('div', { class: 'card chart-card' },
       el('div', { class: 'gc-head' },
         el('span', { class: 'gc-name' }, 'Weekly volume'),
-        el('span', { class: 'att-desc' }, filterSplit ? SPLIT_LABELS[filterSplit] : 'all splits'),
+        el('span', { class: 'att-desc' }, 'all splits'),
       ),
       barChart({
         bars: weeks.map((w) => ({ label: fmt(w.startISO, { month: 'short', day: 'numeric' }), value: w.value })),
@@ -625,13 +572,37 @@ function liftingPane(rerender) {
     ));
   }
 
-  const stats = liftStats(filterSplit);
-  const list = el('div', { class: 'stat-list' });
-  for (const s of stats) list.append(liftRow(s, rerender));
-  if (stats.length === 0) {
-    list.append(el('div', { class: 'empty-state' }, `No ${SPLIT_LABELS[filterSplit]} lifts logged yet.`));
+  // lifts grouped by PPL, each group collapsible — a flat list of every lift
+  // is hard to scan, and you think in Push/Pull/Legs anyway
+  for (const sp of SPLITS) {
+    const stats = liftStats(sp);
+    if (stats.length === 0) continue;
+    const open = openSplit === sp;
+    const ready = stats.filter((s) => s.ready).length;
+    const stalled = stats.filter((s) => s.stalled).length;
+
+    wrap.append(el('button', {
+      class: 'pick-section lift-group' + (open ? ' open' : ''),
+      'aria-expanded': String(open),
+      onclick: () => { openSplit = open ? null : sp; rerender(); },
+    },
+    el('span', { class: 'lg-name' }, SPLIT_LABELS[sp]),
+    el('span', { class: 'lg-meta rp-dim' },
+      `${stats.length} lift${stats.length === 1 ? '' : 's'}`,
+      ready > 0 ? ` · ${ready} ready` : '',
+      stalled > 0 ? ` · ${stalled} stalled` : ''),
+    el('span', { class: 'wo-chevron' }, open ? '⌄' : '›')));
+
+    if (open) {
+      const list = el('div', { class: 'stat-list' });
+      for (const s of stats) list.append(liftRow(s, rerender));
+      wrap.append(list);
+    }
   }
-  wrap.append(list);
+
+  if (liftStats().length === 0) {
+    wrap.append(el('div', { class: 'empty-state' }, 'No lifts logged yet.'));
+  }
   return wrap;
 }
 
@@ -768,8 +739,11 @@ function coachPane(rerender) {
   // phase summary
   const wt = weightTracker();
   const band = wt ? rateBand(wt) : null;
-  if (band && wt.goal) {
-    const weeksIn = Math.max(1, Math.ceil((Date.parse(today) - Date.parse(wt.goal.from)) / (7 * 86400000)));
+  if (band) {
+    // count weeks from the sprint start; a tracker goal is no longer required
+    const sp = currentSprint();
+    const from = (wt && wt.goal && wt.goal.from) || (sp && sp.start) || today;
+    const weeksIn = Math.max(1, Math.ceil((Date.parse(today) - Date.parse(from)) / (7 * 86400000)));
     wrap.append(el('div', { class: 'card verdict-card' },
       el('b', {}, band.phase === 'gain' ? 'Lean bulk' : 'Cut'),
       el('span', { class: 'rp-dim' }, ` · week ${weeksIn} · pace band ${band.label}`),
@@ -820,12 +794,18 @@ function coachPane(rerender) {
     anyActive = true;
   } else if (sug) {
     active.append(el('div', { class: 'settings-note' },
-      `Maintenance ≈ ${Math.round(sug.tdee).toLocaleString()} ${sug.unit} · aim ${sug.lo.toLocaleString()}–${sug.hi.toLocaleString()}/day (set it from the Goals pane).`));
+      `Maintenance ≈ ${Math.round(sug.tdee).toLocaleString()} ${sug.unit} · aim ${sug.lo.toLocaleString()}–${sug.hi.toLocaleString()}/day (targets are set in config).`));
     anyActive = true;
   }
 
   if (!anyActive) active.append(el('div', { class: 'empty-state' }, 'Nothing needs attention — keep logging.'));
   wrap.append(active);
+
+  // --- the plan: what this sprint is for, and how it is being run ---
+  // Lives here rather than on Progress: Progress is the live scoreboard,
+  // this is the standing reference for what the numbers are aiming at.
+  const sprintNow = currentSprint();
+  if (sprintNow) wrap.append(planSection(sprintReport(sprintNow), sprintNow));
 
   // --- reference cards ---
   const ref = el('div', { class: 'settings-section' }, el('h2', {}, 'Reference'));
@@ -993,29 +973,13 @@ function liftRow(s, rerender) {
 
   if (!expanded) return row;
 
-  // PR goal editor
-  const goalInput = el('input', {
-    type: 'text', inputmode: 'decimal', 'aria-label': `${s.name} goal weight`,
-    placeholder: 'e.g. 225',
-    value: s.goal ? String(s.goal.target) : '',
-  });
-  goalInput.addEventListener('click', (e) => e.stopPropagation());
-  const goalRow = el('div', { class: 'sr-goalrow' },
-    el('span', { class: 'sr-goallabel' }, 'PR goal'),
-    goalInput,
-    el('button', {
-      class: 'btn primary sr-goalbtn',
-      onclick: () => {
-        const v = parseFloat(goalInput.value.replace(',', '.'));
-        setLiftGoal(s.name, Number.isFinite(v) && v > 0 ? v : null);
-        rerender();
-      },
-    }, 'Save'),
-    s.goal && el('button', {
-      class: 'btn danger sr-goalbtn',
-      onclick: () => { setLiftGoal(s.name, null); rerender(); },
-    }, '✕'),
-  );
+  // PR goal — READ ONLY. Lift goals are configured in js/sprints.js
+  // (SPRINTS[].goals.lifts), not set from the UI.
+  const goalRow = s.goal
+    ? el('div', { class: 'sr-goalrow' },
+      el('span', { class: 'sr-goallabel' }, 'PR goal'),
+      el('span', { class: 'sr-goalval' }, `${s.goal.target}${s.unit ? ` ${s.unit}` : ''}`))
+    : null;
 
   // rep-range editor (double progression)
   const range = repRange(s.name, s.last.focus);

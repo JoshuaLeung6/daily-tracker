@@ -116,7 +116,7 @@ const localISO = (offset) => {
   await page.waitForSelector('.hero-card');
   const spText = await page.$eval('#view-stats', (e) => e.textContent);
   check('dashboard header: sprint name, dates, week N of M',
-    /Sprint 1/.test(spText) && /→ Oct 31/.test(spText) && /Week \d+ of \d+/.test(spText), spText.slice(0, 200));
+    /Sprint 1/.test(spText) && /→ Oct 30/.test(spText) && /Week \d+ of \d+/.test(spText), spText.slice(0, 200));
   check('heroes: weight + strength', /Weight/.test(spText) && /Strength/.test(spText) && /lifts up/.test(spText));
   check('28-day adherence block', /Last 28 days/.test(spText) && /protein/.test(spText));
   check('lifts ledger present', /Bench/.test(spText));

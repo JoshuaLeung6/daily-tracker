@@ -62,27 +62,13 @@ const localISO = (offset) => {
   await page.removeScriptToEvaluateOnNewDocument(injA.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.gc-tdee');
-  const tdeeText = await page.$eval('.gc-tdee', (e) => e.textContent);
-  check('TDEE ≈ 2,733 measured', /maintenance ≈ 2,73\d kcal/.test(tdeeText), tdeeText);
-  check('suggested bulk range ≈ 2,930–3,030', /2,9[123]0–3,0[123]0 kcal\/day/.test(tdeeText), tdeeText);
-  const btnText = await page.evaluate(() => {
-    const b = [...document.querySelectorAll('.gc-setbtn')][0];
-    return b ? b.textContent : null;
-  });
-  check('set-target button offered', btnText && /Set 2,9[89]0 .*calorie target/.test(btnText), String(btnText));
-  await page.click('.gc-setbtn');
-  await new Promise((r) => setTimeout(r, 300));
-  const calTarget = await page.evaluate(() => {
-    const doc = JSON.parse(localStorage.getItem('pcal:data'));
-    const cal = doc.trackers.find((t) => t.name === 'Calories');
-    return cal.targets && cal.targets[cal.targets.length - 1];
-  });
-  check('one tap sets effective-dated at-least target', calTarget && calTarget.period === 'day'
-    && calTarget.dir === 'atleast' && calTarget.from === localISO(0) && Math.abs(calTarget.value - 2980) <= 10,
-    JSON.stringify(calTarget));
-  const btnGone = await page.evaluate(() => document.querySelectorAll('.gc-setbtn').length === 0);
-  check('button disappears once target matches', btnGone);
+  await page.waitForSelector('.mt-eq');
+  const tdeeText = await page.$eval('.card.dash-insight', (e) => e.textContent);
+  check('maintenance ≈ 2,733 shown as the equation result', /2,73\d/.test(tdeeText), tdeeText.slice(0, 160));
+  check('equation shows eaten and stored terms', /eaten/.test(tdeeText) && /stored|drawn on/.test(tdeeText), tdeeText.slice(0, 160));
+  check('working is spelled out (3,500 kcal per lb)', /3,500/.test(tdeeText), tdeeText.slice(0, 200));
+  // targets are configured in code now: the UI must NOT offer to set one
+  check('no set-target button anywhere', (await page.$('.gc-setbtn')) === null);
   await page.screenshot({ path: path.join(__dirname, 'shots', 'tdee-card.png') });
 
   // ---- 2. locked TDEE with sparse intake logging ----
@@ -91,8 +77,8 @@ const localISO = (offset) => {
   await page.removeScriptToEvaluateOnNewDocument(injB.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.gc-tdee');
-  const lockedText = await page.$eval('.gc-tdee', (e) => e.textContent);
+  await page.waitForSelector('.mt-locked');
+  const lockedText = await page.$eval('.mt-locked', (e) => e.textContent);
   check('sparse logging locks TDEE with reason', /needs ~4 weeks of logs/.test(lockedText), lockedText);
   check('no set-target button when locked', (await page.$('.gc-setbtn')) === null);
 
@@ -114,9 +100,9 @@ const localISO = (offset) => {
 
   // the dashboard still surfaces the measured TDEE + suggestion
   await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.gc-tdee');
-  const tdeeAgain = await page.$eval('.gc-tdee', (e) => e.textContent);
-  check('dashboard shows measured TDEE', /maintenance ≈ 2,73\d kcal/.test(tdeeAgain), tdeeAgain.slice(0, 120));
+  await page.waitForSelector('.mt-eq');
+  const tdeeAgain = await page.$eval('.card.dash-insight', (e) => e.textContent);
+  check('dashboard shows measured maintenance', /2,73\d/.test(tdeeAgain), tdeeAgain.slice(0, 120));
 
   // ---- 4. e1RM filtered for >10-rep sets ----
   const injD = await inject({
