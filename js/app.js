@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.15.1';
+export const APP_VERSION = '2.15.3';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -67,6 +67,8 @@ const ctx = {
     switchTab('day');
   },
   version: APP_VERSION,
+  // let a view hand off to another tab (day pull-down -> week overview)
+  goTab(tab) { switchTab(tab); },
 };
 
 function renderActive() {

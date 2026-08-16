@@ -1055,6 +1055,35 @@ html[data-theme="light"] body::before {
 .wr-colhead span { text-align: right; }
 .wr-colhead span:first-child { text-align: left; }
 
+/* gesture feedback: the view follows the finger, a hint pill states the
+   outcome and brightens once the gesture is armed */
+#view-week, #view-day { transition: transform 0.18s ease-out; }
+#view-week.gesture-live, #view-day.gesture-live { transition: none; }
+
+.swipe-hint {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+}
+.swipe-hint.show { opacity: 1; }
+.swipe-hint.armed { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.swipe-hint.top { top: calc(env(safe-area-inset-top, 0px) + 8px); }
+.swipe-hint.side { bottom: 16px; }
+
 /* section dividers in the week detail */
 .wk-section-label {
   display: flex;

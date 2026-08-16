@@ -97,7 +97,11 @@ function renderOverview(container, ctx) {
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), list);
   // no dismiss gesture on the overview
   container.ontouchstart = null;
+  container.ontouchmove = null;
   container.ontouchend = null;
+  container.ontouchcancel = null;
+  container.classList.remove('gesture-live');
+  container.style.transform = '';
   // returning from a scrolled detail view must land at the top
   container.scrollTop = 0;
   requestAnimationFrame(() => { container.scrollTop = 0; });
@@ -201,35 +205,77 @@ function renderDetail(container, ctx) {
     ...(tips.length ? [el('div', { class: 'wk-section-label' }, 'Coach'), ...tips] : []),
   );
 
-  // Gestures (assignment keeps one handler across re-renders):
-  //  - firm pull-down while already at the top -> back to the overview
+  // Gestures with live feedback (assignment keeps one handler per render):
+  //  - pull down while already at the top -> back to the overview
   //  - horizontal swipe -> previous / next week (never past the current week)
+  // The content follows the finger and a hint pill appears once the gesture
+  // has passed its threshold, so the outcome is visible before releasing.
+  const DIST = 70;
+  const hint = el('div', { class: 'swipe-hint' });
+  container.append(hint);
+  const canNext = addDays(start, 7) <= startOfWeek(today);
   let gx = null;
   let gy = null;
   let gStartScroll = 0;
+  let axis = null;
+
+  const resetGesture = () => {
+    container.classList.remove('gesture-live');
+    container.style.transform = '';
+    hint.classList.remove('show');
+    gx = gy = null;
+    axis = null;
+  };
+
   container.ontouchstart = (e) => {
     gx = e.touches[0].clientX;
     gy = e.touches[0].clientY;
     gStartScroll = container.scrollTop;
+    axis = null;
+  };
+  container.ontouchmove = (e) => {
+    if (gy === null) return;
+    const dx = e.touches[0].clientX - gx;
+    const dy = e.touches[0].clientY - gy;
+    if (!axis && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
+      axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
+        : (gStartScroll <= 0 && dy > 0 ? 'y' : 'scroll');
+      if (axis !== 'scroll') container.classList.add('gesture-live');
+    }
+    if (axis === 'x') {
+      const blocked = dx < 0 && !canNext;
+      const shift = Math.max(-90, Math.min(90, dx * (blocked ? 0.15 : 0.35)));
+      container.style.transform = `translateX(${shift}px)`;
+      const armed = !blocked && Math.abs(dx) > DIST;
+      hint.textContent = dx < 0
+        ? (canNext ? (armed ? 'Release for next week ›' : 'Next week ›') : 'No later week')
+        : (armed ? '‹ Release for previous week' : '‹ Previous week');
+      hint.className = 'swipe-hint side show' + (armed ? ' armed' : '');
+    } else if (axis === 'y') {
+      const shift = Math.min(70, dy * 0.35);
+      container.style.transform = `translateY(${shift}px)`;
+      const armed = dy > DIST + 20;
+      hint.textContent = armed ? 'Release for all weeks' : 'Pull for all weeks';
+      hint.className = 'swipe-hint top show' + (armed ? ' armed' : '');
+    }
   };
   container.ontouchend = (e) => {
     if (gy === null) return;
     const dx = e.changedTouches[0].clientX - gx;
     const dy = e.changedTouches[0].clientY - gy;
-    gx = gy = null;
-    if (Math.abs(dx) > 60 && Math.abs(dx) > 1.6 * Math.abs(dy)) {
-      if (dx < 0) {
-        if (addDays(start, 7) <= startOfWeek(today)) ctx.setDate(addDays(ctx.date, 7));
-      } else {
-        ctx.setDate(addDays(ctx.date, -7));
-      }
+    const usedAxis = axis;
+    resetGesture();
+    if (usedAxis === 'x' && Math.abs(dx) > DIST) {
+      if (dx < 0) { if (canNext) ctx.setDate(addDays(ctx.date, 7)); }
+      else ctx.setDate(addDays(ctx.date, -7));
       return;
     }
-    if (gStartScroll <= 0 && container.scrollTop <= 0 && dy > 90 && Math.abs(dx) < 50) {
+    if (usedAxis === 'y' && gStartScroll <= 0 && container.scrollTop <= 0 && dy > DIST + 20) {
       mode = 'overview';
       render(container, ctx);
     }
   };
+  container.ontouchcancel = resetGesture;
 }
 
 // The report card: the week's verdict — rate vs band, intake, training —

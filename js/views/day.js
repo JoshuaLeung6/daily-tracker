@@ -81,23 +81,69 @@ export function render(container, ctx) {
     container.querySelectorAll('textarea').forEach(grow);
   });
 
-  // swipe left/right to change day (assignment keeps listeners from stacking)
+  // Gestures with live feedback (assignment keeps listeners from stacking):
+  //  - swipe left/right -> previous / next day
+  //  - pull down at the top -> zoom out to the Weeks overview
+  const DIST = 70;
+  const hint = el('div', { class: 'swipe-hint' });
+  container.append(hint);
   let startX = null;
   let startY = null;
+  let startScroll = 0;
+  let axis = null;
+
+  const resetGesture = () => {
+    container.classList.remove('gesture-live');
+    container.style.transform = '';
+    hint.classList.remove('show');
+    startX = startY = null;
+    axis = null;
+  };
+
   container.ontouchstart = (e) => {
+    if (e.target.closest('input, textarea, button')) { startX = startY = null; return; }
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
+    startScroll = container.scrollTop;
+    axis = null;
   };
-  container.ontouchend = (e) => {
-    if (startX === null) return;
-    const dx = e.changedTouches[0].clientX - startX;
-    const dy = e.changedTouches[0].clientY - startY;
-    startX = startY = null;
-    if (e.target.closest('input, textarea, button')) return;
-    if (Math.abs(dx) > 60 && Math.abs(dx) > 1.6 * Math.abs(dy)) {
-      ctx.setDate(addDays(iso, dx < 0 ? 1 : -1));
+  container.ontouchmove = (e) => {
+    if (startY === null) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (!axis && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
+      axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
+        : (startScroll <= 0 && dy > 0 ? 'y' : 'scroll');
+      if (axis !== 'scroll') container.classList.add('gesture-live');
+    }
+    if (axis === 'x') {
+      container.style.transform = `translateX(${Math.max(-90, Math.min(90, dx * 0.35))}px)`;
+      const armed = Math.abs(dx) > DIST;
+      hint.textContent = dx < 0
+        ? (armed ? 'Release for next day ›' : 'Next day ›')
+        : (armed ? '‹ Release for previous day' : '‹ Previous day');
+      hint.className = 'swipe-hint side show' + (armed ? ' armed' : '');
+    } else if (axis === 'y') {
+      container.style.transform = `translateY(${Math.min(70, dy * 0.35)}px)`;
+      const armed = dy > DIST + 20;
+      hint.textContent = armed ? 'Release for weeks' : 'Pull for weeks';
+      hint.className = 'swipe-hint top show' + (armed ? ' armed' : '');
     }
   };
+  container.ontouchend = (e) => {
+    if (startY === null) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    const usedAxis = axis;
+    const scrolledTop = startScroll <= 0 && container.scrollTop <= 0;
+    resetGesture();
+    if (usedAxis === 'x' && Math.abs(dx) > DIST) {
+      ctx.setDate(addDays(iso, dx < 0 ? 1 : -1));
+      return;
+    }
+    if (usedAxis === 'y' && scrolledTop && dy > DIST + 20 && ctx.goTab) ctx.goTab('week');
+  };
+  container.ontouchcancel = resetGesture;
 }
 
 // Optional journal for the day: a free-text note and progress photos.
