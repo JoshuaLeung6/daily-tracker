@@ -95,6 +95,9 @@ function renderOverview(container, ctx) {
   }
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), list);
+  // no dismiss gesture on the overview
+  container.ontouchstart = null;
+  container.ontouchend = null;
 }
 
 function renderDetail(container, ctx) {
@@ -191,6 +194,36 @@ function renderDetail(container, ctx) {
     rows,
     ...(tips.length ? [el('div', { class: 'wk-section-label' }, 'Coach'), ...tips] : []),
   );
+
+  // Gestures (assignment keeps one handler across re-renders):
+  //  - firm pull-down while already at the top -> back to the overview
+  //  - horizontal swipe -> previous / next week (never past the current week)
+  let gx = null;
+  let gy = null;
+  let gStartScroll = 0;
+  container.ontouchstart = (e) => {
+    gx = e.touches[0].clientX;
+    gy = e.touches[0].clientY;
+    gStartScroll = container.scrollTop;
+  };
+  container.ontouchend = (e) => {
+    if (gy === null) return;
+    const dx = e.changedTouches[0].clientX - gx;
+    const dy = e.changedTouches[0].clientY - gy;
+    gx = gy = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 1.6 * Math.abs(dy)) {
+      if (dx < 0) {
+        if (addDays(start, 7) <= startOfWeek(today)) ctx.setDate(addDays(ctx.date, 7));
+      } else {
+        ctx.setDate(addDays(ctx.date, -7));
+      }
+      return;
+    }
+    if (gStartScroll <= 0 && container.scrollTop <= 0 && dy > 90 && Math.abs(dx) < 50) {
+      mode = 'overview';
+      render(container, ctx);
+    }
+  };
 }
 
 // The report card: the week's verdict — rate vs band, intake, training —
