@@ -126,10 +126,11 @@ html[data-theme="light"] body::before {
 .tabbar {
   display: flex;
   border-top: 1px solid var(--hairline);
-  background: color-mix(in srgb, var(--bg) 92%, black);
-  /* keep the tabs clear of the home indicator, but don't pad the full
-     inset — that reads as a floating footer in the installed app */
-  padding-bottom: max(env(safe-area-inset-bottom, 0px) - 16px, 0px);
+  /* the bar is the SAME color as the page background: iOS paints any band
+     it withholds below the web view with the page background, so a matching
+     bar makes the two read as one continuous surface down to the edge */
+  background: var(--bg);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .tab {
