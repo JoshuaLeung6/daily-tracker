@@ -153,6 +153,36 @@ export function applyConfig(configTrackers, paceLookup) {
   return changed;
 }
 
+// Strip retired options from a picklist tracker's history (e.g. 'walk' from
+// Cardio). Removes the option from every day; a day left with no options
+// loses its cardio value entirely. Idempotent.
+export function stripOptions(map) {
+  const doc = getData();
+  let changed = false;
+  for (const [name, opts] of Object.entries(map || {})) {
+    const t = doc.trackers.find((x) => x.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (!t) continue;
+    const drop = new Set(opts.map((o) => o.toLowerCase()));
+    for (const [iso, day] of Object.entries(doc.entries)) {
+      const v = day[t.id];
+      if (Array.isArray(v)) {
+        const kept = v.filter((x) => !drop.has(String(x).toLowerCase()));
+        if (kept.length !== v.length) {
+          if (kept.length) day[t.id] = kept; else delete day[t.id];
+          if (Object.keys(day).length === 0) delete doc.entries[iso];
+          changed = true;
+        }
+      } else if (typeof v === 'string' && drop.has(v.toLowerCase())) {
+        delete day[t.id];
+        if (Object.keys(day).length === 0) delete doc.entries[iso];
+        changed = true;
+      }
+    }
+  }
+  if (changed) persistNow();
+  return changed;
+}
+
 // Backdated seed values: fill only where the day has no value for that
 // tracker. Idempotent and never destructive.
 export function applySeedValues(seeds, anchorISO) {

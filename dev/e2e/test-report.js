@@ -203,7 +203,7 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');
   cardText = await page.$eval('#view-week', (e) => e.textContent);
-  check('E: sparse weigh-ins -> no rate/badge', !/in band|fast|slow|trend [+-]/.test(cardText) && /1 weigh-in/.test(cardText),
+  check('E: sparse weigh-ins -> no rate/badge', !/in band|fast|slow|trend [+-]/.test(cardText) && /lb avg/.test(cardText),
     cardText.slice(0, 200));
   check('E: sparse weigh-ins -> no intake suggestion', !/add 100–150 kcal|trim 100–150 kcal/.test(cardText));
 

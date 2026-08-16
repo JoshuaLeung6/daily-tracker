@@ -43,6 +43,13 @@ export const SEED_VALUES = {
   ].map((d) => [d, true])),
 };
 
+// One-time cleanups of stored values, keyed by tracker name: options listed
+// here are stripped from that tracker's history (walk is now the 10k-steps
+// habit, not cardio). Idempotent — safe to leave in place.
+export const STRIP_OPTIONS = {
+  Cardio: ['walk'],
+};
+
 // Cardio picks that count as a "cardio day". Walking is tracked separately
 // as the "10k steps" habit (NEAT floor), not as conditioning.
 export const CARDIO_COUNTS = ['run', 'squash', 'bike'];

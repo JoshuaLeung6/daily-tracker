@@ -4,13 +4,13 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.14.3';
+export const APP_VERSION = '2.14.5';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
 import { todayISO } from './dates.js';
-import { applyConfig, applySeedValues } from './trackers.js';
-import { TRACKERS, SEED_VALUES, SEED_ANCHOR } from './config.js';
+import { applyConfig, applySeedValues, stripOptions } from './trackers.js';
+import { TRACKERS, SEED_VALUES, SEED_ANCHOR, STRIP_OPTIONS } from './config.js';
 import { PACE_PRESETS } from './insights.js';
 import * as dayView from './views/day.js';
 import * as weekView from './views/week.js';
@@ -49,6 +49,7 @@ applyTheme();
 try {
   applyConfig(TRACKERS, (phase, pace) => PACE_PRESETS[phase][pace]);
   applySeedValues(SEED_VALUES, SEED_ANCHOR);
+  stripOptions(STRIP_OPTIONS);
 } catch (e) {
   console.error('config apply failed', e);
 }

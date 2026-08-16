@@ -3,9 +3,9 @@
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
-import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet } from '../trackers.js';
+import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet, dayMeets } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
-import { weekReport, weekSuggestions, weeksOverview, weekLineStatus, verdictBadge } from '../insights.js';
+import { weekReport, weekSuggestions, weeksOverview, weekLineStatus, verdictBadge, isCardioDay } from '../insights.js';
 import { currentSprint } from '../sprints.js';
 import { CALORIE_BANDS } from '../config.js';
 
@@ -153,6 +153,16 @@ function renderDetail(container, ctx) {
     const cal = calT ? entry[calT.id] : null;
     const pro = proT ? entry[proT.id] : null;
 
+    // per-day R/Y/G: kcal by the calorie bands, protein vs its daily target,
+    // cardio green when real cardio logged, lift green when a workout exists.
+    // Weight is a reading, not a judgment — left neutral.
+    const calCls = typeof cal !== 'number' ? ''
+      : cal >= CALORIE_BANDS.good ? ' st-good' : cal >= CALORIE_BANDS.ok ? ' st-neutral' : ' st-bad';
+    const proCls = typeof pro !== 'number' ? ''
+      : (proT && dayMeets(proT, iso)) ? ' st-good' : ' st-bad';
+    const cardioCls = isFuture ? '' : (isCardioDay(cardioV) ? ' st-good' : '');
+    const liftCls = wo ? ' st-good' : '';
+
     rows.append(el('button', {
       class: 'week-row wr-ledger' + (iso === today ? ' is-today' : '') + (isFuture ? ' is-future' : ''),
       disabled: isFuture,
@@ -164,10 +174,10 @@ function renderDetail(container, ctx) {
           el('span', { class: 'dn' + (dayAllMet(iso) ? ' all-met' : '') }, String(Number(iso.slice(8)))),
         ),
         el('span', { class: 'wr-c' }, cellV(typeof wt === 'number' ? fmtN(wt) : null)),
-        el('span', { class: 'wr-c' }, cellV(typeof cal === 'number' ? Math.round(cal).toLocaleString() : null)),
-        el('span', { class: 'wr-c' }, cellV(typeof pro === 'number' ? Math.round(pro) : null)),
-        el('span', { class: 'wr-c wr-small' }, cellV(cardioTxt)),
-        el('span', { class: 'wr-c wr-small' + (wo ? ' wr-workout' : '') },
+        el('span', { class: 'wr-c' + calCls }, cellV(typeof cal === 'number' ? Math.round(cal).toLocaleString() : null)),
+        el('span', { class: 'wr-c' + proCls }, cellV(typeof pro === 'number' ? Math.round(pro) : null)),
+        el('span', { class: 'wr-c wr-small' + cardioCls }, cellV(cardioTxt)),
+        el('span', { class: 'wr-c wr-small' + (wo ? ' wr-workout' : '') + liftCls },
           wo ? SPLIT_LABELS[wo.split] : (stepsDone ? '' : '—')),
       ),
     ));
@@ -215,7 +225,6 @@ function buildReportCard(ctx) {
           badge,
           // trend rate drives the band verdict; keep it visible when known
           w.rate ? el('span', { class: 'rp-dim' }, ` · trend ${w.rate.pct > 0 ? '+' : ''}${w.rate.pct.toFixed(2)}%/wk`) : null,
-          el('span', { class: 'rp-dim' }, ` · ${w.weighIns} weigh-in${w.weighIns === 1 ? '' : 's'}`),
         ), st.weight));
     } else {
       card.append(rpRow(w.tracker.name, el('span', { class: 'rp-dim' }, 'no weigh-ins this week')));
@@ -229,7 +238,6 @@ function buildReportCard(ctx) {
       el('span', {},
         r.intake.avg != null ? el('b', {}, Math.round(r.intake.avg).toLocaleString()) : el('span', { class: 'rp-dim' }, '—'),
         r.intake.avg != null ? ` ${r.intake.unit} avg` : '',
-        el('span', { class: 'rp-dim' }, ` · aim ${CALORIE_BANDS.good.toLocaleString()}+`),
         r.intake.of > 0 ? outOf(r.intake.hit) : null,
       ), st.calories));
     any = true;

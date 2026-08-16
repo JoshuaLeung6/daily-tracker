@@ -100,9 +100,9 @@ const localISO = (offset) => {
   check('five lines: Weight, Calories, Protein, Cardio, Workouts',
     JSON.stringify(labels) === JSON.stringify(['Weight', 'Calories', 'Protein', 'Cardio', 'Workouts']), labels.join(','));
   const rows = await page.$$eval('.report-card .rp-row', (els) => els.map((e) => e.textContent));
-  check('weight line: avg · % vs last wk · weigh-ins', /avg · [+-]\d\.\d\d% vs last wk/.test(rows[0]) && /weigh-in/.test(rows[0]), rows[0]);
+  check('weight line: avg · % vs last wk (no weigh-in count)', /avg · [+-]\d\.\d\d% vs last wk/.test(rows[0]) && !/weigh-in/.test(rows[0]), rows[0]);
   if (daysSoFar > 0) {
-    check(`calories line: avg · aim · ${daysSoFar}/${daysSoFar} days`, new RegExp(`2,900 kcal avg · aim 3,000\\+ · ${daysSoFar}/${daysSoFar} days`).test(rows[1]), rows[1]);
+    check(`calories line: avg · ${daysSoFar}/${daysSoFar} days`, new RegExp(`2,900 kcal avg · ${daysSoFar}/${daysSoFar} days`).test(rows[1]) && !/aim/.test(rows[1]), rows[1]);
     check('protein line: avg · hit/days', /g avg · \d\/\d days/.test(rows[2]), rows[2]);
     check(`cardio line: N/${daysSoFar} (walk-only excluded)`, new RegExp(`\\d/${daysSoFar} days`).test(rows[3]), rows[3]);
     check(`workouts line: N/${daysSoFar} + splits`, new RegExp(`\\d/${daysSoFar} days`).test(rows[4]) && /Push|Pull|Legs/.test(rows[4]), rows[4]);

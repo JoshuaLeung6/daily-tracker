@@ -970,7 +970,7 @@ html[data-theme="light"] body::before {
 
 /* ---------- week view ---------- */
 
-.week-rows { display: flex; flex-direction: column; gap: 8px; }
+.week-rows { display: flex; flex-direction: column; gap: 5px; }
 
 .week-row {
   display: flex;
@@ -988,20 +988,20 @@ html[data-theme="light"] body::before {
 .week-row.is-today { border-color: var(--accent); }
 
 /* aligned day-ledger rows in the week detail */
-.wr-ledger { padding: 8px 12px; min-height: 0; }
+.wr-ledger { padding: 6px 12px; min-height: 0; }
 .wr-ledger.is-future { opacity: 0.4; }
 .wr-cols {
   display: grid;
-  grid-template-columns: 44px 1fr 1fr 1fr 1.1fr 1fr;
+  grid-template-columns: 42px 1fr 1fr 1fr 1.1fr 1fr;
   gap: 4px;
   align-items: center;
   width: 100%;
 }
-.wr-ledger .wr-date { width: auto; text-align: left; display: flex; align-items: baseline; gap: 5px; }
-.wr-ledger .wr-date .wd { font-size: 10px; }
-.wr-ledger .wr-date .dn { font-size: 16px; }
-.wr-c { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wr-c.wr-small { font-size: 11px; font-weight: 500; color: var(--muted); }
+.wr-ledger .wr-date { width: auto; text-align: left; display: flex; align-items: baseline; gap: 4px; }
+.wr-ledger .wr-date .wd { font-size: 9px; }
+.wr-ledger .wr-date .dn { font-size: 14px; }
+.wr-c { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-c.wr-small { font-size: 10px; font-weight: 500; color: var(--muted); }
 .wr-c.wr-workout { color: var(--accent); font-weight: 700; }
 .wr-colhead {
   padding: 0 12px 4px;
@@ -1155,9 +1155,10 @@ html[data-theme="light"] body::before {
 
 /* shared line status coloring (week card rows + overview cells):
    good = green, neutral = amber (partial), bad = red */
-.st-good .wk-cell-v, .rp-row.st-good .rp-value b { color: var(--met-day); }
-.st-neutral .wk-cell-v, .rp-row.st-neutral .rp-value b { color: var(--partial); }
-.st-bad .wk-cell-v, .rp-row.st-bad .rp-value b { color: var(--danger); }
+.st-good .wk-cell-v, .rp-row.st-good .rp-value b, .wr-c.st-good { color: var(--met-day); }
+.st-neutral .wk-cell-v, .rp-row.st-neutral .rp-value b, .wr-c.st-neutral { color: var(--partial); }
+.st-bad .wk-cell-v, .rp-row.st-bad .rp-value b, .wr-c.st-bad { color: var(--danger); }
+.wr-c.wr-workout.st-good { color: var(--met-day); }
 
 .wk-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; }
 .wk-dot.green { background: var(--met-day); }
