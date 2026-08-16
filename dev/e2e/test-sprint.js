@@ -75,7 +75,11 @@ const localISO = (offset) => {
   await page.reload({ waitUntil: 'networkidle0' });
   await page.removeScriptToEvaluateOnNewDocument(inj.identifier);
   await page.waitForSelector('.card');
-  const daysSoFar = -monOff + 1;
+  // completed days only: today is excluded from denominators
+  const daysSoFar = -monOff;
+  if (daysSoFar === 0) {
+    console.log('PASS  (Monday: no completed days this week — week-card denominators skipped)');
+  }
 
   // ---- 1. five-line week card ----
   await page.click('.tab[data-tab="week"]');
@@ -93,10 +97,12 @@ const localISO = (offset) => {
     JSON.stringify(labels) === JSON.stringify(['Weight', 'Calories', 'Protein', 'Cardio', 'Workouts']), labels.join(','));
   const rows = await page.$$eval('.report-card .rp-row', (els) => els.map((e) => e.textContent));
   check('weight line: avg · % vs last wk · weigh-ins', /avg · [+-]\d\.\d\d% vs last wk/.test(rows[0]) && /weigh-in/.test(rows[0]), rows[0]);
-  check(`calories line: avg · ${daysSoFar}/${daysSoFar} days`, new RegExp(`2,900 kcal avg · ${daysSoFar}/${daysSoFar} days`).test(rows[1]), rows[1]);
-  check('protein line: avg · hit/days', /g avg · \d\/\d days/.test(rows[2]), rows[2]);
-  check('cardio line: N/days', new RegExp(`\\d/${daysSoFar} days`).test(rows[3]), rows[3]);
-  check('workouts line: N/days + splits', new RegExp(`\\d/${daysSoFar} days`).test(rows[4]) && /Push|Pull|Legs/.test(rows[4]), rows[4]);
+  if (daysSoFar > 0) {
+    check(`calories line: avg vs target · ${daysSoFar}/${daysSoFar} days`, new RegExp(`2,900 kcal avg vs ≥ 2,800 · ${daysSoFar}/${daysSoFar} days`).test(rows[1]), rows[1]);
+    check('protein line: avg · hit/days', /g avg · \d\/\d days/.test(rows[2]), rows[2]);
+    check(`cardio line: N/${daysSoFar} (walk-only excluded)`, new RegExp(`\\d/${daysSoFar} days`).test(rows[3]), rows[3]);
+    check(`workouts line: N/${daysSoFar} + splits`, new RegExp(`\\d/${daysSoFar} days`).test(rows[4]) && /Push|Pull|Legs/.test(rows[4]), rows[4]);
+  }
   await page.screenshot({ path: path.join(__dirname, 'shots', 'week-five-lines.png') });
 
   // ---- 2. sprint pane ----

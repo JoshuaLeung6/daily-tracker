@@ -112,13 +112,11 @@ const localISO = (offset) => {
   const wkText = await page.$eval('.report-card', (e) => e.textContent);
   check('custom aggressive band -> +0.18%/wk reads slow', /slow/.test(wkText) && !/in band/.test(wkText), wkText.slice(0, 140));
 
-  // pace select prefills from stored band
+  // goal card shows the stored band as its pace label
   await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('.goal-card');
-  await page.evaluate(() => [...document.querySelectorAll('.icon-btn')].find((b) => /Edit .* goal/.test(b.getAttribute('aria-label') || '')).click());
-  await page.waitForSelector('select[aria-label="Pace"]');
-  const paceVal = await page.$eval('select[aria-label="Pace"]', (e) => e.value);
-  check('pace select prefills aggressive from stored band', paceVal === 'aggressive', paceVal);
+  const paceLabel = await page.$eval('.goal-card', (e) => e.textContent);
+  check('goal card shows aggressive band as pace', /pace \+0\.25–0\.5%\/wk/.test(paceLabel), paceLabel.slice(0, 120));
 
   // ---- 4. e1RM filtered for >10-rep sets ----
   const injD = await inject({

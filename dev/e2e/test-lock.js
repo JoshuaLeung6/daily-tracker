@@ -38,8 +38,9 @@ function check(name, ok, extra = '') {
   await page.waitForSelector('.lock-pill.unlocked');
   check('pill flips to Editing', await page.$eval('.lock-pill', (p) => p.textContent.includes('Editing')));
   const unlockedCards = await page.$$eval('.cards .card', (els) => els.length);
-  // Weightlifting checkbox has no card (derived from the workout log) -> 3 of the 4 seeds
-  check('unlocking reveals the 3 loggable trackers', unlockedCards === 3, `cards: ${unlockedCards}`);
+  // config trackers minus the Weightlifting checkbox (derived from the workout log):
+  // Calories, Protein, Cardio, Weight
+  check('unlocking reveals the 4 loggable trackers', unlockedCards === 4, `cards: ${unlockedCards}`);
   await page.click('.card input[type="text"]');
   await page.keyboard.type('1800');
   await new Promise((r) => setTimeout(r, 500));

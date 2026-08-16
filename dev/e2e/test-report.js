@@ -72,7 +72,8 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
       [localISO(-8)]: { split: 'legs', focus: 'weight', lifts: [{ name: 'Squat', weight: 225, reps: 5, sets: 3 }] },
     },
   });
-  const expectedSessions = 1 + (((new Date().getDay() + 6) % 7) >= 1 ? 1 : 0);
+  // completed days only: today's session is excluded, so only the yesterday one counts (if in-week)
+  const expectedSessions = (((new Date().getDay() + 6) % 7) >= 1 ? 1 : 0);
   await page.reload({ waitUntil: 'networkidle0' });
   await page.removeScriptToEvaluateOnNewDocument(injA.identifier);
   await page.waitForSelector('.card');
@@ -86,9 +87,9 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   check('A: in-band badge (0.18 in 0.1–0.25)', /in band/.test(cardText), cardText);
   check('A: calories avg 2,900', /2,900 kcal avg/.test(cardText), cardText);
   check('A: protein line has hit/days', /g avg · \d\/\d days/.test(cardText), cardText);
-  check(`A: workouts line shows ${expectedSessions} day(s) + splits`,
-    new RegExp(`Workouts${expectedSessions}/\\d days`).test(cardText) && /Push 1/.test(cardText)
-    && (expectedSessions < 2 || /Pull 1/.test(cardText)), cardText);
+  check(`A: workouts line shows ${expectedSessions} completed day(s)`,
+    new RegExp(`Workouts${expectedSessions}/\\d days`).test(cardText)
+    && (expectedSessions < 1 || /Pull 1/.test(cardText)), cardText);
   const suggCountA = (await page.$$('.suggest-card')).length;
   check('A: no rate suggestion when in band', suggCountA === 0 || !(await page.$eval('#view-week', (e) => /kcal\/day\b.*add|trim/.test(e.textContent))), `cards: ${suggCountA}`);
   await page.screenshot({ path: path.join(__dirname, 'shots', 'report-inband.png') });
@@ -165,8 +166,9 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');
   cardText = await page.$eval('#view-week', (e) => e.textContent);
-  check('D: fast badge with fat risk', /fast — fat risk/.test(cardText), cardText.slice(0, 200));
-  check('D: trim suggestion fires', /trim 100–150 kcal\/day/.test(cardText), cardText.slice(0, 400));
+  // fast gain is deliberately NOT a concern (config FLAGS.warnFastGain=false)
+  check('D: above-band gain reads "ahead of band" (not a warning)', /ahead of band/.test(cardText) && !/fat risk/.test(cardText), cardText.slice(0, 200));
+  check('D: no trim suggestion while fast gain is not a concern', !/trim 100–150 kcal\/day/.test(cardText), cardText.slice(0, 400));
 
   // ---- past week: no suggestions ----
   await page.click('.nav-arrow[aria-label="Previous week"]');

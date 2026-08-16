@@ -68,6 +68,80 @@ export function daysWithValue(id) {
   return Object.values(getData().entries).filter((day) => id in day).length;
 }
 
+// ----- code config reconciliation -----
+// Applies js/config.js TRACKERS to stored data. Idempotent; never touches
+// logged values; archives (not deletes) trackers missing from config.
+
+export function applyConfig(configTrackers, paceLookup) {
+  const doc = getData();
+  const today = todayISO();
+  let changed = false;
+  const byName = new Map(doc.trackers.map((t) => [t.name.trim().toLowerCase(), t]));
+  const seen = new Set();
+
+  configTrackers.forEach((c, i) => {
+    const key = c.name.trim().toLowerCase();
+    seen.add(key);
+    let t = byName.get(key);
+    if (!t) {
+      t = {
+        id: 't_' + crypto.randomUUID(), name: c.name, type: c.type,
+        unit: c.unit || null, order: i, archived: false,
+      };
+      if (c.options) t.options = [...c.options];
+      doc.trackers.push(t);
+      byName.set(key, t);
+      changed = true;
+    } else {
+      const patch = { type: c.type, unit: c.unit || null, order: i, archived: false };
+      if (c.options) patch.options = [...c.options];
+      for (const [k, v] of Object.entries(patch)) {
+        if (JSON.stringify(t[k]) !== JSON.stringify(v)) { t[k] = v; changed = true; }
+      }
+      if (!c.options && t.options && (c.type === 'select' || c.type === 'multiselect')) { /* keep stored options */ }
+    }
+
+    // target: only rewrite when it differs from today's effective target
+    if (c.target) {
+      const cur = targetFor(t, today);
+      const dir = c.type === 'number' ? (c.target.dir === 'atmost' ? 'atmost' : 'atleast') : undefined;
+      const same = cur && cur.period === c.target.period && cur.value === c.target.value
+        && (c.type !== 'number' || (cur.dir || 'atleast') === dir);
+      if (!same) {
+        t.targets ??= [];
+        const entry = { from: today, value: c.target.value, period: c.target.period };
+        if (dir) entry.dir = dir;
+        const idx = t.targets.findIndex((x) => x.from === today);
+        if (idx >= 0) t.targets[idx] = entry; else t.targets.push(entry);
+        t.targets.sort((a, b) => (a.from < b.from ? -1 : 1));
+        changed = true;
+      }
+    }
+
+    // goal: only rewrite when it differs
+    if (c.goal) {
+      const band = c.goal.pace && paceLookup ? paceLookup(c.goal.target > c.goal.startValue ? 'gain' : 'loss', c.goal.pace) : null;
+      const g = t.goal;
+      const same = g && g.startValue === c.goal.startValue && g.target === c.goal.target
+        && (g.deadline || null) === (c.goal.deadline || null)
+        && JSON.stringify(g.band || null) === JSON.stringify(band ? { lo: band.lo, hi: band.hi } : null);
+      if (!same) {
+        t.goal = { from: today, startValue: c.goal.startValue, target: c.goal.target, deadline: c.goal.deadline || null };
+        if (band) t.goal.band = { lo: band.lo, hi: band.hi };
+        changed = true;
+      }
+    }
+  });
+
+  // anything stored but not configured -> archived (data preserved)
+  for (const t of doc.trackers) {
+    if (!seen.has(t.name.trim().toLowerCase()) && !t.archived) { t.archived = true; changed = true; }
+  }
+
+  if (changed) persistNow();
+  return changed;
+}
+
 // ----- targets (effective-dated) -----
 // tracker.targets is a from-date-sorted series: [{ from, value, period }].
 // The target in force on a given day is the latest entry with from <= day,

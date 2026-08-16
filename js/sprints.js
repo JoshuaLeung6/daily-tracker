@@ -58,7 +58,9 @@ function snapshotAt(iso, sprintStart) {
 }
 
 export function sprintReport(sprint) {
-  const today = todayISO();
+  const realToday = todayISO();
+  // totals count COMPLETED days only — today is still in progress
+  const today = addDays(realToday, -1);
   const s = resolveSprint(sprint);
   if (!s) return null;
   const endEff = s.end <= today ? s.end : today;
@@ -69,9 +71,10 @@ export function sprintReport(sprint) {
     totalDays,
     elapsed,
     remaining: Math.max(0, totalDays - elapsed),
-    done: s.end < today,
+    done: s.end < realToday,
     start: snapshotAt(s.start, s.start),
-    now: snapshotAt(endEff, s.start),
+    // "now" snapshot uses today's trend weight (a weigh-in is complete)
+    now: snapshotAt(s.end <= realToday ? s.end : realToday, s.start),
   };
 
   // per-lift start-vs-now e1RM (start = first e1RM in the sprint)

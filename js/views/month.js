@@ -5,7 +5,7 @@ import { todayISO, addMonths, monthGrid, monthTitle, fmt, startOfWeek, addDays }
 import { getEntry } from '../store.js';
 import { dayAllMet } from '../trackers.js';
 import { getWorkout, SPLITS, SPLIT_LABELS } from '../workouts.js';
-import { monthReport } from '../insights.js';
+import { monthReport, verdictBadge } from '../insights.js';
 import { photoDates } from '../photos.js';
 
 export function render(container, ctx) {
@@ -77,14 +77,7 @@ function buildMonthSummary(iso) {
   if (r.weight && r.weight.delta != null) {
     const w = r.weight;
     const unit = w.tracker.unit ? ` ${w.tracker.unit}` : '';
-    let badge = null;
-    if (w.verdict === 'in') badge = el('span', { class: 'rp-badge in' }, 'in band');
-    else if (w.verdict) {
-      const gaining = w.band.phase === 'gain';
-      const harmful = (gaining && w.verdict === 'above') || (!gaining && w.verdict === 'below');
-      badge = el('span', { class: 'rp-badge ' + (harmful ? 'bad' : 'off') },
-        w.verdict === 'above' ? (gaining ? 'fast — fat risk' : 'slow') : (gaining ? 'slow' : 'fast — muscle risk'));
-    }
+    const badge = verdictBadge(w.band, w.verdict);
     card.append(rpRow(w.tracker.name,
       el('span', {},
         el('b', {}, `${w.delta > 0 ? '+' : ''}${fmtN(w.delta)}${unit}`),

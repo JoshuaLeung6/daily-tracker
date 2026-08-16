@@ -68,15 +68,9 @@ function goalsPane(rerender) {
   const withGoals = activeTrackers().filter((t) => t.goal);
 
   const goalSection = el('div', { class: 'settings-section' }, el('h2', {}, 'Goals'));
-  for (const t of withGoals) {
-    goalSection.append(editingGoalId === t.id ? goalForm(t, rerender) : goalCard(t, rerender));
-  }
-  if (editingGoalId === '__new__') goalSection.append(goalForm(null, rerender));
-  else {
-    goalSection.append(el('button', {
-      class: 'ghost-btn',
-      onclick: () => { editingGoalId = '__new__'; rerender(); },
-    }, '+ Add goal'));
+  for (const t of withGoals) goalSection.append(goalCard(t, rerender));
+  if (withGoals.length === 0) {
+    goalSection.append(el('div', { class: 'empty-state' }, 'No goal set yet — ask Claude to set one up.'));
   }
   wrap.append(goalSection);
 
@@ -111,10 +105,7 @@ function goalCard(t, rerender) {
   const card = el('div', { class: 'card goal-card' },
     el('div', { class: 'gc-head' },
       el('span', { class: 'gc-name' }, t.name),
-      el('button', {
-        class: 'icon-btn', 'aria-label': `Edit ${t.name} goal`,
-        onclick: () => { editingGoalId = t.id; rerender(); },
-      }, '✎'),
+      rateBand(t) ? el('span', { class: 'att-desc' }, `pace ${rateBand(t).label}`) : null,
     ),
     el('div', { class: 'gc-route' },
       `${fmtN(p.startValue)} → ${fmtN(p.target)}${unit}`,

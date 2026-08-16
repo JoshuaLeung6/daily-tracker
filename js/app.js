@@ -4,11 +4,14 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.11.0';
+export const APP_VERSION = '2.12.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
 import { todayISO } from './dates.js';
+import { applyConfig } from './trackers.js';
+import { TRACKERS } from './config.js';
+import { PACE_PRESETS } from './insights.js';
 import * as dayView from './views/day.js';
 import * as weekView from './views/week.js';
 import * as statsView from './views/stats.js';
@@ -42,6 +45,13 @@ initStore({
 
 applyTheme();
 
+// reconcile the code-level personal config into stored data (non-destructive)
+try {
+  applyConfig(TRACKERS, (phase, pace) => PACE_PRESETS[phase][pace]);
+} catch (e) {
+  console.error('config apply failed', e);
+}
+
 const ctx = {
   get date() { return state.date; },
   setDate(iso) {
@@ -74,7 +84,15 @@ function switchTab(tab) {
 }
 
 for (const btn of document.querySelectorAll('.tab')) {
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  btn.addEventListener('click', () => {
+    // Tapping the Day tab always lands on today. Only explicit "open this
+    // day" actions (from the week detail) carry a different date across.
+    if (btn.dataset.tab === 'day') {
+      state.date = todayISO();
+      state.followToday = true;
+    }
+    switchTab(btn.dataset.tab);
+  });
 }
 
 // autosave confirmation flash

@@ -83,53 +83,33 @@ const localISO = (offset) => {
   check('week card includes weight line', /Weight/.test(wkText), wkText);
   check('weight shows an average, never a sum', /lb avg/.test(wkText) && !/372|374\.5/.test(wkText), wkText);
 
-  // ---- 4. settings: measurement has no target editor; kind switch works ----
+  // ---- 4. settings: read-only summary shows kind + goal ----
   await page.click('.tab[data-tab="settings"]');
   await page.waitForSelector('.tracker-row');
   const metaText = await page.evaluate(() => [...document.querySelectorAll('.tr-info .meta')].map((m) => m.textContent).join(' | '));
   check('settings meta: Weight is Measurement with goal', /Measurement.*goal 175/.test(metaText), metaText);
-  await page.evaluate(() => [...document.querySelectorAll('.icon-btn')].find((b) => b.getAttribute('aria-label') === 'Edit Weight').click());
-  await page.waitForSelector('.tr-edit');
-  check('no target editor for measurement', (await page.$('select[aria-label="Target period"]')) === null);
-  check('kind selector present', (await page.$('select[aria-label="Number kind"]')) !== null);
+  check('settings is read-only (no edit buttons)', (await page.$('.icon-btn[aria-label^="Edit"]')) === null);
 
-  // switch Weight -> amount (should confirm + drop goal)
-  await page.select('select[aria-label="Number kind"]', 'number');
-  await clickByText('.btn.primary', 'Save');
-  await new Promise((r) => setTimeout(r, 200));
+  // ---- 5. code config: switching kind via applyConfig; goal via config ----
+  await page.evaluate(async () => {
+    const t = await import('./js/trackers.js');
+    const ins = await import('./js/insights.js');
+    t.applyConfig([
+      { name: 'Calories', type: 'number', unit: 'kcal' },
+      { name: 'Weight', type: 'measurement', unit: 'lb', goal: { startValue: 190, target: 175, pace: 'standard' } },
+    ], (phase, pace) => ins.PACE_PRESETS[phase][pace]);
+  });
   let doc2 = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')));
   let wt2 = doc2.trackers.find((t) => t.name === 'Weight');
-  check('switch to amount: confirm shown + goal dropped', dialogs.length === 1 && wt2.type === 'number' && !wt2.goal,
-    `dialogs: ${dialogs.length}, type: ${wt2.type}`);
+  check('config goal applied with loss band', wt2.goal && wt2.goal.target === 175 && wt2.goal.band && wt2.goal.band.lo === -1.0,
+    JSON.stringify(wt2.goal));
 
-  // switch back to measurement
-  await page.evaluate(() => [...document.querySelectorAll('.icon-btn')].find((b) => b.getAttribute('aria-label') === 'Edit Weight').click());
-  await page.waitForSelector('select[aria-label="Number kind"]');
-  await page.select('select[aria-label="Number kind"]', 'measurement');
-  await clickByText('.btn.primary', 'Save');
-  await new Promise((r) => setTimeout(r, 200));
-  doc2 = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')));
-  wt2 = doc2.trackers.find((t) => t.name === 'Weight');
-  check('switch back to measurement', wt2.type === 'measurement');
-
-  // ---- 5. add-tracker popup offers Measurement with unit field ----
-  await clickByText('.ghost-btn', '+ Add tracker');
-  await page.waitForSelector('.sheet.add-form');
-  const typeOptions = await page.$$eval('.add-form select[aria-label="Tracker type"] option', (els) => els.map((e) => e.textContent));
-  check('add form lists Measurement type', typeOptions.some((o) => /Measurement/.test(o)), typeOptions.join(','));
-  await page.select('.add-form select[aria-label="Tracker type"]', 'measurement');
-  const unitHidden = await page.$eval('.add-form .field:has(input[aria-label="Unit"])', (e) => e.hidden).catch(() => null);
-  check('unit field visible for measurement', unitHidden === false, String(unitHidden));
-  await page.evaluate(() => document.querySelector('.sheet-backdrop').click());
-
-  // ---- 6. goal picker only lists measurements ----
+  // ---- 6. goals pane: no add-goal UI, goal card present ----
   await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.ghost-btn');
-  await clickByText('.ghost-btn', '+ Add goal');
-  await page.waitForSelector('select[aria-label="Goal tracker"]');
-  const goalOptions = await page.$$eval('select[aria-label="Goal tracker"] option', (els) => els.map((e) => e.textContent));
-  check('goal picker lists Weight but not Calories',
-    goalOptions.includes('Weight') && !goalOptions.includes('Calories'), goalOptions.join(','));
+  await page.waitForSelector('.goal-card');
+  check('goals pane has no + Add goal button',
+    !(await page.evaluate(() => [...document.querySelectorAll('.ghost-btn')].some((b) => /Add goal/.test(b.textContent)))));
+  check('goal card shows pace', await page.$eval('.goal-card', (e) => /pace/.test(e.textContent)));
 
   // ---- 7. attainment: only Calories (weight has no targets) ----
   const attNames = await page.$$eval('.att-card .gc-name', (els) => els.map((e) => e.textContent));

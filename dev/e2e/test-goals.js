@@ -111,20 +111,19 @@ const localISO = (offset) => {
   const liftCard = wkCards.find((t) => t.includes('Weightlifting'));
   check(`weightlifting card shows ${liftDays}/4 this week`, liftCard && liftCard.includes(`${liftDays}/4`), liftCard);
 
-  // ---- 3. add a body-weight value goal via UI ----
-  await clickByText('.ghost-btn', '+ Add goal');
-  await page.waitForSelector('select[aria-label="Goal tracker"]');
-  await page.select('select[aria-label="Goal tracker"]', '__new_weight__');
-  await page.evaluate((deadline) => {
-    const set = (label, val) => {
-      const i = document.querySelector(`input[aria-label="${label}"]`);
-      i.value = val;
-    };
-    set('Starting value', '190');
-    set('Goal target', '175');
-    document.querySelector('input[aria-label="Deadline (optional)"]').value = deadline;
+  // ---- 3. add a body-weight goal via code config (creates the Weight tracker) ----
+  await page.evaluate(async (deadline) => {
+    const t = await import('./js/trackers.js');
+    const ins = await import('./js/insights.js');
+    t.applyConfig([
+      { name: 'Calories', type: 'number', unit: 'kcal' },
+      { name: 'Protein', type: 'number', unit: 'g' },
+      { name: 'Weightlifting', type: 'checkbox' },
+      { name: 'Weight', type: 'measurement', unit: 'lb', goal: { startValue: 190, target: 175, deadline, pace: 'standard' } },
+    ], (phase, pace) => ins.PACE_PRESETS[phase][pace]);
   }, localISO(70));
-  await clickByText('.btn.primary', 'Save goal');
+  await page.click('.tab[data-tab="day"]');
+  await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('.goal-card');
   let goalText = await page.$eval('.goal-card', (e) => e.textContent);
   check('goal card: 190 -> 175 lb', /190 → 175 lb/.test(goalText), goalText);
@@ -133,7 +132,7 @@ const localISO = (offset) => {
     const doc = JSON.parse(localStorage.getItem('pcal:data'));
     return doc.trackers.some((t) => t.name === 'Weight' && t.goal && t.goal.target === 175);
   });
-  check('Weight tracker auto-created with goal', weightCreated);
+  check('Weight tracker created by config with goal', weightCreated);
 
   // log a weight and see progress move
   await page.click('.tab[data-tab="day"]');

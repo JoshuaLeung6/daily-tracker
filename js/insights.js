@@ -13,6 +13,43 @@ import { todayISO, addDays, startOfWeek, fromISO, toLocalISO } from './dates.js'
 import { getEntry, getData } from './store.js';
 import { activeTrackers, targetFor, dayMeets, dayAllMet, ratePerWeek, avgOverDays } from './trackers.js';
 import { allWorkouts, liftVolume, liftStats, SPLITS, SPLIT_LABELS } from './workouts.js';
+import { FLAGS, CARDIO_COUNTS } from './config.js';
+
+// Does a day's cardio value count as a cardio day? Walk-only doesn't.
+export function isCardioDay(v) {
+  if (Array.isArray(v)) return v.some((x) => CARDIO_COUNTS.includes(String(x).toLowerCase()));
+  if (typeof v === 'string') return CARDIO_COUNTS.includes(v.toLowerCase());
+  if (v === true) return true;
+  return typeof v === 'number' && v > 0;
+}
+
+// The badge element for a band verdict — one place so every view agrees.
+export function verdictBadge(band, verdict) {
+  if (!band || !verdict) return null;
+  const mk = (cls, text) => {
+    const s = document.createElement('span');
+    s.className = 'rp-badge ' + cls;
+    s.textContent = text;
+    return s;
+  };
+  if (verdict === 'in') return mk('in', 'in band');
+  const gaining = band.phase === 'gain';
+  if (gaining && verdict === 'above') {
+    return FLAGS.warnFastGain ? mk('bad', 'fast — fat risk') : mk('in', 'ahead of band');
+  }
+  if (gaining) return mk('off', 'slow');
+  return verdict === 'below' ? mk('bad', 'fast — muscle risk') : mk('off', 'slow');
+}
+
+// Is an off-band weight verdict something to warn about? Gaining "above" on
+// a bulk is only harmful if the fast-gain flag is on; losing too fast on a
+// cut always is (muscle risk).
+export function verdictIsHarmful(band, verdict) {
+  if (!band || !verdict || verdict === 'in') return false;
+  const gaining = band.phase === 'gain';
+  if (gaining) return verdict === 'above' && FLAGS.warnFastGain;
+  return verdict === 'below';
+}
 
 // Mean + count of a measurement's logged values over the trailing 7 days.
 function trendStats(id, iso) {
@@ -132,23 +169,30 @@ function volumeBetween(startISO, endISOExcl, split = null) {
 
 // Everything the Week Report Card needs, for the week containing `iso`.
 export function weekReport(iso) {
-  const today = todayISO();
+  const realToday = todayISO();
   const ws = startOfWeek(iso);
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
-  // for the current week, measure through today, not a future Sunday
+  // Today is still in progress, so week averages / "N of M days" count
+  // COMPLETED days only: for the current week, measure through yesterday.
+  // (Trend weight still uses today's weigh-in — a morning reading is done.)
+  const yesterday = addDays(realToday, -1);
+  const today = yesterday;
   const end = days[6] <= today ? days[6] : today;
-  const report = { ws, days, end, isCurrent: startOfWeek(today) === ws };
+  const report = { ws, days, end, isCurrent: startOfWeek(realToday) === ws };
 
   // --- weight (never for fully-future weeks — their data window is empty) ---
   const wt = weightTracker();
-  if (wt && ws <= today) {
-    const rate = weeklyRate(wt.id, end);
+  if (wt && ws <= realToday) {
+    // trend/rate through today (a morning weigh-in is a completed reading)
+    const trendEnd = days[6] <= realToday ? days[6] : realToday;
+    const rate = weeklyRate(wt.id, trendEnd);
     const band = rateBand(wt);
-    // plain mean of THIS week's readings (the zoomed-out "avg" number)
+    // plain mean of THIS week's readings incl. today's (weigh-ins are complete
+    // the moment they happen)
     let sum = 0;
     let n = 0;
     for (const d of days) {
-      if (d > today) continue;
+      if (d > realToday) continue;
       const v = getEntry(d)[wt.id];
       if (typeof v === 'number') { sum += v; n++; }
     }
@@ -163,7 +207,7 @@ export function weekReport(iso) {
     const prevAvg = pn > 0 ? psum / pn : null;
     report.weight = {
       tracker: wt,
-      trend: trendWeightOn(wt.id, end),
+      trend: trendWeightOn(wt.id, trendEnd),
       weekAvg,
       weighIns: n,
       prevAvg,
@@ -217,8 +261,7 @@ export function weekReport(iso) {
     let daysDone = 0;
     for (const d of days) {
       if (d > today) continue;
-      const v = getEntry(d)[cardio.id];
-      if (v === true || (typeof v === 'string' && v) || (Array.isArray(v) && v.length > 0) || (typeof v === 'number' && v > 0)) daysDone++;
+      if (isCardioDay(getEntry(d)[cardio.id])) daysDone++;
     }
     report.cardio = { days: daysDone };
   }
@@ -228,7 +271,8 @@ export function weekReport(iso) {
   let sessions = 0;
   const workoutDays = new Set();
   for (const w of allWorkouts()) {
-    if (w.date < ws || w.date > days[6]) continue;
+    // completed days only for the current week (today's session shows up tomorrow)
+    if (w.date < ws || w.date > days[6] || w.date > today) continue;
     sessions++;
     workoutDays.add(w.date);
     bySplit[w.split] = (bySplit[w.split] || 0) + 1;
@@ -258,6 +302,9 @@ export function weekReport(iso) {
     volumeVsAvg: priorWeeks > 0 && vol > 0 ? (vol / (prior / priorWeeks) - 1) * 100 : null,
   };
 
+  // number of COMPLETED days in this week (denominator for "N/M days")
+  report.daysDone = days.filter((d) => d <= today).length;
+
   return report;
 }
 
@@ -285,7 +332,8 @@ export function weekSuggestions(report) {
             : 'Two weeks losing faster than your band — add 100–150 kcal/day to protect muscle.',
           why: `Trend rate ${fmtPct(w.rate.pct)} vs band ${w.band.label}, second week in a row. Small single adjustments beat big reactive swings.`,
         });
-      } else if (w.rate.pct > w.band.hi && lastWeek.pct > w.band.hi) {
+      } else if (w.rate.pct > w.band.hi && lastWeek.pct > w.band.hi
+        && (w.band.phase !== 'gain' || FLAGS.warnFastGain)) {
         out.push({
           id: 'rate-high',
           text: gaining
@@ -414,19 +462,26 @@ export function cardioDayTarget() {
 // - cardio/workouts: on pace for the weekly commitment, scaled to days elapsed
 export function weekLineStatus(report) {
   const out = { weight: null, calories: null, protein: null, cardio: null, workouts: null };
-  const today = todayISO();
-  const daysSoFar = report.days.filter((d) => d <= today).length;
+  const daysSoFar = report.daysDone;
+  if (daysSoFar === 0) return out; // Monday: nothing completed yet, nothing to color
   const w = report.weight;
   if (w && w.verdict) {
     if (w.verdict === 'in') out.weight = 'good';
-    else {
-      const gaining = w.band.phase === 'gain';
-      const harmful = (gaining && w.verdict === 'above') || (!gaining && w.verdict === 'below');
-      out.weight = harmful ? 'bad' : 'neutral';
-    }
+    // gaining above band on a bulk counts as good while fast gain isn't a concern
+    else if (w.band.phase === 'gain' && w.verdict === 'above' && !FLAGS.warnFastGain) out.weight = 'good';
+    else out.weight = verdictIsHarmful(w.band, w.verdict) ? 'bad' : 'neutral';
   } else if (w && w.weekAvg != null) out.weight = 'neutral';
   const hitLine = (x) => (x && x.of > 0 ? (x.hit / x.of >= 0.7 ? 'good' : 'neutral') : (x ? 'neutral' : null));
-  out.calories = hitLine(report.intake);
+  // Calories are judged on the WEEKLY AVERAGE vs target — energy balance
+  // works on a rolling window, not day by day. Protein stays daily.
+  const cal = calorieTracker();
+  if (report.intake) {
+    const tgt = cal ? targetFor(cal, report.end) : null;
+    if (tgt && tgt.period === 'day' && report.intake.avg != null) {
+      const ok = tgt.dir === 'atmost' ? report.intake.avg <= tgt.value : report.intake.avg >= tgt.value;
+      out.calories = ok ? 'good' : 'neutral';
+    } else out.calories = 'neutral';
+  }
   out.protein = hitLine(report.protein);
   const pace = (done, weeklyTarget) => {
     const need = Math.ceil(weeklyTarget * (daysSoFar / 7));

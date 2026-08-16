@@ -48,9 +48,9 @@ async function setNumberInput(page, selector, value) {
   await page.goto(URL, { waitUntil: 'networkidle0' });
   await page.waitForSelector('.card');
   const names = await page.$$eval('.card .t-name', (els) => els.map((e) => e.childNodes[0].textContent.trim()));
-  // Weightlifting is seeded but has no day card (derived from the workout log)
-  check('day cards are Calories, Protein, Cardio',
-    JSON.stringify(names) === JSON.stringify(['Calories', 'Protein', 'Cardio']), names.join(','));
+  // config trackers; Weightlifting has no day card (derived from the workout log)
+  check('day cards are Calories, Protein, Cardio, Weight',
+    JSON.stringify(names) === JSON.stringify(['Calories', 'Protein', 'Cardio', 'Weight']), names.join(','));
   const chips = await page.$$eval('.chip', (els) => els.map((e) => e.textContent));
   check('Cardio has 4 chips', JSON.stringify(chips) === JSON.stringify(['walk', 'run', 'squash', 'bike']), chips.join(','));
 
@@ -80,38 +80,41 @@ async function setNumberInput(page, selector, value) {
   theme = await page.evaluate(() => document.documentElement.dataset.theme);
   check('light theme survives reload (no-flash bootstrap)', theme === 'light', theme);
 
-  // ---- 4. targets via settings UI: Calories ≤ 3000/day ----
-  await page.click('.tab[data-tab="settings"]');
-  await page.waitForSelector('.tracker-row');
-  await page.evaluate(() => [...document.querySelectorAll('.icon-btn')].find((b) => b.getAttribute('aria-label') === 'Edit Calories').click());
-  await page.waitForSelector('.tr-edit');
-  await page.evaluate(() => {
-    const sel = document.querySelector('select[aria-label="Target period"]');
-    sel.value = 'day';
-    sel.dispatchEvent(new Event('change'));
-    document.querySelector('select[aria-label="Target direction"]').value = 'atmost';
-    document.querySelector('input[aria-label="Target amount"]').value = '3000';
+  // ---- 4/5. targets via the code-config path (applyConfig): Calories ≤ 3000/day,
+  //         Weightlifting 4 days/wk. Settings shows them read-only.
+  await page.evaluate(async () => {
+    const t = await import('./js/trackers.js');
+    const ins = await import('./js/insights.js');
+    t.applyConfig([
+      { name: 'Calories', type: 'number', unit: 'kcal', target: { period: 'day', value: 3000, dir: 'atmost' } },
+      { name: 'Protein', type: 'number', unit: 'g', target: null },
+      { name: 'Cardio', type: 'multiselect', options: ['walk', 'run', 'squash', 'bike'], target: null },
+      { name: 'Weightlifting', type: 'checkbox', target: { period: 'week', value: 4 } },
+    ], (phase, pace) => ins.PACE_PRESETS[phase][pace]);
   });
-  await clickByText('.btn.primary', 'Save');
   stored = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')));
   const cal = stored.trackers.find((t) => t.name === 'Calories');
-  check('calorie target saved with from=today, atmost',
+  check('config sets calorie target from=today, atmost',
     cal.targets && cal.targets.length === 1 && cal.targets[0].from === today
     && cal.targets[0].value === 3000 && cal.targets[0].dir === 'atmost',
     JSON.stringify(cal.targets));
-
-  // ---- 5. weightlifting 4 days/week target ----
-  await page.evaluate(() => [...document.querySelectorAll('.icon-btn')].find((b) => b.getAttribute('aria-label') === 'Edit Weightlifting').click());
-  await page.waitForSelector('.tr-edit');
-  await page.evaluate(() => {
-    const sel = document.querySelector('select[aria-label="Target period"]');
-    sel.value = 'week';
-    sel.dispatchEvent(new Event('change'));
-    document.querySelector('input[aria-label="Target amount"]').value = '4';
+  // idempotent: re-applying the same config writes nothing new
+  const changedAgain = await page.evaluate(async () => {
+    const t = await import('./js/trackers.js');
+    return t.applyConfig([
+      { name: 'Calories', type: 'number', unit: 'kcal', target: { period: 'day', value: 3000, dir: 'atmost' } },
+      { name: 'Protein', type: 'number', unit: 'g', target: null },
+      { name: 'Cardio', type: 'multiselect', options: ['walk', 'run', 'squash', 'bike'], target: null },
+      { name: 'Weightlifting', type: 'checkbox', target: { period: 'week', value: 4 } },
+    ]);
   });
-  await clickByText('.btn.primary', 'Save');
+  check('config re-apply is a no-op', changedAgain === false);
+  await page.click('.tab[data-tab="settings"]');
+  await page.waitForSelector('.tracker-row');
   const metaLine = await page.evaluate(() => [...document.querySelectorAll('.tr-info .meta')].map((m) => m.textContent).join(' | '));
-  check('settings meta shows targets', /≤ 3,000 kcal\/day/.test(metaLine) && /4 days\/wk/.test(metaLine), metaLine);
+  check('settings shows targets read-only', /≤ 3,000 kcal\/day/.test(metaLine) && /4 days\/wk/.test(metaLine), metaLine);
+  check('settings has no tracker editing controls', (await page.$('.icon-btn[aria-label^="Edit"]')) === null
+    && !(await page.evaluate(() => [...document.querySelectorAll('.ghost-btn')].some((b) => /Add tracker/.test(b.textContent)))));
 
   // ---- 6. streaks: inject history before app boot ----
   const isoList = [-1, -2, -3, -4, -5, -6, -7, -8, -9, -10].map(localISO);
@@ -198,21 +201,17 @@ async function setNumberInput(page, selector, value) {
     stored.trackers.some((t) => t.name === 'Workout') && stored.entries['2026-07-10'].t_c === 'bench day',
     stored.trackers.map((t) => t.name).join(','));
 
-  // ---- 9. single-select tracker type (add-tracker popup) ----
+  // ---- 9. single-select tracker type (added via code config) ----
+  await page.evaluate(async () => {
+    const t = await import('./js/trackers.js');
+    t.applyConfig([
+      { name: 'Workout', type: 'text' },
+      { name: 'Cardio', type: 'multiselect', options: ['walk', 'run', 'squash', 'bike'] },
+      { name: 'Weightlifting', type: 'checkbox' },
+      { name: 'Mood', type: 'select', options: ['great', 'ok', 'rough'] },
+    ]);
+  });
   await page.click('.tab[data-tab="settings"]');
-  await page.waitForSelector('.tracker-row');
-  check('add form hidden until button pressed', (await page.$('.add-form')) === null);
-  await clickByText('.ghost-btn', '+ Add tracker');
-  await page.waitForSelector('.sheet.add-form');
-  // backdrop click dismisses without adding
-  await page.evaluate(() => document.querySelector('.sheet-backdrop').click());
-  check('backdrop click closes sheet', (await page.$('.sheet-backdrop')) === null);
-  await clickByText('.ghost-btn', '+ Add tracker');
-  await page.waitForSelector('.add-form');
-  await page.type('.add-form input[aria-label="New tracker name"]', 'Mood');
-  await page.select('.add-form select[aria-label="Tracker type"]', 'select');
-  await page.type('.add-form input[aria-label="Options"]', 'great, ok, rough');
-  await clickByText('.add-form .btn.primary', 'Add tracker');
   await page.click('.tab[data-tab="day"]');
   await page.waitForSelector('.chip');
   await clickByText('.chip', 'great');

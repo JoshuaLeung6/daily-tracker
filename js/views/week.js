@@ -5,7 +5,7 @@ import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
-import { weekReport, weekSuggestions, weeksOverview, weekLineStatus } from '../insights.js';
+import { weekReport, weekSuggestions, weeksOverview, weekLineStatus, verdictBadge, calorieTracker } from '../insights.js';
 import { currentSprint } from '../sprints.js';
 
 // The tab opens zoomed out: every week graded green/yellow/red; tapping a
@@ -54,7 +54,7 @@ function renderOverview(container, ctx) {
     }
     const r = wk.report;
     const st = weekLineStatus(r);
-    const daysSoFar = r.days.filter((d) => d <= today).length;
+    const daysSoFar = r.daysDone;
     const cell = (label, value, status) => el('span', { class: 'wk-cell' + (status ? ' st-' + status : '') },
       el('span', { class: 'wk-cell-v' }, value),
       el('span', { class: 'wk-cell-l' }, label),
@@ -176,8 +176,8 @@ function buildReportCard(ctx) {
   const card = el('div', { class: 'card report-card' });
   let any = false;
 
-  // the number of days in the week that have happened (7 for past weeks)
-  const daysSoFar = r.days.filter((d) => d <= todayISO()).length;
+  // completed days in the week (7 for past weeks; today excluded for the current)
+  const daysSoFar = r.daysDone;
   const outOf = (n) => el('span', { class: 'rp-dim' }, ` · ${n}/${daysSoFar} days`);
   const st = weekLineStatus(r);
   const rpRowC = (label, valueEl, status) => {
@@ -191,14 +191,7 @@ function buildReportCard(ctx) {
     const w = r.weight;
     const unit = w.tracker.unit ? ` ${w.tracker.unit}` : '';
     if (w.weekAvg != null) {
-      let badge = null;
-      if (w.verdict === 'in') badge = el('span', { class: 'rp-badge in' }, 'in band');
-      else if (w.verdict) {
-        const gaining = w.band.phase === 'gain';
-        const harmful = (gaining && w.verdict === 'above') || (!gaining && w.verdict === 'below');
-        badge = el('span', { class: 'rp-badge ' + (harmful ? 'bad' : 'off') },
-          w.verdict === 'above' ? (gaining ? 'fast — fat risk' : 'slow') : (gaining ? 'slow' : 'fast — muscle risk'));
-      }
+      const badge = verdictBadge(w.band, w.verdict);
       card.append(rpRowC(w.tracker.name,
         el('span', {},
           el('b', {}, `${fmtN(w.weekAvg)}${unit}`), ' avg',
@@ -216,13 +209,18 @@ function buildReportCard(ctx) {
     any = true;
   }
 
-  // 2. calories: avg · target days
+  // 2. calories: avg vs target (weekly average is what counts) · target days as context
   if (r.intake) {
+    const calT = calorieTracker();
+    const tgt = calT ? targetFor(calT, r.end) : null;
     card.append(rpRowC('Calories',
       el('span', {},
         r.intake.avg != null ? el('b', {}, Math.round(r.intake.avg).toLocaleString()) : el('span', { class: 'rp-dim' }, '—'),
         r.intake.avg != null ? ` ${r.intake.unit} avg` : '',
-        r.intake.of > 0 ? outOf(r.intake.hit) : el('span', { class: 'rp-dim' }, ' · no target set'),
+        tgt && tgt.period === 'day'
+          ? el('span', { class: 'rp-dim' }, ` vs ${tgt.dir === 'atmost' ? '≤' : '≥'} ${tgt.value.toLocaleString()}`)
+          : el('span', { class: 'rp-dim' }, ' · no target set'),
+        r.intake.of > 0 ? outOf(r.intake.hit) : null,
       ), st.calories));
     any = true;
   }
