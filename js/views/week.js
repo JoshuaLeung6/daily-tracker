@@ -104,76 +104,89 @@ function renderDetail(container, ctx) {
   const trackers = activeTrackers();
   const inWeek = days.includes(today);
 
+  // header: back-to-all-weeks on the left, next week on the right; the
+  // masthead's eyebrow doubles as the week number in the sprint
+  const sprint = currentSprint();
+  const weeksList = weeksOverview(sprint ? { start: sprint.start, end: sprint.end } : null);
+  const thisWk = weeksList.find((w) => w.ws === start);
   const head = el('header', { class: 'view-head' },
-    el('button', { class: 'nav-arrow', 'aria-label': 'Previous week', onclick: () => ctx.setDate(addDays(ctx.date, -7)) }, '‹'),
+    el('button', {
+      class: 'nav-arrow', 'aria-label': 'All weeks',
+      onclick: () => { mode = 'overview'; render(container, ctx); },
+    }, '‹'),
     el('div', { class: 'masthead' },
-      el('div', { class: 'eyebrow' }, inWeek ? 'This week' : fmt(start, { year: 'numeric' })),
+      el('div', { class: 'eyebrow' },
+        inWeek ? 'This week' : (thisWk && thisWk.totalWeeks ? `Week ${thisWk.index} of ${thisWk.totalWeeks}` : fmt(start, { year: 'numeric' }))),
       el('h1', {}, weekLabel(ctx.date)),
       !inWeek && el('button', { class: 'today-pill', onclick: () => ctx.setDate(today) }, 'Back to today'),
     ),
-    el('button', { class: 'nav-arrow', 'aria-label': 'Next week', onclick: () => ctx.setDate(addDays(ctx.date, 7)) }, '›'),
+    el('button', {
+      class: 'nav-arrow', 'aria-label': 'Next week',
+      // never navigate into weeks that have not started
+      disabled: addDays(start, 7) > startOfWeek(today),
+      onclick: () => ctx.setDate(addDays(ctx.date, 7)),
+    }, '›'),
   );
 
+  // Day rows are a fixed-column mini-ledger so every day aligns regardless of
+  // what was logged: weight · kcal · protein · cardio · lift split.
+  const wtT = trackers.find((t) => t.type === 'measurement' && /weight/i.test(t.name));
+  const calT = trackers.find((t) => t.type === 'number' && /calorie/i.test(t.name));
+  const proT = trackers.find((t) => t.type === 'number' && /protein/i.test(t.name));
+  const cardioT = trackers.find((t) => /cardio/i.test(t.name));
+  const stepsT = trackers.find((t) => t.type === 'checkbox' && /step/i.test(t.name));
+  const cellV = (v) => (v == null || v === '' ? '—' : v);
+
   const rows = el('div', { class: 'week-rows' });
+  const colHead = el('div', { class: 'wr-cols wr-colhead' },
+    el('span', {}, ''), el('span', {}, 'lb'), el('span', {}, 'kcal'), el('span', {}, 'protein'),
+    el('span', {}, 'cardio'), el('span', {}, 'lift'));
+  rows.append(colHead);
   for (const iso of days) {
     const entry = getEntry(iso);
-    const vals = el('span', { class: 'wr-vals' });
-    let has = false;
     const wo = getWorkout(iso);
-    if (wo) {
-      has = true;
-      vals.append(el('span', { class: 'wr-workout' }, `${SPLIT_LABELS[wo.split]} day`));
-    }
-    for (const t of trackers) {
-      if (!(t.id in entry)) continue;
-      has = true;
-      const v = entry[t.id];
-      if (t.type === 'number' || t.type === 'measurement') {
-        vals.append(el('span', {}, el('b', {}, Number(v).toLocaleString()), t.unit ? ` ${t.unit}` : ''));
-      } else if (t.type === 'checkbox') {
-        const chip = el('span', {}, `${t.name} `);
-        const icon = checkIcon();
-        icon.style.width = '11px';
-        icon.style.height = '11px';
-        icon.querySelector('path').setAttribute('stroke', 'var(--accent)');
-        chip.append(icon);
-        vals.append(chip);
-      } else if (t.type === 'multiselect' || t.type === 'select') {
-        const list = Array.isArray(v) ? v : [v];
-        vals.append(el('span', {}, el('b', {}, list.join(' · '))));
-      } else {
-        vals.append(el('span', { class: 'wr-note' }, String(v)));
-      }
-    }
-    if (!has) vals.append(el('span', { class: 'none' }, 'nothing logged'));
+    const isFuture = iso > today;
+    const cardioV = cardioT ? entry[cardioT.id] : null;
+    const cardioTxt = Array.isArray(cardioV) ? cardioV.join('/') : (cardioV ? String(cardioV) : null);
+    const stepsDone = stepsT && entry[stepsT.id] === true;
+    const wt = wtT ? entry[wtT.id] : null;
+    const cal = calT ? entry[calT.id] : null;
+    const pro = proT ? entry[proT.id] : null;
 
     rows.append(el('button', {
-      class: 'week-row' + (iso === today ? ' is-today' : ''),
+      class: 'week-row wr-ledger' + (iso === today ? ' is-today' : '') + (isFuture ? ' is-future' : ''),
+      disabled: isFuture,
       onclick: () => ctx.openDay(iso),
     },
-      el('span', { class: 'wr-date' },
-        el('div', { class: 'wd' }, fmt(iso, { weekday: 'short' })),
-        el('div', { class: 'dn' + (dayAllMet(iso) ? ' all-met' : '') }, String(Number(iso.slice(8)))),
+      el('span', { class: 'wr-cols' },
+        el('span', { class: 'wr-date' },
+          el('span', { class: 'wd' }, fmt(iso, { weekday: 'short' })),
+          el('span', { class: 'dn' + (dayAllMet(iso) ? ' all-met' : '') }, String(Number(iso.slice(8)))),
+        ),
+        el('span', { class: 'wr-c' }, cellV(typeof wt === 'number' ? fmtN(wt) : null)),
+        el('span', { class: 'wr-c' }, cellV(typeof cal === 'number' ? Math.round(cal).toLocaleString() : null)),
+        el('span', { class: 'wr-c' }, cellV(typeof pro === 'number' ? Math.round(pro) : null)),
+        el('span', { class: 'wr-c wr-small' }, cellV(cardioTxt)),
+        el('span', { class: 'wr-c wr-small' + (wo ? ' wr-workout' : '') },
+          wo ? SPLIT_LABELS[wo.split] : (stepsDone ? '' : '—')),
       ),
-      vals,
     ));
   }
 
-  const back = el('div', { class: 'lock-row wk-back' },
-    el('button', {
-      class: 'lock-pill',
-      onclick: () => { mode = 'overview'; render(container, ctx); },
-    }, '‹ All weeks'));
-
-  const report = buildReportCard(ctx);
-  container.replaceChildren(head, el('div', { class: 'ledger-rule' }), back, ...report, rows);
+  const { card, tips } = buildReportCard(ctx);
+  container.replaceChildren(
+    head, el('div', { class: 'ledger-rule' }),
+    ...(card ? [card] : []),
+    el('div', { class: 'wk-section-label' }, 'Days'),
+    rows,
+    ...(tips.length ? [el('div', { class: 'wk-section-label' }, 'Coach'), ...tips] : []),
+  );
 }
 
 // The report card: the week's verdict — rate vs band, intake, training —
 // plus any triggered if-then suggestions. This is the weekly review surface.
 function buildReportCard(ctx) {
   const r = weekReport(ctx.date);
-  const parts = [];
   const card = el('div', { class: 'card report-card' });
   let any = false;
 
@@ -252,15 +265,11 @@ function buildReportCard(ctx) {
     any = true;
   }
 
-  if (any) parts.push(card);
-
-  for (const s of weekSuggestions(r)) {
-    parts.push(el('div', { class: 'card suggest-card' },
-      el('div', { class: 'sg-text' }, s.text),
-      el('div', { class: 'sg-why' }, s.why),
-    ));
-  }
-  return parts;
+  const tips = weekSuggestions(r).map((s) => el('div', { class: 'card suggest-card' },
+    el('div', { class: 'sg-text' }, s.text),
+    el('div', { class: 'sg-why' }, s.why),
+  ));
+  return { card: any ? card : null, tips };
 }
 
 function rpRow(label, valueEl) {

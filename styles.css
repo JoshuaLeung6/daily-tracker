@@ -952,6 +952,46 @@ html[data-theme="light"] body::before {
 
 .week-row.is-today { border-color: var(--accent); }
 
+/* aligned day-ledger rows in the week detail */
+.wr-ledger { padding: 8px 12px; min-height: 0; }
+.wr-ledger.is-future { opacity: 0.4; }
+.wr-cols {
+  display: grid;
+  grid-template-columns: 44px 1fr 1fr 1fr 1.1fr 1fr;
+  gap: 4px;
+  align-items: center;
+  width: 100%;
+}
+.wr-ledger .wr-date { width: auto; text-align: left; display: flex; align-items: baseline; gap: 5px; }
+.wr-ledger .wr-date .wd { font-size: 10px; }
+.wr-ledger .wr-date .dn { font-size: 16px; }
+.wr-c { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-c.wr-small { font-size: 11px; font-weight: 500; color: var(--muted); }
+.wr-c.wr-workout { color: var(--accent); font-weight: 700; }
+.wr-colhead {
+  padding: 0 12px 4px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.wr-colhead span { text-align: right; }
+.wr-colhead span:first-child { text-align: left; }
+
+/* section dividers in the week detail */
+.wk-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.wk-section-label::before, .wk-section-label::after { content: ''; flex: 1; height: 1px; background: var(--hairline); }
+
 .wr-date { text-align: center; width: 40px; flex-shrink: 0; }
 .wr-date .wd { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .wr-date .dn { font-family: var(--serif); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -963,8 +1003,19 @@ html[data-theme="light"] body::before {
 .wr-vals .none { color: var(--faint); font-style: italic; }
 .wr-note { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* week report card */
-.report-card { flex-direction: column; align-items: stretch; gap: 0; margin-bottom: 10px; padding: 6px 16px; }
+/* week report card — the week's scoreboard, shaded to read apart from the
+   plain day rows beneath it */
+.report-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 12px;
+  padding: 6px 16px;
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+.report-card .rp-row { border-bottom-color: color-mix(in srgb, var(--line) 70%, transparent); }
+.nav-arrow:disabled { opacity: 0.25; }
 
 .rp-row {
   display: flex;

@@ -170,16 +170,21 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   check('D: above-band gain reads "ahead of band" (not a warning)', /ahead of band/.test(cardText) && !/fat risk/.test(cardText), cardText.slice(0, 200));
   check('D: no trim suggestion while fast gain is not a concern', !/trim 100–150 kcal\/day/.test(cardText), cardText.slice(0, 400));
 
-  // ---- past week: no suggestions ----
-  await page.click('.nav-arrow[aria-label="Previous week"]');
+  // ---- past week (via the overview: back arrow, then the second row) ----
+  await page.click('.nav-arrow[aria-label="All weeks"]');
+  await page.waitForSelector('.wk-row');
+  const rowsAll = await page.$$('.wk-row');
+  check('back arrow returns to overview', rowsAll.length >= 2);
+  await rowsAll[1].click();
+  await page.waitForSelector('.report-card');
   const pastText = await page.$eval('#view-week', (e) => e.textContent);
   check('past week: report shows but no suggestions', /lb avg/.test(pastText) && !/trim 100–150|add 100–150/.test(pastText));
+  check('past week eyebrow shows Week N of M', await page.$eval('#view-week .eyebrow', (e) => /Week \d+ of \d+/.test(e.textContent)));
 
-  // ---- future week: no weight row at all (empty data window) ----
-  await page.click('.nav-arrow[aria-label="Next week"]');
-  await page.click('.nav-arrow[aria-label="Next week"]');
-  const futureText = await page.$eval('#view-week', (e) => e.textContent);
-  check('future week: no trend/rate leakage', !/lb avg/.test(futureText) && !/%\/wk/.test(futureText), futureText.slice(0, 150));
+  // ---- cannot navigate into the future ----
+  await page.click('.nav-arrow[aria-label="Next week"]'); // -> current week
+  const nextDisabled = await page.$eval('.nav-arrow[aria-label="Next week"]', (e) => e.disabled);
+  check('next-week arrow disabled on the current week', nextDisabled === true);
 
   // ---- scenario E: sparse weigh-ins (1/week) -> no rate, no badge, no suggestion ----
   const injE = await inject(page, {
