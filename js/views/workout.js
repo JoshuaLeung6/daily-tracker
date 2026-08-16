@@ -35,9 +35,8 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     touch();
     renderRows();
     renderSuggestions();
-    // land in the new row's weight cell, ready to log
-    const inputs = rows.querySelectorAll('.lift-num');
-    if (inputs.length) inputs[inputs.length - 3].focus();
+    // no auto-focus: raising the keyboard uninvited is exactly the annoyance
+    // we're avoiding — tap a cell when ready
   };
 
   // classification segments
