@@ -156,7 +156,14 @@ async function setNumberInput(page, selector, value) {
   // ---- 7. week view: totals, weekly goal, days count ----
   await page.click('.tab[data-tab="week"]');
   await page.waitForSelector('.wk-row');
-  await page.click('.wk-row.is-current');
+  // Open the LAST COMPLETE week, not the current one: on a Monday the current
+  // week has no completed days, so per-day lines have nothing to average.
+  await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.wk-row')];
+    const cur = rows.findIndex((r) => r.classList.contains('is-current'));
+    const target = rows[cur + 1] || rows[cur] || rows[0];
+    target.click();
+  });
   await page.waitForSelector('.report-card');
   const weekText = await page.$eval('.report-card', (e) => e.textContent);
   check('week card shows workouts days', /Workouts\d\/\d days/.test(weekText), weekText.slice(0, 200));

@@ -113,12 +113,13 @@ export const SPRINTS = [
     // moves if anything is ever backdated earlier, and every number keyed to
     // it (week N of 16, start weight, adherence window) moves with it.
     //
-    // Starts SUNDAY 2026-07-12, not the first logged day (Sat 2026-07-11):
-    // that orphan Saturday was its own one-day "week" in a Sun–Sat grid and
-    // its data has since been removed. From Jul 12 the sprint is 16 whole
-    // Sun–Sat weeks, 112 days inclusive, ending Sat 2026-10-31.
-    start: '2026-07-12',
-    end: '2026-10-31',
+    // Weeks run MONDAY→SUNDAY (see startOfWeek in dates.js). Jul 13 is a
+    // Monday, so the sprint begins exactly on a week boundary. The earlier
+    // logged days (Sat Jul 11, Sun Jul 12) both belong to the week starting
+    // Jul 6, which would have made the sprint's first week a 2-day stub.
+    // 16 whole weeks = 112 days inclusive: 2026-07-13 → 2026-11-01 (Sun).
+    start: '2026-07-13',
+    end: '2026-11-01',
     focus: 'Lean bulk · PPL 5–6×/wk',
     goals: {
       weight: 145,          // lb, trend weight at sprint end (started ~134)

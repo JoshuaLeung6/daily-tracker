@@ -94,7 +94,14 @@ const localISO = (offset) => {
   const cellLabels = await page.$$eval('.wk-row.is-current .wk-cell-l', (els) => els.map((e) => e.textContent));
   check('overview cells: weight, kcal, protein, lifts (no cardio)',
     JSON.stringify(cellLabels) === JSON.stringify(['weight', 'kcal', 'protein', 'lifts']), cellLabels.join(','));
-  await page.click('.wk-row.is-current');
+  // Open the LAST COMPLETE week, not the current one: on a Monday the current
+  // week has no completed days, so per-day lines have nothing to average.
+  await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.wk-row')];
+    const cur = rows.findIndex((r) => r.classList.contains('is-current'));
+    const target = rows[cur + 1] || rows[cur] || rows[0];
+    target.click();
+  });
   await page.waitForSelector('.report-card');
   const labels = await page.$$eval('.report-card .rp-label', (els) => els.map((e) => e.textContent));
   check('five lines: Weight, Calories, Protein, Cardio, Workouts',
@@ -116,7 +123,7 @@ const localISO = (offset) => {
   await page.waitForSelector('.hero-card');
   const spText = await page.$eval('#view-stats', (e) => e.textContent);
   check('dashboard header: sprint name, dates, week N of M',
-    /Sprint 1/.test(spText) && /→ Oct 31/.test(spText) && /Week \d+ of \d+/.test(spText), spText.slice(0, 200));
+    /Sprint 1/.test(spText) && /→ Nov 1/.test(spText) && /Week \d+ of \d+/.test(spText), spText.slice(0, 200));
   check('heroes: weight + strength', /Weight/.test(spText) && /Strength/.test(spText) && /lifts up/.test(spText));
   check('sprint consistency block', /Sprint consistency/.test(spText) && /protein/.test(spText));
   // the lift ledger lives in the Lifts subtab now, not on Progress

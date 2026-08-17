@@ -184,25 +184,51 @@ export function render(container, ctx) {
     document.body.appendChild(probe);
     const sab = probe.getBoundingClientRect().height;
     probe.remove();
+    // Measure against the PHYSICAL SCREEN, not just innerHeight. Everything
+    // inside the web view can look perfect while iOS withholds a band below
+    // it — innerHeight-based numbers cannot see that band at all, which is
+    // what made four earlier "fixes" chase the wrong space.
+    const dpr = window.devicePixelRatio || 1;
+    const screenCss = Math.round(screen.height);          // CSS px, portrait
+    const viewH = window.innerHeight;
+    const withheld = screenCss - viewH;                   // band OUTSIDE the view
+    const svg = document.querySelector('.tab svg');
+    const lbl = document.querySelector('.tab span');
+    const sr = svg ? svg.getBoundingClientRect() : null;
+    const lr = lbl ? lbl.getBoundingClientRect() : null;
+    const lowest = lr ? lr.bottom : (sr ? sr.bottom : null);
+    const insideGap = lowest != null ? Math.round(viewH - lowest) : null;
+
     diag.textContent =
       `standalone: ${window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true}\n`
-      + `innerH ${window.innerHeight} · docH ${document.documentElement.clientHeight} · screenH ${screen.height}\n`
-      + `visualViewport ${window.visualViewport ? Math.round(window.visualViewport.height) : 'n/a'}\n`
+      + `innerH ${viewH} · docH ${document.documentElement.clientHeight} · screenH ${screenCss} · dpr ${dpr}\n`
+      + `visualViewport ${window.visualViewport ? Math.round(window.visualViewport.height) : 'n/a'}`
+      + `${window.visualViewport ? ` offsetTop ${Math.round(window.visualViewport.offsetTop)}` : ''}\n`
       + `safe-area-bottom ${sab}px\n`
       + `tabbar top ${r ? Math.round(r.top) : '?'} bottom ${r ? Math.round(r.bottom) : '?'} h ${r ? Math.round(r.height) : '?'} · pad-b ${cs ? cs.paddingBottom : '?'}\n`
-      + `gap below tabbar ${r ? Math.round(window.innerHeight - r.bottom) : '?'}px\n`
-      + (() => {
-        // the space the user actually sees: from the bottom of the last icon
-        // to the bottom of the screen (bar padding + any withheld band)
-        const svg = document.querySelector('.tab svg');
-        const lbl = document.querySelector('.tab span');
-        const sr = svg ? svg.getBoundingClientRect() : null;
-        const lr = lbl ? lbl.getBoundingClientRect() : null;
-        const lowest = lr ? lr.bottom : (sr ? sr.bottom : null);
-        return `icon-b ${sr ? Math.round(sr.bottom) : '?'} · label-b ${lr ? Math.round(lr.bottom) : '?'}\n`
-          + `SPACE UNDER ICONS ${lowest != null ? Math.round(window.innerHeight - lowest) : '?'}px`;
-      })();
+      + `tab h ${(() => { const t = document.querySelector('.tab'); return t ? Math.round(t.getBoundingClientRect().height) : '?'; })()}`
+      + ` · icon-b ${sr ? Math.round(sr.bottom) : '?'} · label-b ${lr ? Math.round(lr.bottom) : '?'}\n`
+      + `--- the two gaps ---\n`
+      + `A inside view (icons->innerH): ${insideGap}px\n`
+      + `B withheld by iOS (screenH-innerH): ${withheld}px\n`
+      + `TOTAL below icons: ${insideGap != null ? insideGap + withheld : '?'}px`;
   };
+
+  // Temporary: paint the very bottom of the WEB VIEW bright red. If you see
+  // red touching the screen bottom, the gap is inside our CSS. If there is
+  // dark space BELOW the red, iOS is withholding that band and no CSS of ours
+  // can reach it (the fix is then a manifest/viewport change, not padding).
+  const markerBtn = el('button', {
+    class: 'btn',
+    onclick: () => {
+      const existing = document.getElementById('edge-marker');
+      if (existing) { existing.remove(); return; }
+      const m = el('div', { id: 'edge-marker' });
+      m.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:6px;'
+        + 'background:#ff0000;z-index:9999;pointer-events:none';
+      document.body.appendChild(m);
+    },
+  }, 'Mark view bottom');
 
   const aboutSection = el('div', { class: 'settings-section' },
     el('h2', {}, 'About'),
@@ -211,6 +237,7 @@ export function render(container, ctx) {
     el('div', { class: 'btn-row' },
       el('button', { class: 'btn', onclick: checkUpdates }, 'Check for updates'),
       el('button', { class: 'btn', onclick: fillDiag }, 'Layout info'),
+      markerBtn,
     ),
     updateStatus,
     diag,

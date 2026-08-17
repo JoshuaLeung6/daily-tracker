@@ -79,7 +79,16 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="week"]');
   await page.waitForSelector('.wk-row');
-  await page.click('.wk-row.is-current');
+  // Open the LAST COMPLETE week, not the current one. On a Monday the current
+  // week has zero completed days, so its calorie/protein lines correctly have
+  // nothing to average and the assertions below would be testing an empty week.
+  await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.wk-row')];
+    const cur = rows.findIndex((r) => r.classList.contains('is-current'));
+    // rows are newest-first, so the week after the current one is the previous week
+    const target = rows[cur + 1] || rows[cur];
+    target.click();
+  });
   await page.waitForSelector('.report-card');
 
   let cardText = await page.$eval('.report-card', (e) => e.textContent);

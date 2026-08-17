@@ -85,11 +85,15 @@ constant** back. Keep it that way — importing anything computed from
 earlier.
 
 **Sprint length is counted inclusively.** `daysBetween(start, end) + 1`, so
-16 weeks = 112 days. Jul 12 → Oct 31 is exactly 16 weeks; Jul 11 → Oct 31 is
-113 days and renders as "of 17".
+16 weeks = 112 days. Jul 13 → Nov 1 is exactly 16 weeks; an end date one day
+later makes it 113 days, which `Math.ceil(days / 7)` renders as "of 17".
 
-**Weeks run Sunday→Saturday.** A sprint that starts mid-week leaves a partial
-first week card. Prefer Sunday-aligned sprint starts.
+**Weeks run MONDAY→SUNDAY.** `startOfWeek()` in `dates.js` is
+`(d.getDay() + 6) % 7`, which maps Monday→0. A sprint must start on a Monday
+or its first week is a stub.
+*Why: the sprint start was twice moved to the "clean" boundary of a Sun–Sat
+grid that does not exist. Check `startOfWeek()` before reasoning about week
+alignment — do not assume.*
 
 ---
 
