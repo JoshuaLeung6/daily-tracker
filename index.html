@@ -17,6 +17,27 @@
   <meta name="apple-mobile-web-app-title" content="Fitness">
   <meta name="theme-color" content="#16130e">
   <script>
+    // Escape hatch: open the app with ?reset to throw away every service
+    // worker and every cache, then reload clean from the server. Plain inline
+    // JS with no dependencies, so it works no matter how stale the installed
+    // build is. Data is untouched — localStorage and IndexedDB are separate.
+    // Use it when an update refuses to arrive; it is the one action that no
+    // HTTP cache, no stale worker, and no CDN edge can block.
+    (function () {
+      if (location.search.indexOf('reset') === -1 || !('serviceWorker' in navigator)) return;
+      Promise.all([
+        navigator.serviceWorker.getRegistrations().then(function (rs) {
+          return Promise.all(rs.map(function (r) { return r.unregister(); }));
+        }),
+        (window.caches ? caches.keys().then(function (ks) {
+          return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+        }) : Promise.resolve()),
+      ]).then(function () {
+        // drop the query so the reload is a normal launch
+        location.replace(location.pathname);
+      });
+    })();
+
     // Apply the saved theme before first paint (js/theme.js takes over after
     // load). Reads the same pcal:theme key the store owns.
     (function () {

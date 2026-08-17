@@ -1,7 +1,7 @@
 // Cache-first service worker. Bump CACHE on EVERY deploy (and APP_VERSION
 // in js/app.js) — that byte change is what triggers the update.
 
-const CACHE = 'pcal-v56';
+const CACHE = 'pcal-v57';
 
 const ASSETS = [
   './',
@@ -50,7 +50,15 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  // ?reset must ALWAYS reach the network: it is the escape hatch that clears
+  // this very worker, and ignoreSearch would otherwise hand it the cached
+  // index.html — an old copy without the escape hatch in it.
+  if (url.searchParams.has('reset')) {
+    e.respondWith(fetch(req, { cache: 'no-store' }));
+    return;
+  }
   e.respondWith(
     caches.match(req, { ignoreSearch: true }).then((hit) => hit || fetch(req))
   );
