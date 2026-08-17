@@ -130,7 +130,9 @@ const localISO = (offset) => {
   await clickByText('.chip-suggest', '+ Row');
   await page.waitForSelector('.lift-preview');
   const preview = await page.$eval('.lift-preview', (e) => e.textContent);
-  check('editor preview: ready hint with next load', /ready — try 160/.test(preview), preview);
+  // the 'ready — try N' hint was removed from the editor preview by request;
+  // the preview is now just the last sessions, newest first
+  check('editor preview: last sessions, no ready hint', /155×15×3/.test(preview) && !/ready/.test(preview), preview);
   await clickByText('.wo-head .btn.primary', 'Done');
 
   check('no console/page errors', errors.length === 0, errors.join(' | ').slice(0, 400));

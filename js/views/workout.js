@@ -9,7 +9,7 @@ import { fmt, weekdayName } from '../dates.js';
 import {
   SPLITS, SPLIT_LABELS, FOCUSES, FOCUS_LABELS,
   getWorkout, saveWorkout, deleteWorkout, templateFor, suggestedClass,
-  liftsBySplit, recentLifts, repRange, suggestedNextLoad,
+  liftsBySplit, recentLifts,
 } from '../workouts.js';
 
 export function openWorkout(iso, { locked = false, onClose } = {}) {
@@ -129,21 +129,12 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     const wrap = el('div', { class: 'lift-preview' });
     if (!name || !name.trim()) return wrap;
     const recent = recentLifts(name, iso, 3);
-    if (!recent.length) {
-      wrap.append(el('div', { class: 'lp-line lp-first' }, 'first time — no previous sessions'));
-      return wrap;
-    }
+    if (!recent.length) return wrap;   // nothing to show; no placeholder text
     for (const l of recent) {
       wrap.append(el('div', { class: 'lp-line' },
         el('span', { class: 'lp-set' }, setStr(l)),
         el('span', { class: 'lp-date' }, fmt(l.date, { month: 'short', day: 'numeric' })),
         l.focus === 'maintenance' ? el('span', { class: 'lp-tag' }, 'maint.') : null));
-    }
-    // double progression: rep ceiling filled last time -> nudge the load up
-    const last = recent[0];
-    if (last.focus !== 'maintenance' && last.reps != null && last.weight != null && last.reps >= repRange().hi) {
-      wrap.append(el('div', { class: 'lp-line lp-ready' },
-        `ready — try ${suggestedNextLoad(last.weight).toLocaleString()}`));
     }
     return wrap;
   };

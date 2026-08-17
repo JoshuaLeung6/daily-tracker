@@ -10,7 +10,7 @@ import { currentSprint } from '../sprints.js';
 import { CALORIE_BANDS } from '../config.js';
 // one commit rule and one page transition for both views, so "armed" always
 // matches what happens and every swipe moves the same way
-import { willCommit, slidePage } from './day.js';
+import { willCommit, slidePage, settleSlide } from './day.js';
 
 // The tab opens zoomed out: every week graded green/yellow/red; tapping a
 // week drills into its report card. Switching away and back resets to the
@@ -253,6 +253,7 @@ function renderDetail(container, ctx) {
   };
 
   container.ontouchstart = (e) => {
+    settleSlide();   // a touch mid-transition takes over from a resting page
     g.gx = e.touches[0].clientX;
     g.gy = e.touches[0].clientY;
     g.startScroll = container.scrollTop;

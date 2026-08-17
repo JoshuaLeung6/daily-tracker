@@ -193,7 +193,12 @@ html[data-theme="light"] body::before {
      that do. iOS gives a short scroll container its bounce with `scroll`. */
   overflow-y: scroll;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  /* overscroll-behavior deliberately NOT `contain`: contain suppresses the
+     iOS rubber-band, so a pane with little content would not move at all
+     under an upward drag — the "can't swipe up" rigidity. Body is fixed
+     and overflow:hidden, so there is nothing for overscroll to chain into
+     anyway; letting it bounce costs nothing and is what a native list does. */
+  overscroll-behavior-y: auto;
   /* body already pads by the top inset, so this must NOT add it again —
      doing so double-counts and pushes content 62px too far down.
      BOTTOM: the tab bar is position:fixed and sits over this container, so
@@ -1208,7 +1213,7 @@ html[data-theme="light"] body::before {
    new page slides in from the far side (slidePage in day.js). ease-out both
    ways — decelerate into place, no overshoot. */
 #view-week, #view-day {
-  transition: transform 0.22s cubic-bezier(0.25, 0.8, 0.35, 1), opacity 0.22s ease;
+  transition: transform 0.16s cubic-bezier(0.25, 0.8, 0.35, 1), opacity 0.16s ease;
   will-change: transform;
 }
 #view-week.gesture-live, #view-day.gesture-live { transition: none; }

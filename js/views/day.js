@@ -40,25 +40,35 @@ export function willCommit(delta, velocity) {
 // transition, then let it slide home.
 //   dir: -1 = content moves left (you swiped left, going forward)
 //        +1 = content moves right (you swiped right, going back)
-let sliding = false;
-let slideTimer = null;
+// A swipe that lands while the previous transition is still animating must
+// NOT be dropped — that is the "can't swipe right after a swipe" failure. The
+// old version held a lock for the whole ~440ms and silently ignored anything
+// inside it. Now: an in-flight transition is INTERRUPTIBLE. Its pending swap
+// is committed at once (no page is ever lost), its timers are cancelled, the
+// container is snapped to rest, and the new gesture proceeds immediately.
+const inflight = { timer: null, pendingSwap: null, container: null };
+export function settleSlide() {
+  if (inflight.timer) { clearTimeout(inflight.timer); inflight.timer = null; }
+  if (inflight.pendingSwap) {
+    const s = inflight.pendingSwap; inflight.pendingSwap = null;
+    try { s(); } catch (err) { console.error('slidePage swap failed', err); }
+  }
+  const c = inflight.container;
+  if (c) {
+    c.classList.add('gesture-live');   // no transition while snapping
+    c.style.transform = '';
+    c.style.opacity = '';
+    void c.offsetWidth;
+    c.classList.remove('gesture-live');
+  }
+  inflight.container = null;
+}
 export function slidePage(container, dir, swap) {
-  // ignore a second swipe that lands mid-transition; a queued double-swap
-  // would skip a page and leave the transform in a half state
-  if (sliding) return;
-  sliding = true;
-  // SELF-HEAL: whatever happens below (a swap that throws, a tab switch mid
-  // animation, a touchcancel), the lock MUST release, or every later swipe is
-  // silently dropped and the app reads as "stuck". Hard ceiling on the lock.
-  clearTimeout(slideTimer);
-  slideTimer = setTimeout(() => {
-    sliding = false;
-    container.classList.remove('gesture-live');
-    container.style.transform = '';
-    container.style.opacity = '';
-  }, 800);
+  settleSlide();                       // finish anything still in flight
+  inflight.container = container;
+  inflight.pendingSwap = swap;
   const w = container.clientWidth || window.innerWidth;
-  const OUT = 220; // ms, matches the CSS transition
+  const OUT = 160; // ms — snappier than 220; a pager should feel immediate
   // The drag left `gesture-live` (transition: none) on the container. Turning
   // the transition back on and setting the target in the SAME tick does not
   // animate — the browser coalesces both into one style change. Force a
@@ -68,8 +78,10 @@ export function slidePage(container, dir, swap) {
   void container.offsetWidth; // reflow: commit "transition on" first
   container.style.transform = `translateX(${dir * w}px)`;
   container.style.opacity = '0.6';
-  setTimeout(() => {
-    try { swap(); } catch (err) { console.error('slidePage swap failed', err); }
+  inflight.timer = setTimeout(() => {
+    inflight.timer = null;
+    const s = inflight.pendingSwap; inflight.pendingSwap = null;
+    if (s) { try { s(); } catch (err) { console.error('slidePage swap failed', err); } }
     // park off the OPPOSITE edge with no transition, then release
     container.classList.add('gesture-live');
     container.style.transform = `translateX(${-dir * w}px)`;
@@ -80,7 +92,7 @@ export function slidePage(container, dir, swap) {
     void container.offsetWidth; // reflow: transition back on, still parked
     container.style.transform = '';
     container.style.opacity = '';
-    setTimeout(() => { sliding = false; clearTimeout(slideTimer); }, OUT);
+    inflight.timer = setTimeout(() => { inflight.timer = null; inflight.container = null; }, OUT);
   }, OUT);
 }
 
@@ -188,6 +200,9 @@ export function render(container, ctx) {
 
   container.ontouchstart = (e) => {
     if (e.target.closest('input, textarea, button')) { g.startX = g.startY = null; return; }
+    // a touch that lands mid-transition takes over: settle the previous slide
+    // (committing its swap) so this gesture starts from a resting page
+    settleSlide();
     g.startX = e.touches[0].clientX;
     g.startY = e.touches[0].clientY;
     g.startScroll = container.scrollTop;

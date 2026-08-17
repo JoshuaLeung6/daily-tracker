@@ -107,7 +107,8 @@ const localISO = (offset) => {
   const nameVal = await page.$eval('.lift-row .lift-label', (e) => e.textContent);
   const weightVal = await page.$eval('.lift-row input[aria-label="Weight"]', (e) => e.value);
   check('picker adds named row with EMPTY numbers', nameVal === 'Bench press' && weightVal === '');
-  check('first-time preview', await page.$eval('.lift-preview', (e) => /first time/.test(e.textContent)));
+  // a lift with no history shows NO placeholder text — the preview is simply empty
+  check('no history: preview is empty (no placeholder)', await page.$eval('.lift-preview', (e) => e.textContent.trim() === ''));
   await fillRow(0, '135', '8', '3');
   await addLiftViaPicker('Overhead press');
   await fillRow(1, '95', '10', '3');
