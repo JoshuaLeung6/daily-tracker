@@ -3,7 +3,13 @@
 <head>
   <meta charset="utf-8">
   <title>Personal Fitness Tracker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <!-- viewport-fit=cover must come right after initial-scale. The old tag had
+       `maximum-scale=1, user-scalable=no` in between; those are a no-op for
+       pinch-zoom on iOS anyway (ignored for accessibility since iOS 10, and
+       pinch is already blocked by touch-action: pan-y in CSS) but they risk
+       the rest of the string being discarded — which leaves cover unapplied
+       and iOS carves the 62px Dynamic Island inset out of the viewport. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="A low-pressure personal fitness ledger">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">

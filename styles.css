@@ -5,6 +5,12 @@
    ============================================================ */
 
 :root {
+  /* Safe-area insets exposed as variables so they can be READ back in JS.
+     If cover is applying, --sat is 62 and --sab is 34 on a Dynamic Island
+     phone; if cover is NOT applying, both resolve to 0px. That difference
+     is the single fastest way to tell whether the viewport tag took. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
   --bg: #16130e;
   --surface: #201b13;
   --surface-2: #2a2418;
@@ -59,12 +65,20 @@ html {
   background: var(--bg);
 }
 
-/* Pin the shell to the real screen edges. In iOS standalone mode 100dvh can
-   fall short of the true window height, leaving a bare band under the tab
-   bar; a fixed inset:0 box always reaches the bottom edge. */
+/* Pin the shell to the real screen edges.
+   Use explicit height: 100vh — NOT inset: 0, NOT 100dvh, NOT 100%.
+   - `position: fixed; inset: 0` is WebKit bug 237961: in standalone +
+     viewport-fit=cover it leaves a gap at the bottom of the page.
+   - `100dvh` reports a wrong value on PWA cold start and only corrects after
+     a rotation (WebKit bug 254868) — which is why a reinstall never helped.
+   - `100%` breaks viewport-fit=cover outright.
+   Keep position: fixed so the shell cannot scroll, but let 100vh size it. */
 body {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: pan-y; /* vertical scroll only — no pinch-zoom, no horizontal pan */

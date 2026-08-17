@@ -130,13 +130,33 @@ navigation past today — swipe resists and never arms, and the next arrow is
 a sentence in it and the pane scrolls sideways. Override with
 `white-space: normal` (see `.mt-aim .gc-window`).
 
-**The tab bar must NOT add `env(safe-area-inset-bottom)` padding.** Measured on
-device, the bar already reaches the screen bottom (`gap below tabbar 0px`), so
-inset padding does not close a gap — it adds ~34px of dead space under the
-icons.
-*Why: three separate "fix the footer" attempts made it worse before anyone
-measured. Settings → About → **Layout info** prints the real geometry; use it
-instead of reasoning about what iOS might do.*
+**The tab bar must NOT add `env(safe-area-inset-bottom)` padding.** The bar
+already reaches the bottom of the viewport, so inset padding does not close a
+gap — it adds ~34px of dead space under the icons.
+
+**The viewport meta is order-sensitive: `viewport-fit=cover` must come right
+after `initial-scale`.** Never reinstate `maximum-scale` / `user-scalable=no`
+between them — iOS ignores those for accessibility anyway, pinch-zoom is
+already blocked by `touch-action: pan-y`, and their presence can cause the
+rest of the string (including `cover`) to be dropped.
+
+**`body` must be sized with `height: 100vh`.** Not `inset: 0`
+([WebKit 237961](https://bugs.webkit.org/show_bug.cgi?id=237961): standalone +
+cover leaves a bottom gap), not `100dvh`
+([WebKit 254868](https://bugs.webkit.org/show_bug.cgi?id=254868): wrong on PWA
+cold start, self-corrects only after a rotation), not `100%` (breaks cover).
+
+*Why these three exist: five "fix the footer" attempts failed because the gap
+was diagnosed as bottom padding when the arithmetic was `874 − 62 = 812` — the
+62px **top** Dynamic Island inset being carved out of the viewport because
+cover was not applying. Symptom presents at the bottom; cause was at the top.*
+
+**Diagnosing viewport problems:** Settings → About → **Layout info** reads
+`--sat`/`--sab` back from `:root`. If both are `0px`, `viewport-fit=cover` is
+not applying. With cover working on a Dynamic Island phone, expect
+`--sat 62px`, `--sab 34px`, and `innerHeight === screen.height`. Measure
+against `screen.height`, never `innerHeight` alone — `innerHeight` cannot see
+a band that iOS never gave the page.
 
 **Theme colors come from CSS custom properties** defined for both light and
 dark. Never hard-code a hex value in a rule.

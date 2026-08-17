@@ -221,7 +221,21 @@ export function render(container, ctx) {
       + `--- the two gaps ---\n`
       + `A inside view (icons->innerH): ${insideGap}px\n`
       + `B withheld by iOS (screenH-innerH): ${withheld}px\n`
-      + `TOTAL below icons: ${insideGap != null ? insideGap + withheld : '?'}px`;
+      + `TOTAL below icons: ${insideGap != null ? insideGap + withheld : '?'}px\n`
+      + `--- is viewport-fit=cover applying? ---\n`
+      + (() => {
+        // Read the insets from :root. If cover is NOT applying, BOTH resolve
+        // to 0px. Cover applying on a Dynamic Island phone = top 62, bot 34.
+        const rs = getComputedStyle(document.documentElement);
+        const vTop = rs.getPropertyValue('--sat').trim();
+        const vBot = rs.getPropertyValue('--sab').trim();
+        const ok = parseFloat(vTop) > 0;
+        return `--sat ${vTop || '?'} · --sab ${vBot || '?'}\n`
+          + `screen ${screen.width}x${screen.height}\n`
+          + `VERDICT: ${ok
+            ? 'cover IS applying (expect innerH == screenH)'
+            : 'cover NOT applying (top inset is being cut from the viewport)'}`;
+      })();
   };
 
   // Temporary: paint the very bottom of the WEB VIEW bright red. If you see
