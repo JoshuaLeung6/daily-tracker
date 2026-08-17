@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.22.0';
+export const APP_VERSION = '2.23.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -129,7 +129,12 @@ switchTab('day');
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js');
+      // updateViaCache: 'none' — always fetch sw.js from the network when
+      // checking for updates. GitHub Pages serves it with max-age=600, so
+      // the default lets the HTTP cache answer "unchanged" for up to 10 min
+      // after every deploy, which is why updates looked like they were not
+      // arriving. The service worker script itself must never be cached.
+      const reg = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
       // iOS resumes the PWA without a page load, which skips the normal
       // update check — so also check whenever the app comes to the front.
       document.addEventListener('visibilitychange', () => {

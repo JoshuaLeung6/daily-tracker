@@ -160,13 +160,32 @@ export function render(container, ctx) {
   const checkUpdates = async () => {
     updateStatus.textContent = 'Checking…';
     try {
+      // Ask the SERVER what version it has, bypassing every cache, so the
+      // answer is about reality and not about what this phone last saw.
+      let serverVersion = null;
+      try {
+        const res = await fetch(`./js/app.js?nocache=${Date.now()}`, { cache: 'no-store' });
+        const m = (await res.text()).match(/APP_VERSION\s*=\s*'([^']+)'/);
+        serverVersion = m ? m[1] : null;
+      } catch { /* fall through */ }
+
       const reg = await navigator.serviceWorker.getRegistration();
       if (!reg) { updateStatus.textContent = 'Updates unavailable in this browser.'; return; }
       await reg.update();
+
       if (reg.installing || reg.waiting) {
-        updateStatus.textContent = 'Update found — installing. The app will refresh itself in a moment.';
+        updateStatus.textContent = `Update found (server has ${serverVersion || 'newer'}) — installing. The app will refresh itself in a moment.`;
+      } else if (serverVersion && serverVersion !== ctx.version) {
+        // the server is ahead but the worker did not pick it up: the sw.js
+        // fetch is being answered from an HTTP cache. Force it.
+        updateStatus.textContent = `Server has ${serverVersion}, this phone has ${ctx.version}. Forcing a refresh…`;
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) await r.unregister();
+        const keys = await caches.keys();
+        for (const k of keys) await caches.delete(k);
+        location.reload();
       } else {
-        updateStatus.textContent = `Up to date (${ctx.version}). New releases can take ~10 minutes to reach the server.`;
+        updateStatus.textContent = `Up to date (${ctx.version} on both this phone and the server).`;
       }
     } catch {
       updateStatus.textContent = 'Couldn’t check — are you offline?';
