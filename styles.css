@@ -66,19 +66,21 @@ html {
 }
 
 /* Pin the shell to the real screen edges.
-   Use explicit height: 100vh — NOT inset: 0, NOT 100dvh, NOT 100%.
-   - `position: fixed; inset: 0` is WebKit bug 237961: in standalone +
-     viewport-fit=cover it leaves a gap at the bottom of the page.
-   - `100dvh` reports a wrong value on PWA cold start and only corrects after
-     a rotation (WebKit bug 254868) — which is why a reinstall never helped.
-   - `100%` breaks viewport-fit=cover outright.
-   Keep position: fixed so the shell cannot scroll, but let 100vh size it. */
+   With viewport-fit=cover applying, 100vh is the FULL screen including the
+   safe areas — so the shell must be inset by them or the tab bar is pushed
+   off the bottom of the display. Padding (not a smaller height) keeps the
+   background painted edge to edge behind the Dynamic Island and the home
+   indicator, while the flex children stay inside the usable area.
+   Not `inset: 0` (WebKit 237961: bottom gap in standalone + cover), not
+   `100dvh` (WebKit 254868: wrong on PWA cold start), not `100%`. */
 body {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100vh;
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: pan-y; /* vertical scroll only — no pinch-zoom, no horizontal pan */
@@ -135,7 +137,9 @@ html[data-theme="light"] body::before {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px 28px;
+  /* body already pads by the top inset, so this must NOT add it again —
+     doing so double-counts and pushes content 62px too far down */
+  padding: 18px 18px 28px;
 }
 
 .tabbar {
