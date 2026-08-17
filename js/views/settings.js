@@ -179,11 +179,16 @@ export function render(container, ctx) {
     const tab = document.querySelector('.tabbar');
     const r = tab ? tab.getBoundingClientRect() : null;
     const cs = tab ? getComputedStyle(tab) : null;
-    const probe = document.createElement('div');
-    probe.style.cssText = 'position:fixed;bottom:0;height:env(safe-area-inset-bottom,0px);width:1px;visibility:hidden';
-    document.body.appendChild(probe);
-    const sab = probe.getBoundingClientRect().height;
-    probe.remove();
+    const measureInset = (side) => {
+      const probe = document.createElement('div');
+      probe.style.cssText = `position:fixed;${side}:0;height:env(safe-area-inset-${side},0px);width:1px;visibility:hidden`;
+      document.body.appendChild(probe);
+      const h = probe.getBoundingClientRect().height;
+      probe.remove();
+      return h;
+    };
+    const sab = measureInset('bottom');
+    const sat = measureInset('top');
     // Measure against the PHYSICAL SCREEN, not just innerHeight. Everything
     // inside the web view can look perfect while iOS withholds a band below
     // it — innerHeight-based numbers cannot see that band at all, which is
@@ -204,7 +209,12 @@ export function render(container, ctx) {
       + `innerH ${viewH} · docH ${document.documentElement.clientHeight} · screenH ${screenCss} · dpr ${dpr}\n`
       + `visualViewport ${window.visualViewport ? Math.round(window.visualViewport.height) : 'n/a'}`
       + `${window.visualViewport ? ` offsetTop ${Math.round(window.visualViewport.offsetTop)}` : ''}\n`
-      + `safe-area-bottom ${sab}px\n`
+      + `safe-area top ${sat}px · bottom ${sab}px · sum ${sat + sab}px\n`
+      + `screenY of view top: ${(() => {
+        // where the web view sits on the physical screen: if the withheld band
+        // is entirely ABOVE us, this equals the withheld amount
+        try { return Math.round(window.screenY !== undefined ? window.screenY : -1); } catch { return -1; }
+      })()}\n`
       + `tabbar top ${r ? Math.round(r.top) : '?'} bottom ${r ? Math.round(r.bottom) : '?'} h ${r ? Math.round(r.height) : '?'} · pad-b ${cs ? cs.paddingBottom : '?'}\n`
       + `tab h ${(() => { const t = document.querySelector('.tab'); return t ? Math.round(t.getBoundingClientRect().height) : '?'; })()}`
       + ` · icon-b ${sr ? Math.round(sr.bottom) : '?'} · label-b ${lr ? Math.round(lr.bottom) : '?'}\n`
