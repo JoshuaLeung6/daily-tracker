@@ -158,6 +158,23 @@ not applying. With cover working on a Dynamic Island phone, expect
 against `screen.height`, never `innerHeight` alone — `innerHeight` cannot see
 a band that iOS never gave the page.
 
+**The 62px band below the tab bar is WebKit bug 301994 — an iOS bug, NOT
+fixable from page code.** [bugs.webkit.org/301994](https://bugs.webkit.org/show_bug.cgi?id=301994),
+REOPENED 2026-08-04, live on iOS 26.5.2 and iOS 27 beta (fixed in 26.2,
+regressed in 26.5.2). On affected builds iOS hands the page a layout viewport
+already shortened by the top inset — `innerHeight = screen.height − 62` —
+while `env(safe-area-inset-top)` still reports 62. The withheld strip is
+"drawn by the system above the web layer and unreachable by any DOM element"
+(comment 12, which measured 874/812/62 on device — our exact numbers).
+Nothing inside the viewport can enlarge it: not status-bar-style, meta order,
+`html{height:100%}`, `-webkit-fill-available`, avoiding `position:fixed`, or a
+JS resize. **Do not attempt another CSS fix for this.** Two things that ARE
+right: (1) `applyTopInset()` in app.js pads `body` by `--sat` ONLY when
+`innerHeight === screen.height`, because on buggy builds padding would
+double-count the inset; (2) `body`/`html` background and the `theme-color`
+meta match the tab bar so the band blends. The manifest `theme_color` is
+static (dark) and cannot follow the light theme.
+
 **The bottom 34px is the home indicator and is NOT removable.** Verified
 against primary sources (WebKit blog, Apple DevForums, caniuse, mdn) — do not
 re-investigate this:

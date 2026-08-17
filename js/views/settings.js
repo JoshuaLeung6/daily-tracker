@@ -249,12 +249,18 @@ export function render(container, ctx) {
         const rs = getComputedStyle(document.documentElement);
         const vTop = rs.getPropertyValue('--sat').trim();
         const vBot = rs.getPropertyValue('--sab').trim();
-        const ok = parseFloat(vTop) > 0;
+        // The env() vars populating does NOT mean the viewport was extended:
+        // on device they read 62/34 while innerH was still 62 short. The only
+        // signal that matters is whether the layout viewport spans the screen.
+        const envOk = parseFloat(vTop) > 0;
+        const viewportFull = Math.abs(viewH - screenCss) <= 1;
+        let verdict;
+        if (viewportFull) verdict = 'viewport spans the full screen — nothing withheld';
+        else if (envOk) verdict = `env() insets populate BUT viewport is ${screenCss - viewH}px short — iOS is withholding the top inset from the layout viewport (WebKit 254868)`;
+        else verdict = 'cover NOT applying (env() insets are 0)';
         return `--sat ${vTop || '?'} · --sab ${vBot || '?'}\n`
           + `screen ${screen.width}x${screen.height}\n`
-          + `VERDICT: ${ok
-            ? 'cover IS applying (expect innerH == screenH)'
-            : 'cover NOT applying (top inset is being cut from the viewport)'}`;
+          + `VERDICT: ${verdict}`;
       })();
   };
 

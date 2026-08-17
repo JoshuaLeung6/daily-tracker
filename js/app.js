@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.23.0';
+export const APP_VERSION = '2.24.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -44,6 +44,22 @@ initStore({
 });
 
 applyTheme();
+
+// Top safe-area handling has to be decided at runtime, because iOS is
+// inconsistent about it (WebKit bug 301994, live on iOS 26.5.2 / 27 beta):
+//  - buggy builds hand the page a viewport ALREADY shortened by the top inset
+//    (innerHeight = screen.height − 62). Padding by env(safe-area-inset-top)
+//    on top of that double-counts and wastes 62px of content area.
+//  - fixed builds hand the page the FULL screen; then content would run under
+//    the Dynamic Island unless we pad.
+// So: pad only when the viewport genuinely spans the screen.
+function applyTopInset() {
+  const full = Math.abs(window.innerHeight - screen.height) <= 1;
+  document.documentElement.style.setProperty('--top-pad', full ? 'var(--sat)' : '0px');
+}
+applyTopInset();
+window.addEventListener('resize', applyTopInset);
+window.addEventListener('orientationchange', () => setTimeout(applyTopInset, 100));
 
 // reconcile the code-level personal config into stored data (non-destructive)
 try {

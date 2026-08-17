@@ -79,9 +79,16 @@ body {
   left: 0;
   width: 100%;
   height: 100vh;
-  padding-top: var(--sat);
-  /* NO bottom padding: the tab bar is position:fixed and carries the
-     home-indicator inset itself. Padding here as well double-counts it. */
+  padding-top: var(--top-pad, 0px);
+  /* --top-pad is set at runtime by applyTopInset() in app.js.
+     On iOS 26.5+/27 (WebKit bug 301994) the layout viewport is ALREADY
+     shortened by the top inset — innerHeight = screen − 62 — so padding by
+     --sat as well would subtract the same 62px twice. But on a build where
+     that bug is fixed the viewport spans the full screen and content WOULD
+     run under the Dynamic Island. So: measure innerHeight vs screen.height
+     at runtime and only pad when the viewport is genuinely full-height.
+     NO bottom padding: the tab bar is position:fixed and carries the
+     home-indicator inset itself. */
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: pan-y; /* vertical scroll only — no pinch-zoom, no horizontal pan */
