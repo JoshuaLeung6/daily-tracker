@@ -9,7 +9,7 @@ import { fmt, weekdayName } from '../dates.js';
 import {
   SPLITS, SPLIT_LABELS, FOCUSES, FOCUS_LABELS,
   getWorkout, saveWorkout, deleteWorkout, templateFor, suggestedClass,
-  liftsBySplit, lastLiftOfFocus, repRange, suggestedNextLoad,
+  liftsBySplit, recentLifts, repRange, suggestedNextLoad,
 } from '../workouts.js';
 
 export function openWorkout(iso, { locked = false, onClose } = {}) {
@@ -55,7 +55,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
       disabled: locked,
       'aria-label': FOCUS_LABELS[f],
       onclick: () => setClass({ focus: f }),
-    }, f === 'weight' ? 'Weight' : 'Volume')));
+    }, { weight: 'Weight', volume: 'Volume', maintenance: 'Maint.' }[f])));
   };
   const setClass = (patch) => {
     Object.assign(draft, patch);
@@ -71,12 +71,12 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     suggestWrap.replaceChildren();
     if (locked) return;
     const added = new Set(draft.lifts.map((l) => (l.name || '').trim().toLowerCase()));
-    const names = templateFor(draft.split, draft.focus, iso)
+    const names = templateFor(draft.split, null, iso)
       .map((l) => l.name)
       .filter((n) => !added.has(n.trim().toLowerCase()));
     if (names.length === 0) return;
     suggestWrap.append(
-      el('div', { class: 'wo-seg-label' }, `Last ${SPLIT_LABELS[draft.split]} · ${FOCUS_LABELS[draft.focus]}`),
+      el('div', { class: 'wo-seg-label' }, `Last ${SPLIT_LABELS[draft.split]} session`),
       el('div', { class: 'chips' }, ...names.map((n) =>
         el('button', { class: 'chip chip-suggest', onclick: () => addLift(n) }, `+ ${n}`))),
     );
@@ -118,18 +118,22 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     return input;
   };
 
+  // The last three sessions of this lift, ANY day type, newest first — one
+  // compact line: "185×8×3 Aug 14 · 180×8×3 Aug 11 · 180×7×3 Aug 8".
+  // What you did last is what you load against; the day's label is noise.
+  const setStr = (l) => [l.weight, l.reps, l.sets].filter((v) => v != null)
+    .map((v) => v.toLocaleString()).join('×') || '—';
   const previewText = (name) => {
     if (!name || !name.trim()) return '';
-    const same = lastLiftOfFocus(name, draft.focus, iso);
-    const any = same || lastLiftOfFocus(name, null, iso);
-    if (!any) return 'first time — no previous sessions';
-    const setStr = [any.weight, any.reps, any.sets].filter((v) => v != null)
-      .map((v) => v.toLocaleString()).join(' × ') || '—';
-    const label = same ? `last ${FOCUS_LABELS[any.focus].toLowerCase()}` : `last (${FOCUS_LABELS[any.focus].toLowerCase()})`;
-    let text = `${label}: ${setStr} · ${fmt(any.date, { month: 'short', day: 'numeric' })}`;
+    const recent = recentLifts(name, iso, 3);
+    if (!recent.length) return 'first time — no previous sessions';
+    let text = recent
+      .map((l) => `${setStr(l)} ${fmt(l.date, { month: 'short', day: 'numeric' })}`)
+      .join(' · ');
     // double progression: rep ceiling filled last time -> nudge the load up
-    if (same && same.reps != null && same.weight != null && same.reps >= repRange(name, draft.focus).hi) {
-      text += ` · ready: try ${suggestedNextLoad(same.weight).toLocaleString()}`;
+    const last = recent[0];
+    if (last.focus !== 'maintenance' && last.reps != null && last.weight != null && last.reps >= repRange().hi) {
+      text += ` · ready: try ${suggestedNextLoad(last.weight).toLocaleString()}`;
     }
     return text;
   };
@@ -203,7 +207,11 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
             onclick: () => { addLift(it.name); closePicker(); },
           },
             el('span', {}, it.name),
-            el('span', { class: 'pick-hint' }, isAdded ? 'added' : previewText(it.name).replace(/^last [^:]*: /, '').replace(/^first time.*/, 'new')),
+            el('span', { class: 'pick-hint' }, isAdded ? 'added' : (() => {
+              // picker rows get just the most recent set, not the 3-line preview
+              const r = recentLifts(it.name, iso, 1)[0];
+              return r ? setStr(r) : 'new';
+            })()),
           ));
         }
       }
@@ -255,7 +263,6 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
       el('div', { class: 'wo-class-col' }, el('div', { class: 'wo-seg-label' }, 'Split'), splitSeg),
       el('div', { class: 'wo-class-col' }, el('div', { class: 'wo-seg-label' }, 'Day type'), focusSeg),
     ),
-    suggestWrap,
     el('div', { class: 'lift-labels' },
       el('span', { class: 'll-name' }, 'Lift'),
       el('span', {}, 'Weight'),
@@ -264,7 +271,9 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
       el('span', { class: 'll-x' }),
     ),
     rows,
-    !locked && el('button', { class: 'ghost-btn', onclick: openPicker }, '+ Add lift'),
+    // suggestions sit with the add control, below what has been logged
+    suggestWrap,
+    !locked && el('button', { class: 'ghost-btn', onclick: openPicker }, 'View all lifts'),
     !locked && existing && el('button', {
       class: 'btn danger wo-delete',
       onclick: () => {

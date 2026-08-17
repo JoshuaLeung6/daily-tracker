@@ -47,7 +47,7 @@ const localISO = (offset) => {
   // picker is keyboard-free: expand every PPL section, tap the lift if it
   // exists, else create it via "New lift…"
   const addLiftViaPicker = async (name) => {
-    await clickByText('.workout-overlay .ghost-btn', '+ Add lift');
+    await clickByText('.workout-overlay .ghost-btn', 'View all lifts');
     await page.waitForSelector('.sheet .pick-section');
     await page.evaluate(() => {
       for (const s of document.querySelectorAll('.pick-section:not(.open)')) s.click();
@@ -140,8 +140,8 @@ const localISO = (offset) => {
   await page.waitForSelector('.lift-row');
   const w2 = await page.$eval('.lift-row input[aria-label="Weight"]', (e) => e.value);
   check('chip adds name-only row (weight empty)', w2 === '');
-  check('preview shows last weight day 135 × 8 × 3',
-    await page.$eval('.lift-preview', (e) => /last weight day: 135 × 8 × 3/.test(e.textContent)),
+  check('preview shows the last session 135×8×3',
+    await page.$eval('.lift-preview', (e) => /135×8×3/.test(e.textContent)),
     await page.$eval('.lift-preview', (e) => e.textContent));
   const chipsAfter = await page.$$eval('.chip-suggest', (els) => els.map((e) => e.textContent));
   check('used chip disappears', !chipsAfter.includes('+ Bench press'), chipsAfter.join(','));

@@ -30,6 +30,49 @@ export function willCommit(delta, velocity) {
   return Math.abs(velocity) >= SWIPE_VELOCITY && Math.sign(velocity) === Math.sign(delta);
 }
 
+// Page transition on commit. What made the swipe feel wrong was not the
+// thresholds: on release the view SPRANG BACK to zero and then the content
+// swapped — the page moved against your finger, then teleported. A native
+// pager continues in the direction you swiped: the outgoing page slides off
+// that edge, the incoming one slides in from the other. This does that with
+// the view's own transform transition: finish the exit off-screen, swap the
+// content while it is out of sight, park it just past the far edge with no
+// transition, then let it slide home.
+//   dir: -1 = content moves left (you swiped left, going forward)
+//        +1 = content moves right (you swiped right, going back)
+let sliding = false;
+export function slidePage(container, dir, swap) {
+  // ignore a second swipe that lands mid-transition; a queued double-swap
+  // would skip a page and leave the transform in a half state
+  if (sliding) return;
+  sliding = true;
+  const w = container.clientWidth || window.innerWidth;
+  const OUT = 220; // ms, matches the CSS transition
+  // The drag left `gesture-live` (transition: none) on the container. Turning
+  // the transition back on and setting the target in the SAME tick does not
+  // animate — the browser coalesces both into one style change. Force a
+  // reflow in between so the transition actually engages from the drag
+  // position.
+  container.classList.remove('gesture-live');
+  void container.offsetWidth; // reflow: commit "transition on" first
+  container.style.transform = `translateX(${dir * w}px)`;
+  container.style.opacity = '0.6';
+  setTimeout(() => {
+    swap();
+    // park off the OPPOSITE edge with no transition, then release
+    container.classList.add('gesture-live');
+    container.style.transform = `translateX(${-dir * w}px)`;
+    container.style.opacity = '0.6';
+    container.scrollTop = 0;
+    void container.offsetWidth; // reflow: commit the parked position
+    container.classList.remove('gesture-live');
+    void container.offsetWidth; // reflow: transition back on, still parked
+    container.style.transform = '';
+    container.style.opacity = '';
+    setTimeout(() => { sliding = false; }, OUT);
+  }, OUT);
+}
+
 export function render(container, ctx) {
   const iso = ctx.date;
   const today = todayISO();
@@ -208,13 +251,21 @@ export function render(container, ctx) {
     const scrolledTop = g.startScroll <= 0 && container.scrollTop <= 0;
     const vx = g.vx;
     const vy = g.vy;
-    resetGesture();
     // same willCommit() the preview used, so the armed cue always tells truth
     if (usedAxis === 'x' && willCommit(dx, vx)) {
-      if (dx < 0) { if (g.canNext) g.ctx.setDate(addDays(g.iso, 1)); }
-      else g.ctx.setDate(addDays(g.iso, -1));
+      const forward = dx < 0;
+      if (forward && !g.canNext) { resetGesture(); return; }
+      // do NOT reset the transform here — slidePage continues the motion in
+      // the swipe direction and swaps the content while it is off-screen
+      g.hint.classList.remove('show');
+      container.classList.remove('gesture-armed');
+      const target = addDays(g.iso, forward ? 1 : -1);
+      const c = g.ctx;
+      g.startX = g.startY = null; g.axis = null;
+      slidePage(container, forward ? -1 : 1, () => c.setDate(target));
       return;
     }
+    resetGesture();
     // zoom out one level: this day's week
     if (usedAxis === 'y' && scrolledTop && willCommit(dy, vy) && dy > 0 && g.ctx.goTab) {
       g.ctx.goTab('week', { detail: true });

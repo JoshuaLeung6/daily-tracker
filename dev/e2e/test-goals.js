@@ -95,29 +95,12 @@ const localISO = (offset) => {
   check('calories met today: text green', /met/.test(tlClass), tlClass);
   check('calories met today: bar green', /met/.test(fillClass), fillClass);
 
-  // ---- 2. Progress tab: Goals pane attainment ----
+  // ---- 2. Progress tab: no per-target attainment cards any more ----
+  // (removed in v2.27: the sprint consistency percentages replaced them)
   await page.click('.tab[data-tab="stats"]');
-  await page.waitForSelector('.att-card');
-  let paneText = await page.$eval('#view-stats', (e) => e.textContent);
-  check('attainment card shows streak 1 (missed yesterday)', /streak/.test(paneText));
-  const attVals = await page.$$eval('.att-card .as-v', (els) => els.map((e) => e.textContent));
-  check('calories: streak=1, best=2, 30-day=3/11',
-    attVals[0] === '1' && attVals[1] === '2' && attVals[2] === '3/11', attVals.join(','));
-  // scope to the Calories card (10k steps has its own strip now)
-  const dotStates = await page.evaluate(() => {
-    const card = [...document.querySelectorAll('.att-card')].find((c) => /Calories/.test(c.textContent));
-    return [...card.querySelectorAll('.dstrip i')].map((e) => e.className);
-  });
-  check('dot strip: 14 dots, 3 met', dotStates.length === 14 && dotStates.filter((c) => c === 'met').length === 3,
-    `${dotStates.length} dots, ${dotStates.filter((c) => c === 'met').length} met`);
-  const greenStreak = await page.$eval('.att-card .as-v', (e) => e.className);
-  check('streak number green when met today', /met-day-text on/.test(greenStreak), greenStreak);
-
-  // weightlifting weekly card
-  const wkCards = await page.$$eval('.att-card', (els) => els.map((e) => e.textContent));
-  const liftCard = wkCards.find((t) => t.includes('Weightlifting'));
-  // config backdates the lifting target to 6/week
-  check(`weightlifting card shows ${liftDays}/6 this week`, liftCard && liftCard.includes(`${liftDays}/6`), liftCard);
+  await page.waitForSelector('#view-stats .pane');
+  check('no attainment cards on Progress', (await page.$('.att-card')) === null);
+  check('sprint consistency block present', await page.$eval('#view-stats', (e) => /Sprint consistency/.test(e.textContent)));
 
   // ---- 3. add a body-weight goal via code config (creates the Weight tracker) ----
   await page.evaluate(async (deadline) => {

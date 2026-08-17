@@ -57,7 +57,8 @@ const localISO = (offset) => {
       wd(iso[20], [{ name: 'Bench', weight: 185, reps: 5, sets: 3 }]),
       wd(iso[16], [{ name: 'Bench', weight: 185, reps: 5, sets: 3 }, { name: 'Row', weight: 155, reps: 5, sets: 3 }]),
       wd(iso[8], [{ name: 'Bench', weight: 185, reps: 5, sets: 3 }, { name: 'Curl', weight: 65, reps: 6, sets: 3 }]),
-      wd(iso[1], [{ name: 'Bench', weight: 185, reps: 5, sets: 3 }, { name: 'Row', weight: 155, reps: 6, sets: 3 }]),
+      // Row at 15 reps = the top of the uniform 8-15 range -> ready to load
+      wd(iso[1], [{ name: 'Bench', weight: 185, reps: 5, sets: 3 }, { name: 'Row', weight: 155, reps: 15, sets: 3 }]),
     ]);
     localStorage.setItem('pcal:data', JSON.stringify({
       schemaVersion: 5,
@@ -82,7 +83,7 @@ const localISO = (offset) => {
   await page.waitForSelector('.verdict-card');
   const verdict = await page.$eval('.verdict-card', (e) => e.textContent);
   check('verdict counts progressing lifts', /\d of \d lifts progressing/.test(verdict), verdict);
-  check('verdict mentions ready + stalled', /2 ready to load/.test(verdict) && /1 stalled/.test(verdict), verdict);
+  check('verdict mentions ready + stalled', /1 ready to load/.test(verdict) && /1 stalled/.test(verdict), verdict);
 
   const benchRow = await page.evaluate(() => {
     const r = [...document.querySelectorAll('.stat-row')].find((x) => x.textContent.includes('Bench'));
@@ -93,7 +94,7 @@ const localISO = (offset) => {
     const r = [...document.querySelectorAll('.stat-row')].find((x) => x.textContent.includes('Row'));
     return r ? r.textContent : '';
   });
-  check('row (6 reps at ceiling) has ready badge', /ready to load/.test(rowRow), rowRow.slice(0, 120));
+  check('row (15 reps at ceiling) has ready badge', /ready to load/.test(rowRow), rowRow.slice(0, 120));
   check('collapsed rows are slim (no sessions count)', !/sessions/.test(benchRow), benchRow.slice(0, 160));
 
   // ---- 2. expanded: prescription + detail + rep-range editor ----
@@ -103,16 +104,9 @@ const localISO = (offset) => {
   check('stalled prescription with ordered fixes', /Stalled: no e1RM PR/.test(expText) && /deload/.test(expText), expText.slice(0, 240));
   check('detail line moved into expansion', /session/.test(expText) && /last 185/.test(expText));
 
-  // rep-range editor: widen bench range to 3–8 -> 5-rep sets no longer at ceiling anywhere
-  await page.evaluate(() => {
-    const lo = document.querySelector('input[aria-label="Bench rep range low"]');
-    const hi = document.querySelector('input[aria-label="Bench rep range high"]');
-    lo.value = '3'; hi.value = '8';
-  });
-  await page.evaluate(() => [...document.querySelectorAll('.sr-goalbtn')].filter((b) => b.textContent === 'Save').pop().click());
-  await new Promise((r) => setTimeout(r, 200));
-  const prefs = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')).liftGoals.bench);
-  check('custom rep range stored', prefs && prefs.repLo === 3 && prefs.repHi === 8, JSON.stringify(prefs));
+  // rep range is fixed at 8–15 for every lift and NOT editable from the UI
+  check('rep range shown read-only as 8–15', /8–15/.test(expText), expText.slice(0, 240));
+  check('no rep-range inputs in the UI', (await page.$('input[aria-label$="rep range low"]')) === null);
 
   // ---- 3. Coach pane ----
   await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Coach');

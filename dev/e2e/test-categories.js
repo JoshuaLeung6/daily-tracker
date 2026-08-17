@@ -114,8 +114,9 @@ const localISO = (offset) => {
   check('weight hero shows the required pace', await page.$eval('#view-stats', (e) => /need [+-][\d.]+/.test(e.textContent)));
 
   // ---- 7. attainment: only Calories (weight has no targets) ----
-  const attNames = await page.$$eval('.att-card .gc-name', (els) => els.map((e) => e.textContent));
-  check('attainment cards only for target-able trackers', JSON.stringify(attNames) === JSON.stringify(['Calories']), attNames.join(','));
+  // the per-target attainment cards were removed from Progress (v2.27): the
+  // consistency percentages carry that information now
+  check('no attainment cards on Progress', (await page.$('.att-card')) === null);
 
   check('no console/page errors', errors.length === 0, errors.join(' | ').slice(0, 400));
 

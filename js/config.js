@@ -79,6 +79,12 @@ export const TRACKERS = [
   { name: 'Weightlifting', type: 'checkbox',
     // 6 sessions/week (PPL x2) — backdated to the sprint start
     target: { period: 'week', value: 6, from: '2026-07-11' } },
+  // Waist circumference — the honest body-composition signal on a lean bulk.
+  // Consumer body-fat scales swing 2–4% day to day with hydration and are
+  // noise; a tape at the navel, same morning, once a week, is not. Read it
+  // AGAINST weight: weight up + waist flat = lean gain, weight up + waist up
+  // = fat is coming with it. Optional — log it weekly or ignore it.
+  { name: 'Waist', type: 'measurement', unit: 'cm', goal: null },
   { name: 'Weight', type: 'measurement', unit: 'lb',
     // The weight target lives on the SPRINT (js/sprints.js -> goals.weight).
     // This clears only the specific stale tracker goal left over from the

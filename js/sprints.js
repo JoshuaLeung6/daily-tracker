@@ -45,22 +45,34 @@ export function strengthTotalAt(iso, sprintStart, names) {
   return counted ? { total, counted } : null;
 }
 
-// Weekly series of the strength total across the sprint (for the chart).
-// ONE point per week, on the week's last day: the total combines several
-// lifts trained on different days, so a per-session dot would zigzag on
-// which lift happened to be trained rather than on strength. Each point is
-// the best e1RM per lift achieved so far (strengthTotalAt is a running max),
-// which is the intra-week maximum by construction.
-// The series starts at the first week where EVERY main lift has an e1RM.
-// Plotting partial totals would show a jump the week a third lift first
-// appears, which reads as a strength gain that never happened. The chart
-// still spans the whole sprint on the x-axis, so the late start is visible
-// as empty space rather than as a rescaled axis.
+// Strength total for ONE week: per main lift, the best e1RM set WITHIN that
+// week (not the best-so-far). A running max can only ever rise, which hides
+// a bad week; the within-week max shows it as a dip, which is the truth.
+// Returns null unless EVERY main lift was trained that week — a partial
+// total would read as a strength drop that never happened.
+export function strengthTotalInWeek(weekStart, names) {
+  const weekEnd = addDays(weekStart, 6);
+  let total = 0;
+  let counted = 0;
+  for (const s of liftStats()) {
+    if (!names.some((n) => n.toLowerCase() === s.name.toLowerCase())) continue;
+    const inWeek = s.history.filter((h) => h.date >= weekStart && h.date <= weekEnd && h.e1rm != null);
+    if (!inWeek.length) continue;
+    total += Math.max(...inWeek.map((h) => h.e1rm));
+    counted++;
+  }
+  return counted === names.length ? { total, counted } : null;
+}
+
+// Weekly series of the strength total across the sprint (for the chart):
+// ONE point per week, dated the week's LAST day, each the within-week max
+// per lift summed. Weeks where a main lift was not trained are simply
+// absent — the line skips them rather than inventing a value.
 export function strengthSeries(sprintStart, endISO, names) {
   const out = [];
-  for (let iso = addDays(sprintStart, 6); iso <= endISO; iso = addDays(iso, 7)) {
-    const v = strengthTotalAt(iso, sprintStart, names);
-    if (v && v.counted === names.length) out.push({ iso, value: Math.round(v.total) });
+  for (let ws = sprintStart; ws <= endISO; ws = addDays(ws, 7)) {
+    const v = strengthTotalInWeek(ws, names);
+    if (v) out.push({ iso: addDays(ws, 6), value: Math.round(v.total) });
   }
   return out;
 }
@@ -121,6 +133,11 @@ export const SPRINTS = [
     start: '2026-07-13',
     end: '2026-11-01',
     focus: 'Lean bulk · PPL 5–6×/wk',
+    // Colour palette for this sprint. Each sprint gets its own look so a
+    // new block FEELS like a new block. Palettes are defined in styles.css
+    // under html[data-sprint="<palette>"]; 'espresso' is the original
+    // amber-on-dark scheme and belongs to Sprint 1.
+    palette: 'espresso',
     goals: {
       weight: 145,          // lb, trend weight at sprint end (started ~134)
       lifts: {},            // e.g. { 'Bench press': 155 } — e1RM targets
@@ -216,9 +233,13 @@ export function sprintReport(sprint) {
 
   const cal = calorieTracker();
   const pro = proteinTracker();
+  const cardioT = cardioTracker();
   const adherence = { logged: 0, calHit: 0, calOf: 0, proHit: 0, proOf: 0 };
   let calSum = 0;
   let calN = 0;
+  let proSum = 0;
+  let proN = 0;
+  let cardioDays = 0;
   for (let i = 0; i < elapsed; i++) {
     const d = addDays(s.start, i);
     const e = getEntry(d);
@@ -229,11 +250,21 @@ export function sprintReport(sprint) {
       if (t && t.period === 'day') { adherence.calOf++; if (dayMeets(cal, d)) adherence.calHit++; }
     }
     if (pro) {
+      if (typeof e[pro.id] === 'number') { proSum += e[pro.id]; proN++; }
       const t = targetFor(pro, d);
       if (t && t.period === 'day') { adherence.proOf++; if (dayMeets(pro, d)) adherence.proHit++; }
     }
+    if (cardioT && isCardioDay(e[cardioT.id])) cardioDays++;
   }
-  report.totals = { workouts: workouts.length, bySplit, prs, adherence, calAvg: calN ? calSum / calN : null };
+  report.totals = {
+    workouts: workouts.length,
+    bySplit,
+    prs,
+    adherence,
+    calAvg: calN ? calSum / calN : null,
+    proAvg: proN ? proSum / proN : null,
+    cardioDays,
+  };
 
   // weekly sessions pace vs the lifting commitment
   const weeksElapsed = Math.max(1, elapsed / 7);

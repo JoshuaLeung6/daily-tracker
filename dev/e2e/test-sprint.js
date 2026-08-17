@@ -133,7 +133,8 @@ const localISO = (offset) => {
   // sprint default — the hero shows a target and a required pace either way
   check('weight hero: trend + required pace', /trending/.test(spText) && /need [+-][\d.]+/.test(spText),
     spText.slice(0, 320));
-  check('sprint totals: workouts + PRs + logged', /Workouts/.test(spText) && /PRs/.test(spText) && /Logged/.test(spText));
+  check('sprint totals: workouts, days logged, avg cal, avg protein, cardio',
+    /Workouts/.test(spText) && /Days logged/.test(spText) && /Avg calories/.test(spText) && /Cardio/.test(spText));
   await page.screenshot({ path: path.join(__dirname, 'shots', 'sprint-pane.png') });
 
   // ---- 3. day note (ensure we're on today — the week drill-in moved the date) ----

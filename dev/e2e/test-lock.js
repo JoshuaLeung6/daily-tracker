@@ -40,7 +40,7 @@ function check(name, ok, extra = '') {
   const unlockedCards = await page.$$eval('.cards .card', (els) => els.length);
   // config trackers minus the Weightlifting checkbox (derived from the workout log):
   // Calories, Protein, Cardio, 10k steps, Weight
-  check('unlocking reveals the 5 loggable trackers', unlockedCards === 5, `cards: ${unlockedCards}`);
+  check('unlocking reveals the 6 loggable trackers (incl. Waist)', unlockedCards === 6, `cards: ${unlockedCards}`);
   await page.click('.card input[type="text"]');
   await page.keyboard.type('1800');
   await new Promise((r) => setTimeout(r, 500));
@@ -53,7 +53,8 @@ function check(name, ok, extra = '') {
   check('returning to the day re-locks it', await page.$eval('.lock-pill', (p) => p.textContent.includes('Locked')));
   const relockedNames = await page.$$eval('.card .t-name', (els) => els.map((e) => e.textContent));
   // (weight sorts first, so the typed value landed in the Weight card)
-  check('re-locked day shows only the filled tracker', JSON.stringify(relockedNames) === JSON.stringify(['Weight']), relockedNames.join(','));
+  // the first card is Waist now (measurements sort first, Waist before Weight)
+  check('re-locked day shows only the filled tracker', JSON.stringify(relockedNames) === JSON.stringify(['Waist']), relockedNames.join(','));
   check('value shown readonly', await page.$eval('.card input[type="text"]', (i) => i.readOnly && i.value === '1800'));
   await page.click('.card input[type="text"]');
   await page.keyboard.type('9');

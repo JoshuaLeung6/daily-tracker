@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.26.0';
+export const APP_VERSION = '2.27.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -16,6 +16,7 @@ import * as dayView from './views/day.js';
 import * as weekView from './views/week.js';
 import * as statsView from './views/stats.js';
 import * as settingsView from './views/settings.js';
+import { currentSprint } from './sprints.js';
 
 const sections = {
   day: document.getElementById('view-day'),
@@ -43,27 +44,39 @@ initStore({
   },
 });
 
+// Each sprint owns a colour palette (SPRINTS[].palette -> html[data-sprint]),
+// so a new training block feels like a new block. The default palette in
+// styles.css is 'espresso' (Sprint 1), so there is no flash before this runs.
+{
+  const sp = currentSprint();
+  const palette = (sp && sp.palette) || 'espresso';
+  if (palette !== 'espresso') document.documentElement.dataset.sprint = palette;
+  else delete document.documentElement.dataset.sprint;
+}
+// theme after palette: the meta theme-color reads --bg from the ACTIVE
+// palette, so the palette must be on <html> first
 applyTheme();
 
-// Top safe-area handling has to be decided at runtime, because iOS is
-// inconsistent about it (WebKit bug 301994, live on iOS 26.5.2 / 27 beta):
-//  - buggy builds hand the page a viewport ALREADY shortened by the top inset
-//    (innerHeight = screen.height − 62). Padding by env(safe-area-inset-top)
-//    on top of that double-counts and wastes 62px of content area.
-//  - fixed builds hand the page the FULL screen; then content would run under
-//    the Dynamic Island unless we pad.
-// So: pad only when the viewport genuinely spans the screen.
-// The same logic applies at the BOTTOM. The tab bar pads by --sab to keep its
-// icons off the home indicator, which lives in the last 34px of the SCREEN.
-// On a buggy build the viewport ends 62px above the screen bottom, so the
-// indicator sits entirely inside the iOS-owned band, BELOW the viewport —
-// padding for it inside the viewport clears an indicator that is not there
-// and just lifts the icons 34px for nothing. Pad only when the viewport
-// actually reaches the screen bottom.
+// Safe-area padding is decided at runtime because iOS is inconsistent about
+// the viewport (WebKit bug 301994, live on iOS 26.5.2 / 27 beta). On buggy
+// builds the page gets a viewport shortened by the top inset — but that
+// shortened viewport still starts at y=0 of the screen, so the withheld band
+// is at the BOTTOM, under the home indicator, not the top. Measured on
+// device: innerH 812, screenH 874, screenY 0, gap visible at the bottom,
+// content cut off at the top. So the two edges need different rules.
 function applyInsets() {
   const full = Math.abs(window.innerHeight - screen.height) <= 1;
   const root = document.documentElement.style;
-  root.setProperty('--top-pad', full ? 'var(--sat)' : '0px');
+  // TOP: always pad by the inset. On the buggy build the shortened viewport
+  // still sits at y=0 of the screen, so its first 62px are UNDER the Dynamic
+  // Island — the top must be cleared whether or not the viewport is short.
+  // (Zeroing this when the viewport was short cut the top of every screen
+  // off; the withheld band is at the BOTTOM, not the top.)
+  root.setProperty('--top-pad', 'var(--sat)');
+  // BOTTOM: pad for the home indicator only when the viewport actually
+  // reaches the screen bottom. On the buggy build the indicator sits inside
+  // the withheld band below the viewport, so padding for it here just lifts
+  // the icons for nothing.
   root.setProperty('--bottom-pad', full ? 'var(--sab)' : '0px');
 }
 applyInsets();

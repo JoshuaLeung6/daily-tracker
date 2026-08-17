@@ -8,8 +8,9 @@ import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
 import { weekReport, weekSuggestions, weeksOverview, weekLineStatus, verdictBadge, isCardioDay } from '../insights.js';
 import { currentSprint } from '../sprints.js';
 import { CALORIE_BANDS } from '../config.js';
-// one commit rule for both views, so "armed" always matches what happens
-import { willCommit } from './day.js';
+// one commit rule and one page transition for both views, so "armed" always
+// matches what happens and every swipe moves the same way
+import { willCommit, slidePage } from './day.js';
 
 // The tab opens zoomed out: every week graded green/yellow/red; tapping a
 // week drills into its report card. Switching away and back resets to the
@@ -312,12 +313,19 @@ function renderDetail(container, ctx) {
     const dy = e.changedTouches[0].clientY - g.gy;
     const usedAxis = g.axis;
     const vx = g.vx; const vy = g.vy;
-    resetGesture();
     if (usedAxis === 'x' && willCommit(dx, vx)) {
-      if (dx < 0) { if (g.canNext) ctx.setDate(addDays(ctx.date, 7)); }
-      else ctx.setDate(addDays(ctx.date, -7));
+      const forward = dx < 0;
+      if (forward && !g.canNext) { resetGesture(); return; }
+      // continue the motion in the swipe direction rather than springing
+      // back; the content swaps while the page is off-screen (slidePage)
+      g.hint.classList.remove('show');
+      container.classList.remove('gesture-armed');
+      const target = addDays(ctx.date, forward ? 7 : -7);
+      g.gx = g.gy = null; g.axis = null;
+      slidePage(container, forward ? -1 : 1, () => ctx.setDate(target));
       return;
     }
+    resetGesture();
     if (usedAxis === 'y' && g.startScroll <= 0 && container.scrollTop <= 0 && dy > 0 && willCommit(dy, vy)) {
       mode = 'overview';
       render(container, ctx);

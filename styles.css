@@ -36,6 +36,51 @@
 }
 
 /* light theme — the same ledger on cream paper */
+/* ---------- sprint palettes ----------
+   The tokens above are the DEFAULT palette, 'espresso' — warm dark, amber
+   accent — and belong to Sprint 1. Each later sprint selects its own via
+   html[data-sprint="…"] (set from SPRINTS[].palette in app.js), so a new
+   block reads as a new block. Add a palette by overriding the same tokens;
+   the light-theme block below must get a matching override too. */
+
+/* 'slate' — cool dark, teal accent. Reserved for Sprint 2. */
+html[data-sprint="slate"] {
+  --bg: #0f1418;
+  --surface: #171e24;
+  --surface-2: #1f2930;
+  --line: #2c3a44;
+  --hairline: #1f2a32;
+  --ink: #e6eef2;
+  --muted: #8ea3ae;
+  --faint: #5c6f7a;
+  --accent: #4fc3b8;
+  --accent-soft: rgba(79, 195, 184, 0.14);
+  --accent-ink: #062320;
+  --danger: #e0674f;
+  --met-day: #7fc98a;
+  --met-week: #6faee0;
+  --goal: #b79ae0;
+  --partial: #e6cf4a;
+}
+html[data-sprint="slate"][data-theme="light"] {
+  --bg: #eef3f5;
+  --surface: #f8fbfc;
+  --surface-2: #dfe8ec;
+  --line: #b9c9d1;
+  --hairline: #d3dfe4;
+  --ink: #16242b;
+  --muted: #5b717c;
+  --faint: #8fa2ab;
+  --accent: #0f7f76;
+  --accent-soft: rgba(15, 127, 118, 0.12);
+  --accent-ink: #f2fbf9;
+  --danger: #b6432c;
+  --met-day: #2f7a3d;
+  --met-week: #2d6a99;
+  --goal: #6b4f96;
+  --partial: #9a8600;
+}
+
 html[data-theme="light"] {
   --bg: #f6f0e3;
   --surface: #fcf8ee;
@@ -142,7 +187,11 @@ html[data-theme="light"] body::before {
 
 .view {
   height: 100%;
-  overflow-y: auto;
+  /* `scroll`, not `auto`: a pane whose content is shorter than the screen
+     should still give under the finger and rubber-band. With `auto` it is
+     rigid, and a page that will not move at all feels broken next to pages
+     that do. iOS gives a short scroll container its bounce with `scroll`. */
+  overflow-y: scroll;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   /* body already pads by the top inset, so this must NOT add it again —
@@ -1123,7 +1172,13 @@ html[data-theme="light"] body::before {
    direction and brightens once the gesture is armed */
 /* Release springs back with a short ease-out; while the finger is down the
    view tracks 1:1 with no transition, which is what makes it feel native. */
-#view-week, #view-day { transition: transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1); }
+/* Release: the page continues in the swipe direction, off-screen, then the
+   new page slides in from the far side (slidePage in day.js). ease-out both
+   ways — decelerate into place, no overshoot. */
+#view-week, #view-day {
+  transition: transform 0.22s cubic-bezier(0.25, 0.8, 0.35, 1), opacity 0.22s ease;
+  will-change: transform;
+}
 #view-week.gesture-live, #view-day.gesture-live { transition: none; }
 /* past the commit point: the whole page dims a touch, so the threshold is
    felt without having to watch the small edge chevron */
@@ -1204,7 +1259,10 @@ html[data-theme="light"] body::before {
 .lg-meta { flex: 1; font-size: 11px; }
 
 /* the plan: outcome goals, process goals, tracking plan */
-.plan-card { padding: 12px 14px; margin-bottom: 8px; }
+/* .card is a flex ROW by default (label | value); the plan card is a stack
+   of rows, so it must go back to block or its head and every row lay out
+   side by side and push the pane twice as wide as the screen */
+.plan-card { display: block; padding: 12px 14px; margin-bottom: 8px; }
 .plan-head {
   display: flex;
   align-items: baseline;

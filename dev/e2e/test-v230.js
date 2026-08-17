@@ -100,12 +100,15 @@ const localISO = (offset) => {
   await openLifts();
   await page.waitForSelector('.stat-row');
   const statsText2 = await page.$eval('#view-stats', (e) => e.textContent);
-  check('latest volume day trends on vol 4,650', /vol 4,650/.test(statsText2), statsText2.slice(0, 240));
+  // trend is on e1RM for every day type now (uniform 8-15 range), so a
+  // volume-day row shows its e1RM, not its volume
+  check('latest volume day shows e1RM', /e1RM/.test(statsText2), statsText2.slice(0, 240));
   const trendClass2 = await page.evaluate(() => {
     const t = document.querySelector('.stat-row .trend');
     return t ? t.className : null;
   });
-  check('volume day compared to previous volume day = UP', /up/.test(trendClass2 || ''), String(trendClass2));
+  // e1RM 150x10 (200) < prior working session 185x8 (234): trend is DOWN, correctly
+  check('lighter volume session trends DOWN on e1RM', /down/.test(trendClass2 || ''), String(trendClass2));
 
   // ---- 3. weight trendline chart with goal reference line ----
   await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Progress');

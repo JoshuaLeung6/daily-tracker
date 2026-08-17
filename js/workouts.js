@@ -12,8 +12,12 @@ import { todayISO, addDays, startOfWeek } from './dates.js';
 
 export const SPLITS = ['push', 'pull', 'legs'];
 export const SPLIT_LABELS = { push: 'Push', pull: 'Pull', legs: 'Legs' };
-export const FOCUSES = ['weight', 'volume'];
-export const FOCUS_LABELS = { weight: 'Weight day', volume: 'Volume day' };
+// Day types. 'maintenance' is a deliberately easier session — same lifts,
+// lower effort — for a deload or a rough day; it still counts as a workout
+// and its numbers still enter lift history, but it is not expected to set
+// PRs and it never triggers a "stalled" verdict.
+export const FOCUSES = ['weight', 'volume', 'maintenance'];
+export const FOCUS_LABELS = { weight: 'Weight day', volume: 'Volume day', maintenance: 'Maintenance' };
 
 export function getWorkout(iso) {
   return getData().workouts[iso] || null;
@@ -67,10 +71,12 @@ function lastWhere(pred, beforeISO) {
   return list.length ? list[list.length - 1] : null;
 }
 
-// Starting template for a new workout: the lifts from the most recent
-// workout of the same split + focus.
+// Suggested lifts for a new workout: the lifts from the most recent workout
+// of the same split. `focus` may be null to match any day type — the lifts
+// you do on Push day are the same lifts whether it is a weight, volume or
+// maintenance day, so the label is not a useful filter here.
 export function templateFor(split, focus, iso) {
-  const last = lastWhere((w) => w.split === split && w.focus === focus, iso);
+  const last = lastWhere((w) => w.split === split && (focus == null || w.focus === focus), iso);
   return last ? last.lifts.map((l) => ({ ...l })) : [];
 }
 
@@ -155,28 +161,15 @@ export function setLiftGoal(name, target) {
   persistNow();
 }
 
-// Rep range for double progression: custom per lift, else the day-type
-// defaults (weight day 3–6, volume day 8–15).
-export function repRange(name, focus) {
-  const p = getData().liftGoals[name.trim().toLowerCase()];
-  if (p && p.repLo != null && p.repHi != null) return { lo: p.repLo, hi: p.repHi, custom: true };
-  return focus === 'volume' ? { lo: 8, hi: 15, custom: false } : { lo: 3, hi: 6, custom: false };
+// Rep range for double progression. One range for every lift and every day
+// type — 8–15 — set here in code, not from the UI. (Weight days used to run
+// 3–6; the owner trains 8–15 across the board, and per-lift overrides were
+// removed so the app has a single, known rule to progress against.)
+export const REP_RANGE = { lo: 8, hi: 15 };
+export function repRange() {
+  return { ...REP_RANGE, custom: false };
 }
 
-export function setRepRange(name, lo, hi) {
-  const key = name.trim().toLowerCase();
-  const prefs = getData().liftGoals[key] || {};
-  if (lo == null || hi == null) {
-    delete prefs.repLo;
-    delete prefs.repHi;
-  } else {
-    prefs.repLo = lo;
-    prefs.repHi = hi;
-  }
-  if (Object.keys(prefs).length === 0) delete getData().liftGoals[key];
-  else getData().liftGoals[key] = prefs;
-  persistNow();
-}
 
 // Round a load bump to something plate-loadable: +2.5–5%, at least +5.
 export function suggestedNextLoad(weight) {
@@ -267,14 +260,16 @@ export function liftStats(filterSplit) {
       null,
     );
 
-    // Trend compares the latest session against the previous session of the
-    // SAME day type — weight days trend on e1RM, volume days on volume.
-    const kind = s.last.focus === 'volume' ? 'vol' : 'e1rm';
-    const sameFocus = s.history.filter((h) => h.focus === s.last.focus);
-    const prevSame = sameFocus.length > 1 ? sameFocus[sameFocus.length - 2] : null;
-    const cur = s.last[kind];
-    const prev = prevSame ? prevSame[kind] : null;
-    s.trendInfo = { kind, cur, prev };
+    // Trend: latest working session vs the previous working session, on
+    // e1RM. Every day type now runs the same 8–15 range, so e1RM is the one
+    // comparable number regardless of the day's label. Maintenance days are
+    // deliberately easy and are skipped — a lighter session is not a decline.
+    const working = s.history.filter((h) => h.focus !== 'maintenance');
+    const lastW = working.length ? working[working.length - 1] : null;
+    const prevW = working.length > 1 ? working[working.length - 2] : null;
+    const cur = lastW ? lastW.e1rm : null;
+    const prev = prevW ? prevW.e1rm : null;
+    s.trendInfo = { kind: 'e1rm', cur, prev };
     s.trend = cur == null || prev == null ? null
       : cur > prev + 1e-9 ? 'up'
       : cur < prev - 1e-9 ? 'down'
@@ -285,20 +280,22 @@ export function liftStats(filterSplit) {
       ? Math.min(1, s.best.weight / s.goal.target)
       : null;
 
-    // double progression: latest session hit the top of its rep range with
-    // known weight -> flag "ready to add weight" with a suggested load
+    // double progression: latest WORKING session hit the top of the rep
+    // range with known weight -> "ready to add weight" with a suggested load.
+    // A maintenance day is not a progression attempt and never arms this.
     s.ready = null;
-    if (s.last.reps != null && s.last.weight != null) {
-      const range = repRange(s.name, s.last.focus);
-      if (s.last.reps >= range.hi) {
-        s.ready = { focus: s.last.focus, from: s.last.weight, suggest: suggestedNextLoad(s.last.weight) };
+    if (lastW && lastW.reps != null && lastW.weight != null) {
+      const range = repRange();
+      if (lastW.reps >= range.hi) {
+        s.ready = { focus: lastW.focus, from: lastW.weight, suggest: suggestedNextLoad(lastW.weight) };
       }
     }
 
-    // plateau: the last 3 weight-day sessions set no e1RM PR, spanning 2+
-    // weeks of consistent training (a product heuristic, per the principles)
+    // plateau: the last 3 working sessions set no e1RM PR, spanning 2+ weeks
+    // (a product heuristic, per the principles). Maintenance days do not
+    // count as attempts, so a deload cannot read as a stall.
     s.stalled = null;
-    const wd = s.history.filter((h) => h.focus === 'weight' && h.e1rm != null);
+    const wd = working.filter((h) => h.e1rm != null);
     if (wd.length >= 4) {
       const recent = wd.slice(-3);
       const before = wd.slice(0, -3);
@@ -312,6 +309,22 @@ export function liftStats(filterSplit) {
   }
   out.sort((a, b) => (a.last.date < b.last.date ? 1 : -1));
   return out;
+}
+
+// The last N times a lift was performed before a date, ANY day type, newest
+// first — powers the preview under a lift row. Regardless-of-focus is the
+// point: what matters when loading the bar is what you actually did last,
+// not what you did last on a day with the same label.
+export function recentLifts(name, beforeISO, n = 3) {
+  const key = name.trim().toLowerCase();
+  const out = [];
+  for (const w of allWorkouts()) {
+    if (beforeISO && w.date >= beforeISO) continue;
+    for (const l of w.lifts) {
+      if (l.name.toLowerCase() === key) out.push({ ...l, date: w.date, focus: w.focus });
+    }
+  }
+  return out.slice(-n).reverse();
 }
 
 // Most recent performance of a named lift before a date, optionally
