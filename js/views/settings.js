@@ -205,7 +205,8 @@ export function render(container, ctx) {
     const insideGap = lowest != null ? Math.round(viewH - lowest) : null;
 
     diag.textContent =
-      `standalone: ${window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true}\n`
+      `v${ctx.version}\n`
+      + `standalone: ${window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true}\n`
       + `innerH ${viewH} · docH ${document.documentElement.clientHeight} · screenH ${screenCss} · dpr ${dpr}\n`
       + `visualViewport ${window.visualViewport ? Math.round(window.visualViewport.height) : 'n/a'}`
       + `${window.visualViewport ? ` offsetTop ${Math.round(window.visualViewport.offsetTop)}` : ''}\n`
@@ -262,6 +263,19 @@ export function render(container, ctx) {
       el('button', { class: 'btn', onclick: checkUpdates }, 'Check for updates'),
       el('button', { class: 'btn', onclick: fillDiag }, 'Layout info'),
       markerBtn,
+      // one tap to copy the readout, so it can be pasted rather than retyped
+      el('button', {
+        class: 'btn',
+        onclick: async () => {
+          if (!diag.textContent) fillDiag();
+          try {
+            await navigator.clipboard.writeText(diag.textContent);
+            updateStatus.textContent = 'Layout info copied.';
+          } catch {
+            updateStatus.textContent = 'Couldn’t copy — long-press the text below to select it.';
+          }
+        },
+      }, 'Copy'),
     ),
     updateStatus,
     diag,
