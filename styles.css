@@ -164,15 +164,25 @@ html[data-theme="light"] body::before {
      icons. The bar's own padding-bottom carries the home-indicator clearance
      instead, so its background still reaches the physical screen edge. */
   bottom: 0;
-  padding-bottom: calc(var(--sab) + 4px);
+  /* Exactly the inset, no slack: 34px on its own clears the home indicator
+     (it is the same 34pt native apps get). The bar's background runs under
+     the indicator to the screen edge — the intended Apple pattern — while
+     the icons sit above the edge-swipe zone, where iOS takes precedence over
+     any tap target. */
+  padding-bottom: var(--sab);
   z-index: 30;
+  /* This is the floor. With padding == the inset, the tab tap-targets sit
+     flush against the home-indicator gesture band; anything lower puts them
+     INSIDE it, where iOS edge-swipe takes precedence over the tap. A "tight"
+     mode was tried and measured — it could only reclaim space by doing
+     exactly that, so it was removed rather than shipped. */
 }
 
 /* the fixed bar is out of flow, so the column must reserve its FULL height —
    the row itself plus the home-indicator inset the bar now pads by — or the
    last of the content hides behind it */
 #views {
-  padding-bottom: calc(var(--sab) + 47px); /* tab row 38+6+1, +2 slack */
+  padding-bottom: calc(var(--sab) + 45px); /* tab row: min-height 38 + pad 6 + border 1 */
 }
 
 .tab {

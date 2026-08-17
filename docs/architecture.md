@@ -158,6 +158,25 @@ not applying. With cover working on a Dynamic Island phone, expect
 against `screen.height`, never `innerHeight` alone — `innerHeight` cannot see
 a band that iOS never gave the page.
 
+**The bottom 34px is the home indicator and is NOT removable.** Verified
+against primary sources (WebKit blog, Apple DevForums, caniuse, mdn) — do not
+re-investigate this:
+- `innerHeight === screen.height` proves iOS reserves **no** Safari-toolbar
+  space in standalone. The 34px is the same 34pt inset native apps get.
+- No web equivalent of `prefersHomeIndicatorAutoHidden` (UIKit-only; even
+  natively it only dims the indicator, the inset stays reserved).
+- Fullscreen API works on iPhone since 17.2 but is non-functional inside
+  installed PWAs and would not reclaim the inset anyway.
+- Safari 26 made manifest `display: fullscreen` vs `standalone` explicitly
+  moot ("UI is always consistent, no matter how the site's code is configured").
+- Backgrounds may extend under the indicator (intended pattern). **Tap targets
+  must not** — iOS edge-swipe takes precedence in that strip.
+The `.tabbar` therefore pads by exactly `--sab` with its background running to
+the edge. **This is the floor**: with padding == the inset, the tab tap-targets
+already sit flush against the gesture band. A "tight" mode was built and
+measured — it could only reclaim space by moving tap targets *into* the swipe
+zone — so it was removed rather than shipped.
+
 **Theme colors come from CSS custom properties** defined for both light and
 dark. Never hard-code a hex value in a rule.
 
