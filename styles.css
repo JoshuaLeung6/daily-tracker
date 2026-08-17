@@ -176,20 +176,23 @@ html[data-theme="light"] body::before {
      the indicator to the screen edge — the intended Apple pattern — while
      the icons sit above the edge-swipe zone, where iOS takes precedence over
      any tap target. */
-  padding-bottom: var(--sab);
+  /* --bottom-pad is set at runtime by applyInsets() in app.js: it equals
+     --sab (34px) only when the viewport reaches the screen bottom, so the
+     icons clear the home indicator. On buggy iOS builds (WebKit 301994) the
+     viewport ends 62px short and the indicator sits in the iOS-owned band
+     BELOW the viewport — padding for it there would lift the icons 34px for
+     nothing, so it resolves to 0 and the row sits at the true viewport edge.
+     Either way, this is the lowest the icons can go without landing on the
+     indicator's swipe zone. */
+  padding-bottom: calc(var(--bottom-pad, 0px) + 4px);
   z-index: 30;
-  /* This is the floor. With padding == the inset, the tab tap-targets sit
-     flush against the home-indicator gesture band; anything lower puts them
-     INSIDE it, where iOS edge-swipe takes precedence over the tap. A "tight"
-     mode was tried and measured — it could only reclaim space by doing
-     exactly that, so it was removed rather than shipped. */
 }
 
 /* the fixed bar is out of flow, so the column must reserve its FULL height —
    the row itself plus the home-indicator inset the bar now pads by — or the
    last of the content hides behind it */
 #views {
-  padding-bottom: calc(var(--sab) + 45px); /* tab row: min-height 38 + pad 6 + border 1 */
+  padding-bottom: calc(var(--bottom-pad, 0px) + 49px); /* tab row 38+6+1 + the bar's 4px */
 }
 
 .tab {

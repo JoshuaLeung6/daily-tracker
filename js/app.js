@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.24.0';
+export const APP_VERSION = '2.25.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -53,13 +53,22 @@ applyTheme();
 //  - fixed builds hand the page the FULL screen; then content would run under
 //    the Dynamic Island unless we pad.
 // So: pad only when the viewport genuinely spans the screen.
-function applyTopInset() {
+// The same logic applies at the BOTTOM. The tab bar pads by --sab to keep its
+// icons off the home indicator, which lives in the last 34px of the SCREEN.
+// On a buggy build the viewport ends 62px above the screen bottom, so the
+// indicator sits entirely inside the iOS-owned band, BELOW the viewport —
+// padding for it inside the viewport clears an indicator that is not there
+// and just lifts the icons 34px for nothing. Pad only when the viewport
+// actually reaches the screen bottom.
+function applyInsets() {
   const full = Math.abs(window.innerHeight - screen.height) <= 1;
-  document.documentElement.style.setProperty('--top-pad', full ? 'var(--sat)' : '0px');
+  const root = document.documentElement.style;
+  root.setProperty('--top-pad', full ? 'var(--sat)' : '0px');
+  root.setProperty('--bottom-pad', full ? 'var(--sab)' : '0px');
 }
-applyTopInset();
-window.addEventListener('resize', applyTopInset);
-window.addEventListener('orientationchange', () => setTimeout(applyTopInset, 100));
+applyInsets();
+window.addEventListener('resize', applyInsets);
+window.addEventListener('orientationchange', () => setTimeout(applyInsets, 100));
 
 // reconcile the code-level personal config into stored data (non-destructive)
 try {
