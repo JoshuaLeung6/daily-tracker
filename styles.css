@@ -80,7 +80,8 @@ body {
   width: 100%;
   height: 100vh;
   padding-top: var(--sat);
-  padding-bottom: var(--sab);
+  /* NO bottom padding: the tab bar is position:fixed and carries the
+     home-indicator inset itself. Padding here as well double-counts it. */
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: pan-y; /* vertical scroll only — no pinch-zoom, no horizontal pan */
@@ -148,26 +149,30 @@ html[data-theme="light"] body::before {
   /* the bar is the SAME color as the page background so it reads as one
      continuous surface down to the edge */
   background: var(--bg);
-  /* No safe-area padding of its own: body already pads by --sab. */
-  padding-bottom: 4px;
   /* SAFETY NET: the tab bar is the ONLY way to change tabs, so it must never
      be able to leave the screen. In v2.18.0 a sizing mistake above it pushed
      it off the bottom and stranded the app with no navigation at all.
      Anchoring it to the viewport (not the flex column) makes that impossible:
-     however the content above is sized, the bar stays put. It sits above the
-     home indicator via --sab. */
+     however the content above is sized, the bar stays put. */
   flex: 0 0 auto;
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--sab);
+  /* bottom: 0, NOT var(--sab). This is position:fixed, so it is placed
+     against the VIEWPORT and body's padding does not apply to it — offsetting
+     by --sab here as well double-counted the inset and left ~68px under the
+     icons. The bar's own padding-bottom carries the home-indicator clearance
+     instead, so its background still reaches the physical screen edge. */
+  bottom: 0;
+  padding-bottom: calc(var(--sab) + 4px);
   z-index: 30;
 }
 
-/* the fixed bar is out of flow, so the column must reserve its height or the
+/* the fixed bar is out of flow, so the column must reserve its FULL height —
+   the row itself plus the home-indicator inset the bar now pads by — or the
    last of the content hides behind it */
 #views {
-  padding-bottom: 47px; /* .tab min-height 38 + padding 6 + border 1 + 2 */
+  padding-bottom: calc(var(--sab) + 47px); /* tab row 38+6+1, +2 slack */
 }
 
 .tab {
