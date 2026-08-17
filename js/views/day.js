@@ -41,11 +41,22 @@ export function willCommit(delta, velocity) {
 //   dir: -1 = content moves left (you swiped left, going forward)
 //        +1 = content moves right (you swiped right, going back)
 let sliding = false;
+let slideTimer = null;
 export function slidePage(container, dir, swap) {
   // ignore a second swipe that lands mid-transition; a queued double-swap
   // would skip a page and leave the transform in a half state
   if (sliding) return;
   sliding = true;
+  // SELF-HEAL: whatever happens below (a swap that throws, a tab switch mid
+  // animation, a touchcancel), the lock MUST release, or every later swipe is
+  // silently dropped and the app reads as "stuck". Hard ceiling on the lock.
+  clearTimeout(slideTimer);
+  slideTimer = setTimeout(() => {
+    sliding = false;
+    container.classList.remove('gesture-live');
+    container.style.transform = '';
+    container.style.opacity = '';
+  }, 800);
   const w = container.clientWidth || window.innerWidth;
   const OUT = 220; // ms, matches the CSS transition
   // The drag left `gesture-live` (transition: none) on the container. Turning
@@ -58,7 +69,7 @@ export function slidePage(container, dir, swap) {
   container.style.transform = `translateX(${dir * w}px)`;
   container.style.opacity = '0.6';
   setTimeout(() => {
-    swap();
+    try { swap(); } catch (err) { console.error('slidePage swap failed', err); }
     // park off the OPPOSITE edge with no transition, then release
     container.classList.add('gesture-live');
     container.style.transform = `translateX(${-dir * w}px)`;
@@ -69,7 +80,7 @@ export function slidePage(container, dir, swap) {
     void container.offsetWidth; // reflow: transition back on, still parked
     container.style.transform = '';
     container.style.opacity = '';
-    setTimeout(() => { sliding = false; }, OUT);
+    setTimeout(() => { sliding = false; clearTimeout(slideTimer); }, OUT);
   }, OUT);
 }
 
@@ -209,8 +220,16 @@ export function render(container, ctx) {
         g.lastT = e.timeStamp;
       }
       if (!g.axis && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
-        g.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
-          : (g.startScroll <= 0 && dy > 0 ? 'y' : 'scroll');
+        // Decide the axis ONCE, and be strict about claiming vertical: the
+        // pull-down-to-zoom-out gesture only owns a drag that is clearly
+        // downward (steeper than it is wide) AND starts from the very top.
+        // Everything else — an upward swipe, a diagonal, a wobble — is a
+        // scroll and must be left to the browser. Claiming 'y' too eagerly
+        // was the "stuck" bug: an upward flick got captured, translated the
+        // whole page off-screen, and never scrolled.
+        if (Math.abs(dx) > Math.abs(dy) * 1.4) g.axis = 'x';
+        else if (g.startScroll <= 0 && dy > 0 && dy > Math.abs(dx) * 1.4) g.axis = 'y';
+        else g.axis = 'scroll';
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
       }
       // scrolling stays free during a swipe — the drag is only a visual follow
@@ -232,9 +251,11 @@ export function render(container, ctx) {
         // so the threshold is visible without watching the small chevron
         container.classList.toggle('gesture-armed', armed);
       } else if (g.axis === 'y') {
-        const shift = dy;
+        // pull-down only ever moves DOWN. If the finger comes back above the
+        // start point, snap to rest rather than dragging the page upward.
+        const shift = Math.max(0, dy);
         container.style.transform = `translateY(${shift}px)`;
-        const armed = willCommit(dy, g.vy);
+        const armed = dy > 0 && willCommit(dy, g.vy);
         g.hint.textContent = '⌄';
         g.hint.style.setProperty('--hint-gap', shift + 'px');
         g.hint.className = 'swipe-hint top show'

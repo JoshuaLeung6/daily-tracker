@@ -123,25 +123,35 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
   // What you did last is what you load against; the day's label is noise.
   const setStr = (l) => [l.weight, l.reps, l.sets].filter((v) => v != null)
     .map((v) => v.toLocaleString()).join('×') || '—';
-  const previewText = (name) => {
-    if (!name || !name.trim()) return '';
+  // Rendered as a small STACK — one prior session per line, newest first —
+  // rather than one long joined string, which wrapped unpredictably.
+  const previewEl = (name) => {
+    const wrap = el('div', { class: 'lift-preview' });
+    if (!name || !name.trim()) return wrap;
     const recent = recentLifts(name, iso, 3);
-    if (!recent.length) return 'first time — no previous sessions';
-    let text = recent
-      .map((l) => `${setStr(l)} ${fmt(l.date, { month: 'short', day: 'numeric' })}`)
-      .join(' · ');
+    if (!recent.length) {
+      wrap.append(el('div', { class: 'lp-line lp-first' }, 'first time — no previous sessions'));
+      return wrap;
+    }
+    for (const l of recent) {
+      wrap.append(el('div', { class: 'lp-line' },
+        el('span', { class: 'lp-set' }, setStr(l)),
+        el('span', { class: 'lp-date' }, fmt(l.date, { month: 'short', day: 'numeric' })),
+        l.focus === 'maintenance' ? el('span', { class: 'lp-tag' }, 'maint.') : null));
+    }
     // double progression: rep ceiling filled last time -> nudge the load up
     const last = recent[0];
     if (last.focus !== 'maintenance' && last.reps != null && last.weight != null && last.reps >= repRange().hi) {
-      text += ` · ready: try ${suggestedNextLoad(last.weight).toLocaleString()}`;
+      wrap.append(el('div', { class: 'lp-line lp-ready' },
+        `ready — try ${suggestedNextLoad(last.weight).toLocaleString()}`));
     }
-    return text;
+    return wrap;
   };
 
   // A log row: the lift NAME is a fixed label (names are chosen in the picker,
   // never typed here) — the row is just three number cells + remove.
   const liftRow = (lift, index) => {
-    const preview = el('div', { class: 'lift-preview' }, previewText(lift.name));
+    const preview = previewEl(lift.name);
     const remove = el('button', {
       class: 'row-x',
       'aria-label': `Remove ${lift.name || 'lift'}`,

@@ -276,8 +276,12 @@ function renderDetail(container, ctx) {
         g.lastX = e.touches[0].clientX; g.lastY = e.touches[0].clientY; g.lastT = e.timeStamp;
       }
       if (!g.axis && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
-        g.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x'
-          : (g.startScroll <= 0 && dy > 0 ? 'y' : 'scroll');
+        // strict vertical claim: only a clearly-downward drag from the top is
+        // the pull-down; anything else is a scroll (see day.js for why —
+        // eager 'y' capture was the "stuck" / "can't swipe up" bug)
+        if (Math.abs(dx) > Math.abs(dy) * 1.4) g.axis = 'x';
+        else if (g.startScroll <= 0 && dy > 0 && dy > Math.abs(dx) * 1.4) g.axis = 'y';
+        else g.axis = 'scroll';
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
       }
       // scrolling stays free during a swipe — the drag is only a visual
@@ -296,9 +300,9 @@ function renderDetail(container, ctx) {
           + (armed ? ' armed' : '') + (blocked ? ' blocked' : '');
         container.classList.toggle('gesture-armed', armed);
       } else if (g.axis === 'y') {
-        const shift = dy;
+        const shift = Math.max(0, dy);   // pull-down never moves the page UP
         container.style.transform = `translateY(${shift}px)`;
-        const armed = willCommit(dy, g.vy);
+        const armed = dy > 0 && willCommit(dy, g.vy);
         g.hint.textContent = '⌄';
         g.hint.style.setProperty('--hint-gap', shift + 'px');
         g.hint.className = 'swipe-hint top show'
