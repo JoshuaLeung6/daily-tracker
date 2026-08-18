@@ -149,9 +149,17 @@ export function applyConfig(configTrackers, paceLookup) {
     }
   });
 
-  // anything stored but not configured -> archived (data preserved)
-  for (const t of doc.trackers) {
-    if (!seen.has(t.name.trim().toLowerCase()) && !t.archived) { t.archived = true; changed = true; }
+  // anything stored but not configured -> archived (data preserved)…
+  // …unless it has NO logged values at all, in which case it is simply
+  // removed. An empty tracker is not data; keeping it as an archived husk
+  // only clutters the settings list. (Waist was added and withdrawn within a
+  // day and this is what makes that a clean no-op.)
+  const hasAnyValue = (id) => Object.values(doc.entries).some((day) => day && id in day);
+  for (let i = doc.trackers.length - 1; i >= 0; i--) {
+    const t = doc.trackers[i];
+    if (seen.has(t.name.trim().toLowerCase())) continue;
+    if (!hasAnyValue(t.id)) { doc.trackers.splice(i, 1); changed = true; continue; }
+    if (!t.archived) { t.archived = true; changed = true; }
   }
 
   if (changed) persistNow();

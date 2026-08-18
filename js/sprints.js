@@ -22,9 +22,17 @@ export function mainLiftNames() {
     const found = [];
     for (const want of MAIN_LIFTS) {
       const w = norm(want);
-      const hit = stats.find((s) => norm(s.name) === w) || stats.find((s) => norm(s.name).startsWith(w) || w.startsWith(norm(s.name)));
+      // exact first; then CONTAINS in either direction. The old startsWith
+      // test failed on "machine leg press" vs config "leg press" (neither is a
+      // prefix of the other), so the leg press silently dropped out of the
+      // strength score and the 3-most-logged fallback took over.
+      const hit = stats.find((s) => norm(s.name) === w)
+        || stats.find((s) => norm(s.name).includes(w) || w.includes(norm(s.name)));
       if (hit && !found.includes(hit.name)) found.push(hit.name);
     }
+    // Return the configured lifts that have been logged. Do NOT fall back to
+    // "3 most logged" when some are missing: the score is defined as THESE
+    // three, and a quiet substitution is worse than an honest gap.
     if (found.length) return found;
   }
   return [...stats].sort((a, b) => b.sessions - a.sessions).slice(0, 3).map((s) => s.name);

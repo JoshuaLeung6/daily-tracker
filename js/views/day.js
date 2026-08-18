@@ -27,10 +27,12 @@ const g = { hint: null, iso: null, ctx: null, startX: null, startY: null, startS
 // intent to change day, and letting it grab the page is what made every
 // scroll feel like it might fling you to another date.
 export const EDGE_ZONE = 36;        // px from either side that can begin a page swipe
-export const SWIPE_DIST = 90;      // px of travel that commits on its own
-export const SWIPE_VELOCITY = 0.45; // px/ms (~450 px/s) that commits a flick
+// Stricter than a native pager on purpose: a page change is a bigger action
+// here than flipping a photo, and an accidental one costs a re-orientation.
+export const SWIPE_DIST = 130;     // px of travel that commits on its own (was 90)
+export const SWIPE_VELOCITY = 0.7; // px/ms (~700 px/s) that commits a flick (was 0.45)
 export function willCommit(delta, velocity) {
-  if (Math.abs(delta) < 24) return false;              // ignore stray touches
+  if (Math.abs(delta) < 40) return false;              // ignore stray touches (was 24)
   if (Math.abs(delta) >= SWIPE_DIST) return true;
   // a flick counts only if it is still moving the same way it was dragged
   return Math.abs(velocity) >= SWIPE_VELOCITY && Math.sign(velocity) === Math.sign(delta);

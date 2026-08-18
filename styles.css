@@ -1276,13 +1276,24 @@ html[data-theme="light"] body::before {
   line-height: 1;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s, color 0.12s;
+  transition: opacity 0.12s, color 0.12s, background 0.12s, transform 0.12s;
 }
-/* only visible once the gutter is wide enough to hold the glyph, so it never
-   has to sit on top of a card */
-.swipe-hint.show { opacity: 0; }
+/* Visible from the first pixel of a pull (faint), so the affordance is
+   never a surprise; the .roomy gate used to hide it until the page had
+   shifted 30px, which with the damped pull-down meant it was invisible for
+   most of the gesture and the "armed" change was never seen. */
+.swipe-hint.show { opacity: 0.55; }
 .swipe-hint.show.roomy { opacity: 1; }
-.swipe-hint.armed { color: var(--accent); }
+/* ARMED = release will change screens. Unmistakable: the glyph inverts into
+   a filled accent disc and grows, not just a colour tint on a small mark. */
+.swipe-hint.armed {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 50%;
+  opacity: 1;
+  transform: scale(1.25);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
 .swipe-hint.blocked.roomy { opacity: 0.3; }
 /* The glyph sits flush against the viewport edge. The view slides AWAY from
    that edge by --hint-gap, so once the gap exceeds the glyph width (the
@@ -1431,7 +1442,12 @@ html[data-theme="light"] body::before {
 .mt-aim-avg.st-bad { color: var(--danger); }
 .mt-aim-row + .mt-aim-row { margin-top: 4px; }
 
-/* compact segmented control inside a card header */
+/* a section heading with a control on the right (e.g. the Trends range
+   toggle that governs both charts beneath it) */
+.sec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sec-head h2 { margin: 0; }
+
+/* compact segmented control inside a card or section header */
 .seg-mini { margin: 0; flex: 0 0 auto; }
 .seg-mini .seg-btn {
   padding: 3px 9px;

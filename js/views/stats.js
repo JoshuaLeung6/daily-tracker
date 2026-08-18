@@ -183,29 +183,30 @@ function dashboardPane(rerender) {
   }
 
   // 4. charts: weight vs goal line, strength total over the sprint
-  const chartsSec = el('div', { class: 'settings-section' }, el('h2', {}, 'Trends'));
+  // The range toggle governs BOTH charts (weight and strength share an
+  // x-axis), so it lives in the section header, not inside the weight card.
+  // "Sprint" spans the full sprint and extrapolates the weight trend to the
+  // end date; "Logged" is just the data so far.
+  const full = weightScale === 'sprint';
+  const rangeSeg = el('span', { class: 'seg seg-mini', role: 'group', 'aria-label': 'Chart range' },
+    // distinct class: these are NOT pane segments, and sharing .seg-btn made
+    // "click the segment named X" ambiguous
+    el('button', {
+      class: 'seg-btn range-btn', 'aria-pressed': String(!full),
+      onclick: () => { weightScale = 'logged'; rerender(); },
+    }, 'Logged'),
+    el('button', {
+      class: 'seg-btn range-btn', 'aria-pressed': String(full),
+      onclick: () => { weightScale = 'sprint'; rerender(); },
+    }, 'Sprint'));
+  const chartsSec = el('div', { class: 'settings-section' },
+    el('div', { class: 'sec-head' }, el('h2', {}, 'Trends'), rangeSeg));
   let anyChart = false;
   if (wt) {
     const series = measurementSeries(wt.id).filter((p) => p.iso >= r.start.iso);
     if (series.length >= 2) {
-      // "Sprint" spans the full sprint on the x-axis and extrapolates the
-      // current trend to the end date, so you can see whether today's pace
-      // actually lands on the goal. "Logged" is just the data so far.
-      const full = weightScale === 'sprint';
       chartsSec.append(el('div', { class: 'card chart-card' },
-        el('div', { class: 'gc-head' },
-          el('span', { class: 'gc-name' }, 'Weight'),
-          // distinct class: these are NOT pane segments, and sharing
-          // .seg-btn made "click the segment named X" ambiguous
-          el('span', { class: 'seg seg-mini', role: 'group', 'aria-label': 'Weight chart range' },
-            el('button', {
-              class: 'seg-btn range-btn', 'aria-pressed': String(!full),
-              onclick: () => { weightScale = 'logged'; rerender(); },
-            }, 'Logged'),
-            el('button', {
-              class: 'seg-btn range-btn', 'aria-pressed': String(full),
-              onclick: () => { weightScale = 'sprint'; rerender(); },
-            }, 'Sprint'))),
+        el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Weight')),
         lineChart({
           points: series,
           goal: gw ? { value: gw.target, label: `goal ${fmtN(gw.target)}` } : null,
@@ -386,12 +387,7 @@ function intakeCard(gw) {
         el('span', { class: 'mt-aim-val' }, `${n(aim)} ${unit}/day`)),
       el('div', { class: 'mt-aim-row' },
         el('span', { class: 'mt-aim-lab' }, '7-day average'),
-        el('span', { class: 'mt-aim-val mt-aim-avg' + avgCls }, avg7 != null ? `${n(avg7)} ${unit}/day` : '—')),
-      el('div', { class: 'gc-window' },
-        `${fmtN(Math.abs(Math.round(gw.toGo * 10) / 10))} ${wUnit} to go in `
-        + `${fmtN(Math.round(gw.remainingWeeks * 10) / 10)} weeks `
-        + `= ${gaining ? '+' : ''}${fmtN(Math.round(gw.requiredPerWeek * 100) / 100)} ${wUnit}/wk, `
-        + `so ${n(Math.abs(reqPerDay))} ${unit}/day ${gaining ? 'above' : 'below'} maintenance.`)));
+        el('span', { class: 'mt-aim-val mt-aim-avg' + avgCls }, avg7 != null ? `${n(avg7)} ${unit}/day` : '—'))));
   }
 
   return card;
