@@ -6,11 +6,11 @@ import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet, dayMeets } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
 import { weekReport, weekSuggestions, weeksOverview, weekLineStatus, verdictBadge, isCardioDay } from '../insights.js';
-import { currentSprint } from '../sprints.js';
+import { currentSprint, strengthTotalInWeek, mainLiftNames } from '../sprints.js';
 import { CALORIE_BANDS } from '../config.js';
 // one commit rule and one page transition for both views, so "armed" always
 // matches what happens and every swipe moves the same way
-import { willCommit, slidePage, settleSlide } from './day.js';
+import { willCommit, slidePage, settleSlide, EDGE_ZONE } from './day.js';
 
 // The tab opens zoomed out: every week graded green/yellow/red; tapping a
 // week drills into its report card. Switching away and back resets to the
@@ -67,6 +67,7 @@ function renderOverview(container, ctx) {
     list.append(el('div', { class: 'empty-state' }, 'Nothing logged yet — weeks appear here as you log.'));
   }
   let currentRow = null;
+  const liftNames = mainLiftNames();
   for (const wk of weeks) {
     const edgeNum = wk.index ? el('span', { class: 'wk-num' }, String(wk.index)) : null;
     const r = wk.report;
@@ -77,6 +78,9 @@ function renderOverview(container, ctx) {
       el('span', { class: 'wk-cell-l' }, label),
     );
     const w = r.weight;
+    // strength score for THIS week: within-week best e1RM per main lift,
+    // summed (same number as the Progress strength chart's dot for the week)
+    const strength = strengthTotalInWeek(wk.ws, liftNames);
     const cells = el('span', { class: 'wk-cells' },
       cell('weight', w && w.weekAvg != null ? fmtN(w.weekAvg) : '—', st.weight),
       cell('kcal', r.intake && r.intake.avg != null ? Math.round(r.intake.avg).toLocaleString() : '—', st.calories),
@@ -84,6 +88,7 @@ function renderOverview(container, ctx) {
       cell('protein', r.protein && r.protein.of > 0 ? `${r.protein.hit}/${r.protein.of}`
         : (r.protein && r.protein.avg != null ? Math.round(r.protein.avg) : '—'), st.protein),
       cell('lifts', r.training ? `${r.training.days}/${daysSoFar}` : '—', st.workouts),
+      cell('strength', strength ? Math.round(strength.total).toLocaleString() : '—', null),
     );
 
     const row = el('button', {
@@ -280,7 +285,8 @@ function renderDetail(container, ctx) {
         // strict vertical claim: only a clearly-downward drag from the top is
         // the pull-down; anything else is a scroll (see day.js for why —
         // eager 'y' capture was the "stuck" / "can't swipe up" bug)
-        if (Math.abs(dx) > Math.abs(dy) * 1.4) g.axis = 'x';
+        const fromEdge = g.gx <= EDGE_ZONE || g.gx >= window.innerWidth - EDGE_ZONE;
+        if (fromEdge && Math.abs(dx) > Math.abs(dy) * 1.4) g.axis = 'x';
         else if (g.startScroll <= 0 && dy > 0 && dy > Math.abs(dx) * 1.4) g.axis = 'y';
         else g.axis = 'scroll';
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
@@ -301,7 +307,13 @@ function renderDetail(container, ctx) {
           + (armed ? ' armed' : '') + (blocked ? ' blocked' : '');
         container.classList.toggle('gesture-armed', armed);
       } else if (g.axis === 'y') {
-        const shift = Math.max(0, dy);   // pull-down never moves the page UP
+        // pull-down has RESISTANCE, like pull-to-refresh: the page moves at
+        // roughly half the finger and eases off further out, so it reads as
+        // stretching toward the zoom-out rather than flinging the whole page.
+        // (1:1 tracking is right for a side swipe, wrong here — it felt fast.)
+        // Never moves the page UP.
+        const pull = Math.max(0, dy);
+        const shift = pull <= 0 ? 0 : 60 * Math.log1p(pull / 60) + pull * 0.25;
         container.style.transform = `translateY(${shift}px)`;
         const armed = dy > 0 && willCommit(dy, g.vy);
         g.hint.textContent = '⌄';

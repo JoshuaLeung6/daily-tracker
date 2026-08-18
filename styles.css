@@ -205,7 +205,31 @@ html[data-theme="light"] body::before {
      the scroll content needs enough padding to clear it: the bar's row
      (38 + 6 + 1) plus its home-indicator pad plus breathing room. Without
      this the last card scrolls to a stop UNDER the bar. */
-  padding: 18px 18px calc(var(--bottom-pad, 0px) + 49px + 24px);
+  padding: 18px 18px 0;   /* bottom clearance is the ::after spacer below */
+}
+/* GUARANTEE overflow. Measured: a day with a few cards is 641px of content
+   in an 812px container — it simply does not overflow, so there is nothing
+   to scroll, and iOS gives a non-overflowing box NO rubber-band whatever
+   overscroll-behavior says. Every "can't swipe up" fix before this was aimed
+   at a scroller that had nothing to scroll. A fixed-height spacer cannot fix
+   that (it just eats slack). The content must be forced past the container:
+   .view is a flex column whose children are the content, and a final
+   flex-grown spacer with a min-height of "the bar clearance + 1px MORE than
+   the remaining space" makes scrollHeight exceed clientHeight on EVERY view,
+   short or long. So the pane always scrolls a little and always bounces. */
+/* Guarantee overflow so a short page still scrolls and bounces.
+   Content on a light day measured 641px in an 812px container — no
+   overflow, nothing to scroll, and iOS gives a non-overflowing box no
+   rubber-band at all. Web has no equivalent of UIScrollView's
+   alwaysBounceVertical, so bounce-on-short-content can only be emulated by
+   real overflow. A trailing spacer of ~55% of the viewport does it for any
+   realistic page (a page would need to be nearly empty for content +
+   spacer to still fit) while reading as "a bit more room down here" rather
+   than an empty screen. It doubles as clearance for the fixed tab bar. */
+.view::after {
+  content: '';
+  display: block;
+  height: calc(var(--bottom-pad, 0px) + 55vh);
 }
 
 .tabbar {
@@ -1537,7 +1561,7 @@ html[data-theme="light"] body::before {
 .wk-title b { font-size: 14px; }
 .wk-title .wk-dot { width: 10px; height: 10px; }
 .wk-inprog { font-size: 11px; }
-.wk-cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.wk-cells { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }  /* 5 with strength */
 .wk-cell { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
 .wk-cell-v { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
 .wk-cell-l { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }

@@ -229,6 +229,11 @@ function dashboardPane(rerender) {
         ariaLabel: 'Main-lift e1RM total over the sprint',
         domain: { from: r.start.iso, to: weightScale === 'sprint' ? r.end : st.series[st.series.length - 1].iso },
       }),
+      // how the number is built — plainly, once, where the number lives
+      el('div', { class: 'gc-window ch-note' },
+        `One dot per week. For each main lift, the best set of the week becomes an estimated 1-rep max `
+        + `(weight × (1 + reps ÷ 30); sets over 15 reps are not counted), and the three are added up. `
+        + `A week is skipped if any main lift was not trained. Day type does not matter — the best set is the best set.`),
     ));
     anyChart = true;
   }

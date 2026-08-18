@@ -21,6 +21,12 @@ const g = { hint: null, iso: null, ctx: null, startX: null, startY: null, startS
 // indicator NEVER disagrees with what actually happens on release.
 // Distance OR velocity, like every native pager: a long deliberate drag
 // commits, and so does a short fast flick.
+// Side swipes only START from a screen edge, like iOS's own back-swipe. A
+// horizontal drag that begins in the middle of the page is left alone — it
+// is far more likely to be a scroll wobble or a card interaction than an
+// intent to change day, and letting it grab the page is what made every
+// scroll feel like it might fling you to another date.
+export const EDGE_ZONE = 36;        // px from either side that can begin a page swipe
 export const SWIPE_DIST = 90;      // px of travel that commits on its own
 export const SWIPE_VELOCITY = 0.45; // px/ms (~450 px/s) that commits a flick
 export function willCommit(delta, velocity) {
@@ -242,7 +248,8 @@ export function render(container, ctx) {
         // scroll and must be left to the browser. Claiming 'y' too eagerly
         // was the "stuck" bug: an upward flick got captured, translated the
         // whole page off-screen, and never scrolled.
-        if (Math.abs(dx) > Math.abs(dy) * 1.4) g.axis = 'x';
+        const fromEdge = g.startX <= EDGE_ZONE || g.startX >= window.innerWidth - EDGE_ZONE;
+        if (fromEdge && Math.abs(dx) > Math.abs(dy) * 1.4) g.axis = 'x';
         else if (g.startScroll <= 0 && dy > 0 && dy > Math.abs(dx) * 1.4) g.axis = 'y';
         else g.axis = 'scroll';
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
@@ -268,7 +275,13 @@ export function render(container, ctx) {
       } else if (g.axis === 'y') {
         // pull-down only ever moves DOWN. If the finger comes back above the
         // start point, snap to rest rather than dragging the page upward.
-        const shift = Math.max(0, dy);
+        // pull-down has RESISTANCE, like pull-to-refresh: the page moves at
+        // roughly half the finger and eases off further out, so it reads as
+        // stretching toward the zoom-out rather than flinging the whole page.
+        // (1:1 tracking is right for a side swipe, wrong here — it felt fast.)
+        // Never moves the page UP.
+        const pull = Math.max(0, dy);
+        const shift = pull <= 0 ? 0 : 60 * Math.log1p(pull / 60) + pull * 0.25;
         container.style.transform = `translateY(${shift}px)`;
         const armed = dy > 0 && willCommit(dy, g.vy);
         g.hint.textContent = '⌄';

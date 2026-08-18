@@ -118,7 +118,8 @@ const localISO = (offset) => {
     const s = mod.liftStats().find((x) => x.name === 'Bench press');
     return { e1rm: s.history[0].e1rm, vol: s.history[0].vol, bestE1rm: s.bestE1rm };
   });
-  check('12-rep set: e1RM null, volume kept', benchStats.e1rm === null && benchStats.vol === 4860 && benchStats.bestE1rm === null,
+  // e1RM cutoff is 15 reps now (matches the 8–15 range): 135 × (1 + 12/30) = 189
+  check('12-rep set: e1RM 189 (cutoff 15), volume kept', benchStats.e1rm === 189 && benchStats.vol === 4860 && benchStats.bestE1rm && benchStats.bestE1rm.e1rm === 189,
     JSON.stringify(benchStats));
 
   check('no console/page errors', errors.length === 0, errors.join(' | ').slice(0, 400));

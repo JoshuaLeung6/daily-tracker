@@ -166,6 +166,9 @@ export function setLiftGoal(name, target) {
 // 3–6; the owner trains 8–15 across the board, and per-lift overrides were
 // removed so the app has a single, known rule to progress against.)
 export const REP_RANGE = { lo: 8, hi: 15 };
+// Highest rep count that still yields an e1RM. Matches the top of REP_RANGE
+// so every working set counts toward the strength score.
+export const E1RM_MAX_REPS = 15;
 export function repRange() {
   return { ...REP_RANGE, custom: false };
 }
@@ -237,9 +240,12 @@ export function liftStats(filterSplit) {
   for (const s of out) {
     let runningMax = null;
     for (const h of s.history) {
-      // e1RM is only trustworthy from ≤10-rep sets (error grows past that,
-      // direction unpredictable) — higher-rep sets contribute volume only
-      h.e1rm = h.reps != null && h.reps > 10 ? null : epley(h.weight, h.reps);
+      // e1RM from sets up to E1RM_MAX_REPS. The owner trains 8–15 across the
+      // board, so a cutoff of 10 (the old value) silently dropped most working
+      // sets and could skip whole weeks from the strength score. Epley is
+      // usable to ~15 with growing error; beyond that it is guesswork and
+      // those sets contribute volume only.
+      h.e1rm = h.reps != null && h.reps > E1RM_MAX_REPS ? null : epley(h.weight, h.reps);
       h.vol = liftVolume(h);
       // a PR beats a previous best — the first-ever session doesn't count
       h.isPR = h.e1rm != null && runningMax != null && h.e1rm > runningMax + 1e-9;

@@ -92,8 +92,8 @@ const localISO = (offset) => {
   const firstRowText = await page.$eval('.wk-row', (e) => e.textContent);
   check('newest week (This week) is at the top', /This week/.test(firstRowText), firstRowText.slice(0, 60));
   const cellLabels = await page.$$eval('.wk-row.is-current .wk-cell-l', (els) => els.map((e) => e.textContent));
-  check('overview cells: weight, kcal, protein, lifts (no cardio)',
-    JSON.stringify(cellLabels) === JSON.stringify(['weight', 'kcal', 'protein', 'lifts']), cellLabels.join(','));
+  check('overview cells: weight, kcal, protein, lifts, strength (no cardio)',
+    JSON.stringify(cellLabels) === JSON.stringify(['weight', 'kcal', 'protein', 'lifts', 'strength']), cellLabels.join(','));
   // Open the LAST COMPLETE week, not the current one: on a Monday the current
   // week has no completed days, so per-day lines have nothing to average.
   await page.evaluate(() => {
@@ -108,11 +108,13 @@ const localISO = (offset) => {
     JSON.stringify(labels) === JSON.stringify(['Weight', 'Calories', 'Protein', 'Cardio', 'Workouts']), labels.join(','));
   const rows = await page.$$eval('.report-card .rp-row', (els) => els.map((e) => e.textContent));
   check('weight line: avg · % vs last wk (no weigh-in count)', /avg · [+-]\d\.\d\d% vs last wk/.test(rows[0]) && !/weigh-in/.test(rows[0]), rows[0]);
-  if (daysSoFar > 0) {
-    check(`calories line: avg · ${daysSoFar}/${daysSoFar} days`, new RegExp(`2,900 kcal avg · ${daysSoFar}/${daysSoFar} days`).test(rows[1]) && !/aim/.test(rows[1]), rows[1]);
-    check('protein line: avg · hit/days', /g avg · \d\/\d days/.test(rows[2]), rows[2]);
-    check(`cardio line: N/${daysSoFar} (walk-only excluded)`, new RegExp(`\\d/${daysSoFar} days`).test(rows[3]), rows[3]);
-    check(`workouts line: N/${daysSoFar} + splits`, new RegExp(`\\d/${daysSoFar} days`).test(rows[4]) && /Push|Pull|Legs/.test(rows[4]), rows[4]);
+  {
+    // the card is the PREVIOUS (complete) week: always 7 completed days
+    check('calories line: avg · 7/7 days', /2,900 kcal avg · 7\/7 days/.test(rows[1]) && !/aim/.test(rows[1]), rows[1]);
+    check('protein line: avg · hit/days', /g avg · \d\/7 days/.test(rows[2]), rows[2]);
+    check('cardio line: N/7 (walk-only excluded)', /\d\/7 days/.test(rows[3]), rows[3]);
+    // this fixture's previous week has no workouts, so no split suffix appears
+    check('workouts line: N/7 days', /\d\/7 days/.test(rows[4]), rows[4]);
   }
   await page.screenshot({ path: path.join(__dirname, 'shots', 'week-five-lines.png') });
 
