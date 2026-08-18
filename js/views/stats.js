@@ -214,8 +214,6 @@ function dashboardPane(rerender) {
           domain: full ? { from: r.start.iso, to: r.end } : null,
           project: full,
         }),
-        full ? el('div', { class: 'gc-window ch-note' },
-          'Dashed line extrapolates your logged trend to the sprint end.') : null,
       ));
       anyChart = true;
     }

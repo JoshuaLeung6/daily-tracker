@@ -1312,6 +1312,11 @@ html[data-theme="light"] body::before {
    first 62px are under the island — a chevron at top:2px was rendering,
    invisibly, behind it. --top-pad is the runtime-decided top inset. */
 .swipe-hint.top { left: 50%; margin-left: -13px; top: calc(var(--top-pad, 0px) + 6px); }
+/* the ⌄ glyph sits high in its em-box, so inside the armed disc it looked
+   off-centre (toward the top). Pad the top of the flex box so the centred
+   glyph lands at the disc's optical centre. The side glyphs ‹ › are
+   vertically symmetric and need no correction. */
+.swipe-hint.top { padding-top: 5px; }
 /* 10px in from the edge, not 2: the display's rounded corners and the
    very edge of the panel clip the outer few px of the glyph */
 .swipe-hint.left { top: 50%; margin-top: -13px; left: 10px; }

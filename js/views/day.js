@@ -216,7 +216,11 @@ export function render(container, ctx) {
   const resetGesture = () => {
     container.classList.remove('gesture-live');
     container.style.transform = '';
-    g.hint.classList.remove('show');
+    // reset the WHOLE class list. touchmove writes className wholesale
+    // ('swipe-hint top show roomy armed'), and .armed sets opacity:1
+    // explicitly — so removing only 'show' left an armed chevron visible.
+    // That was the chevron that "sometimes doesn't disappear".
+    g.hint.className = 'swipe-hint';
     g.startX = g.startY = null;
     g.axis = null;
   };
@@ -288,7 +292,12 @@ export function render(container, ctx) {
         const blocked = dx < 0 && !g.canNext;
         // 1:1 with the finger, the native pager feel. A blocked direction gets
         // progressive resistance instead, so it reads as a wall, not a lag.
-        const shift = blocked ? Math.sign(dx) * Math.pow(Math.abs(dx), 0.6) * 1.2 : dx;
+        // 0.6x the finger, not 1:1: with the commit distance at 160px a 1:1
+        // page felt like it was flying. Still direct enough to read as the
+        // page under your thumb; the blocked direction rubber-bands harder.
+        const shift = blocked
+          ? Math.sign(dx) * Math.pow(Math.abs(dx), 0.6) * 1.2
+          : dx * 0.6;
         container.style.transform = `translateX(${shift}px)`;
         const armed = !blocked && willCommit(dx, g.vx);
         g.hint.textContent = dx < 0 ? '›' : '‹';
@@ -339,7 +348,11 @@ export function render(container, ctx) {
       if (forward && !g.canNext) { resetGesture(); return; }
       // do NOT reset the transform here — slidePage continues the motion in
       // the swipe direction and swaps the content while it is off-screen
-      g.hint.classList.remove('show');
+      // reset the WHOLE class list. touchmove writes className wholesale
+    // ('swipe-hint top show roomy armed'), and .armed sets opacity:1
+    // explicitly — so removing only 'show' left an armed chevron visible.
+    // That was the chevron that "sometimes doesn't disappear".
+    g.hint.className = 'swipe-hint';
       container.classList.remove('gesture-armed');
       const target = addDays(g.iso, forward ? 1 : -1);
       const c = g.ctx;

@@ -264,7 +264,11 @@ function renderDetail(container, ctx) {
   const resetGesture = () => {
     container.classList.remove('gesture-live', 'gesture-armed');
     container.style.transform = '';
-    g.hint.classList.remove('show');
+    // reset the WHOLE class list. touchmove writes className wholesale
+    // ('swipe-hint top show roomy armed'), and .armed sets opacity:1
+    // explicitly — so removing only 'show' left an armed chevron visible.
+    // That was the chevron that "sometimes doesn't disappear".
+    g.hint.className = 'swipe-hint';
     g.gx = g.gy = null;
     g.axis = null;
   };
@@ -318,7 +322,12 @@ function renderDetail(container, ctx) {
       if (g.axis === 'x') {
         const blocked = dx < 0 && !g.canNext;
         // 1:1 with the finger; a blocked direction rubber-bands instead
-        const shift = blocked ? Math.sign(dx) * Math.pow(Math.abs(dx), 0.6) * 1.2 : dx;
+        // 0.6x the finger, not 1:1: with the commit distance at 160px a 1:1
+        // page felt like it was flying. Still direct enough to read as the
+        // page under your thumb; the blocked direction rubber-bands harder.
+        const shift = blocked
+          ? Math.sign(dx) * Math.pow(Math.abs(dx), 0.6) * 1.2
+          : dx * 0.6;
         container.style.transform = `translateX(${shift}px)`;
         const armed = !blocked && willCommit(dx, g.vx);
         g.hint.textContent = dx < 0 ? '›' : '‹';
@@ -362,7 +371,11 @@ function renderDetail(container, ctx) {
       if (forward && !g.canNext) { resetGesture(); return; }
       // continue the motion in the swipe direction rather than springing
       // back; the content swaps while the page is off-screen (slidePage)
-      g.hint.classList.remove('show');
+      // reset the WHOLE class list. touchmove writes className wholesale
+    // ('swipe-hint top show roomy armed'), and .armed sets opacity:1
+    // explicitly — so removing only 'show' left an armed chevron visible.
+    // That was the chevron that "sometimes doesn't disappear".
+    g.hint.className = 'swipe-hint';
       container.classList.remove('gesture-armed');
       const target = addDays(ctx.date, forward ? 7 : -7);
       g.gx = g.gy = null; g.axis = null;
