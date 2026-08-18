@@ -100,7 +100,8 @@ const localISO = (offset) => {
   await page.click('.tab[data-tab="stats"]');
   await page.waitForSelector('#view-stats .pane');
   check('no attainment cards on Progress', (await page.$('.att-card')) === null);
-  check('sprint consistency block present', await page.$eval('#view-stats', (e) => /Sprint consistency/.test(e.textContent)));
+  // header removed by request; the card itself (.adh-card) is what matters
+  check('sprint consistency card present', (await page.$('#view-stats .adh-card')) !== null);
 
   // ---- 3. add a body-weight goal via code config (creates the Weight tracker) ----
   await page.evaluate(async (deadline) => {

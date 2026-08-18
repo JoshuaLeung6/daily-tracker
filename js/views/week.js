@@ -4,13 +4,13 @@ import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet, dayMeets } from '../trackers.js';
-import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
+import { getWorkout, SPLIT_LABELS, SPLITS, liftStats } from '../workouts.js';
 import { weekReport, weekSuggestions, weeksOverview, weekLineStatus, verdictBadge, isCardioDay } from '../insights.js';
 import { currentSprint, strengthTotalInWeek, mainLiftNames } from '../sprints.js';
 import { CALORIE_BANDS } from '../config.js';
 // one commit rule and one page transition for both views, so "armed" always
 // matches what happens and every swipe moves the same way
-import { willCommit, slidePage, settleSlide, EDGE_ZONE } from './day.js';
+import { willCommit, willCommitPull, slidePage, settleSlide, EDGE_ZONE } from './day.js';
 
 // The tab opens zoomed out: every week graded green/yellow/red; tapping a
 // week drills into its report card. Switching away and back resets to the
@@ -339,11 +339,14 @@ function renderDetail(container, ctx) {
         // easing further out, so it never feels like the page is running away
         const shift = pull <= 0 ? 0 : pull * 0.45 * (1 / (1 + pull / 400));
         container.style.transform = `translateY(${shift}px)`;
-        const armed = dy > 0 && willCommit(dy, g.vy);
+        const armed = dy > 0 && willCommitPull(dy, g.vy);
         g.hint.textContent = '⌄';
         g.hint.style.setProperty('--hint-gap', shift + 'px');
+        // gate on FINGER travel, not page shift: the pull-down is heavily
+        // damped, so keying "roomy" off the page kept the chevron faint for
+        // most of the gesture. 40px of finger is a deliberate pull.
         g.hint.className = 'swipe-hint top show'
-          + (shift >= HINT_W ? ' roomy' : '') + (armed ? ' armed' : '');
+          + (dy >= 40 ? ' roomy' : '') + (armed ? ' armed' : '');
         container.classList.toggle('gesture-armed', armed);
       }
     }, { passive: false });
@@ -367,7 +370,7 @@ function renderDetail(container, ctx) {
       return;
     }
     resetGesture();
-    if (usedAxis === 'y' && g.startScroll <= 0 && container.scrollTop <= 0 && dy > 0 && willCommit(dy, vy)) {
+    if (usedAxis === 'y' && g.startScroll <= 0 && container.scrollTop <= 0 && dy > 0 && willCommitPull(dy, vy)) {
       mode = 'overview';
       render(container, ctx);
     }
@@ -455,11 +458,51 @@ function buildReportCard(ctx) {
     any = true;
   }
 
+  // 6. strength: this week's score, with the three lifts behind it — the
+  // same within-week best-e1RM-per-lift sum the Progress chart plots.
+  // Coloured vs the previous scored week, like the overview row.
+  {
+    const ws = startOfWeek(ctx.date);
+    const names = mainLiftNames();
+    const cur = strengthTotalInWeek(ws, names);
+    if (cur) {
+      let prev = null;
+      const sp = currentSprint();
+      for (let p = addDays(ws, -7); p >= (sp ? sp.start : p); p = addDays(p, -7)) {
+        prev = strengthTotalInWeek(p, names);
+        if (prev || p === (sp ? sp.start : p)) break;
+      }
+      const status = !prev ? null : cur.total > prev.total + 0.5 ? 'good' : cur.total < prev.total - 0.5 ? 'bad' : 'neutral';
+      // per-lift bests within this week, in the order they were configured
+      const wkEnd = addDays(ws, 6);
+      const parts = names.map((n) => {
+        const s = liftStats().find((x) => x.name.toLowerCase() === n.toLowerCase());
+        const inWk = s ? s.history.filter((h) => h.date >= ws && h.date <= wkEnd && h.e1rm != null) : [];
+        const best = inWk.length ? Math.max(...inWk.map((h) => h.e1rm)) : null;
+        return `${shortLift(n)} ${best != null ? Math.round(best) : '—'}`;
+      });
+      card.append(rpRowC('Strength',
+        el('span', {},
+          el('b', {}, Math.round(cur.total).toLocaleString()),
+          prev ? el('span', { class: 'rp-dim' }, ` · ${cur.total - prev.total >= 0 ? '+' : ''}${Math.round(cur.total - prev.total)} vs last wk`) : null,
+          el('span', { class: 'rp-dim rp-sub' }, parts.join(' + ')),
+        ), status));
+      any = true;
+    }
+  }
+
   const tips = weekSuggestions(r).map((s) => el('div', { class: 'card suggest-card' },
     el('div', { class: 'sg-text' }, s.text),
     el('div', { class: 'sg-why' }, s.why),
   ));
   return { card: any ? card : null, tips };
+}
+
+// Short form of a main-lift name for the tight strength calc line.
+function shortLift(n) {
+  return n.replace(/flat dumbbell press/i, 'DB press')
+    .replace(/machine leg press/i, 'Leg press')
+    .replace(/lat pulldown/i, 'Pulldown');
 }
 
 function rpRow(label, valueEl) {

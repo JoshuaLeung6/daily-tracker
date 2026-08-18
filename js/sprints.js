@@ -329,8 +329,16 @@ export function sprintReport(sprint) {
     return null;
   })();
   const stats = liftStats();
+  // per-lift most-recent e1RM, in MAIN_LIFTS order — what the total is made of
+  const perLift = names.map((n) => {
+    const st = stats.find((x) => x.name.toLowerCase() === n.toLowerCase());
+    const withE1 = st ? st.history.filter((h) => h.e1rm != null && h.date >= s.start && h.date <= stEnd) : [];
+    const last = withE1.length ? withE1[withE1.length - 1] : null;
+    return { name: n, e1rm: last ? last.e1rm : null, date: last ? last.date : null };
+  });
   report.strength = {
     names,
+    perLift,
     now: totalNow && totalNow.counted === names.length ? totalNow.total : null,
     start: totalStart ? totalStart.total : null,
     startISO: totalStart ? totalStart.iso : null,

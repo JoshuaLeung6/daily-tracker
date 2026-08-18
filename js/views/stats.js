@@ -171,7 +171,6 @@ function dashboardPane(rerender) {
     };
     const liftTarget = liftingSessionTarget() / 7;
     wrap.append(el('div', { class: 'settings-section' },
-      el('h2', {}, 'Sprint consistency'),
       el('div', { class: 'card adh-card' },
         ring('lifts', a.lifts.done, a.lifts.of, liftTarget * 0.9),
         ring('protein', a.protein.done, a.protein.of, 0.8),
@@ -223,16 +222,18 @@ function dashboardPane(rerender) {
   }
   if (st && st.series.length >= 2) {
     chartsSec.append(el('div', { class: 'card chart-card' },
-      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Strength total'), el('span', { class: 'att-desc' }, st.names.join(' + '))),
+      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Strength')),
       // same x-axis as the weight chart, so the two read against each other
       lineChart({
         points: st.series,
         ariaLabel: 'Main-lift e1RM total over the sprint',
         domain: { from: r.start.iso, to: weightScale === 'sprint' ? r.end : st.series[st.series.length - 1].iso },
       }),
-      // one plain line, naming the actual lifts
-      el('div', { class: 'gc-window ch-note' },
-        `Sum of estimated 1RM for ${st.names.join(' + ')}, using each lift's best set of the week.`),
+      // what the number is made of: each main lift's most recent e1RM
+      el('div', { class: 'st-parts' },
+        ...(st.perLift || []).map((l) => el('div', { class: 'st-part' },
+          el('span', { class: 'st-part-n' }, l.e1rm != null ? Math.round(l.e1rm).toLocaleString() : '—'),
+          el('span', { class: 'st-part-l' }, l.name)))),
     ));
     anyChart = true;
   }
@@ -289,7 +290,7 @@ function planSection(r, sprint) {
   const liftGoals = Object.entries((sprint.goals && sprint.goals.lifts) || {});
   for (const [name, target] of liftGoals) outcomes.push([name, `${fmtN(target)} e1RM`]);
   if (r.strength && r.strength.names.length) {
-    outcomes.push(['Strength total', `${r.strength.names.join(' + ')} e1RM`]);
+    outcomes.push(['Strength', `${r.strength.names.join(' + ')} e1RM`]);
   }
   if (outcomes.length) {
     sec.append(block('Outcome goals', 'where this sprint ends up', outcomes));

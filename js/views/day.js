@@ -29,13 +29,28 @@ const g = { hint: null, iso: null, ctx: null, startX: null, startY: null, startS
 export const EDGE_ZONE = 36;        // px from either side that can begin a page swipe
 // Stricter than a native pager on purpose: a page change is a bigger action
 // here than flipping a photo, and an accidental one costs a re-orientation.
-export const SWIPE_DIST = 130;     // px of travel that commits on its own (was 90)
-export const SWIPE_VELOCITY = 0.7; // px/ms (~700 px/s) that commits a flick (was 0.45)
+// About 40% of the screen width to commit by distance, and a flick has to be
+// both fast AND at least half that distance — a quick short twitch near the
+// edge should not change the day.
+export const SWIPE_DIST = 160;     // px of travel that commits on its own
+export const SWIPE_VELOCITY = 0.9; // px/ms (~900 px/s) that commits a flick
 export function willCommit(delta, velocity) {
-  if (Math.abs(delta) < 40) return false;              // ignore stray touches (was 24)
+  if (Math.abs(delta) < 60) return false;              // ignore stray touches
   if (Math.abs(delta) >= SWIPE_DIST) return true;
-  // a flick counts only if it is still moving the same way it was dragged
-  return Math.abs(velocity) >= SWIPE_VELOCITY && Math.sign(velocity) === Math.sign(delta);
+  // a flick counts only if it is fast, still moving the way it was dragged,
+  // AND has already covered at least half the commit distance
+  return Math.abs(delta) >= SWIPE_DIST / 2
+    && Math.abs(velocity) >= SWIPE_VELOCITY && Math.sign(velocity) === Math.sign(delta);
+}
+// The pull-down (zoom out) is its own gesture with its own feel: it starts
+// from a resting page, is heavily damped, and there is nothing else it could
+// be confused with — so it commits sooner than a side swipe. Same shape.
+export const PULL_DIST = 110;
+export const PULL_VELOCITY = 0.7;
+export function willCommitPull(dy, vy) {
+  if (dy < 40) return false;
+  if (dy >= PULL_DIST) return true;
+  return dy >= PULL_DIST / 2 && vy >= PULL_VELOCITY;
 }
 
 // Page transition on commit. What made the swipe feel wrong was not the
@@ -298,11 +313,14 @@ export function render(container, ctx) {
         // easing further out, so it never feels like the page is running away
         const shift = pull <= 0 ? 0 : pull * 0.45 * (1 / (1 + pull / 400));
         container.style.transform = `translateY(${shift}px)`;
-        const armed = dy > 0 && willCommit(dy, g.vy);
+        const armed = dy > 0 && willCommitPull(dy, g.vy);
         g.hint.textContent = '⌄';
         g.hint.style.setProperty('--hint-gap', shift + 'px');
+        // gate on FINGER travel, not page shift: the pull-down is heavily
+        // damped, so keying "roomy" off the page kept the chevron faint for
+        // most of the gesture. 40px of finger is a deliberate pull.
         g.hint.className = 'swipe-hint top show'
-          + (shift >= HINT_W ? ' roomy' : '') + (armed ? ' armed' : '');
+          + (dy >= 40 ? ' roomy' : '') + (armed ? ' armed' : '');
         container.classList.toggle('gesture-armed', armed);
       }
     }, { passive: false });
@@ -331,7 +349,7 @@ export function render(container, ctx) {
     }
     resetGesture();
     // zoom out one level: this day's week
-    if (usedAxis === 'y' && scrolledTop && willCommit(dy, vy) && dy > 0 && g.ctx.goTab) {
+    if (usedAxis === 'y' && scrolledTop && willCommitPull(dy, vy) && dy > 0 && g.ctx.goTab) {
       g.ctx.goTab('week', { detail: true });
     }
   };

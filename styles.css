@@ -1013,8 +1013,16 @@ html[data-theme="light"] body::before {
 }
 .dash-pos-bar .goal-fill { height: 100%; }
 
-.dash-heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.dash-insight { margin-top: 8px; }
+/* Dashboard rhythm: every block on the Progress pane is separated by the
+   same 14px, and headed sections get 22px above the heading so the heading
+   reads as a break, not a caption for the block above. Before this the
+   gaps were 8 / 8 / 14 / 28 depending on which block you were next to. */
+.dash-pos { margin-bottom: 14px; }
+.dash-heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dash-insight { margin-top: 14px; }
+.pane > .settings-section { margin: 14px 0 0; }
+.pane > .settings-section > h2, .pane > .settings-section > .sec-head { margin-top: 8px; }
+.pane > .settings-section:first-child { margin-top: 0; }
 .stats-summary { grid-template-columns: repeat(3, 1fr); margin: 10px 0; }
 .hero-card { flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 13px; }
 .hero-label { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
@@ -1095,7 +1103,8 @@ html[data-theme="light"] body::before {
 /* ---------- charts ---------- */
 
 .chart { width: 100%; height: auto; display: block; margin-top: 6px; touch-action: pan-y; }
-.chart-card { flex-direction: column; align-items: stretch; gap: 4px; margin: 14px 0 0; }
+.chart-card { flex-direction: column; align-items: stretch; gap: 4px; margin: 10px 0 0; }
+.settings-section > .chart-card:first-of-type, .sec-head + .chart-card { margin-top: 0; }
 
 .ch-grid { stroke: var(--hairline); stroke-width: 1; }
 .ch-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
@@ -1298,9 +1307,15 @@ html[data-theme="light"] body::before {
 /* The glyph sits flush against the viewport edge. The view slides AWAY from
    that edge by --hint-gap, so once the gap exceeds the glyph width (the
    .roomy gate in JS) the glyph occupies empty gutter, never a card. */
-.swipe-hint.top { left: 50%; margin-left: -13px; top: 2px; }
-.swipe-hint.left { top: 50%; margin-top: -13px; left: 2px; }
-.swipe-hint.right { top: 50%; margin-top: -13px; right: 2px; }
+/* top: BELOW the Dynamic Island, not at y=0 of the viewport. On the buggy
+   iOS build the viewport starts at the physical top of the screen, so the
+   first 62px are under the island — a chevron at top:2px was rendering,
+   invisibly, behind it. --top-pad is the runtime-decided top inset. */
+.swipe-hint.top { left: 50%; margin-left: -13px; top: calc(var(--top-pad, 0px) + 6px); }
+/* 10px in from the edge, not 2: the display's rounded corners and the
+   very edge of the panel clip the outer few px of the glyph */
+.swipe-hint.left { top: 50%; margin-top: -13px; left: 10px; }
+.swipe-hint.right { top: 50%; margin-top: -13px; right: 10px; }
 
 /* current week: accent eyebrow + a live dot, so "now" reads at a glance
    instead of looking like any other week in the sprint */
@@ -1442,10 +1457,18 @@ html[data-theme="light"] body::before {
 .mt-aim-avg.st-bad { color: var(--danger); }
 .mt-aim-row + .mt-aim-row { margin-top: 4px; }
 
+/* what the strength number is made of: three small figures with the lift
+   name under each, spread across the card */
+.st-parts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--hairline); }
+.st-part { text-align: center; min-width: 0; }
+.st-part-n { display: block; font-family: var(--serif); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.st-part-l { display: block; font-size: 10px; color: var(--faint); margin-top: 2px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* a section heading with a control on the right (e.g. the Trends range
    toggle that governs both charts beneath it) */
 .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.sec-head h2 { margin: 0; }
+.sec-head h2 { margin-bottom: 0; }
+.sec-head { margin-bottom: 10px; }
 
 /* compact segmented control inside a card or section header */
 .seg-mini { margin: 0; flex: 0 0 auto; }
@@ -1505,6 +1528,9 @@ html[data-theme="light"] body::before {
   border-bottom: 1px solid var(--hairline);
   font-size: 14px;
 }
+/* a value's second line (e.g. the strength calc "DB press 181 + Pulldown
+   179 + Leg press 443") drops under the number rather than crowding it */
+.rp-sub { display: block; font-size: 11px; margin-top: 2px; white-space: normal; text-align: right; }
 .rp-row:last-child { border-bottom: none; }
 
 .rp-label {
@@ -1709,7 +1735,7 @@ html[data-theme="light"] body::before {
 
 .settings-section { margin-bottom: 28px; }
 
-.settings-section > h2 {
+.settings-section > h2, .settings-section > .sec-head > h2 {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.12em;
