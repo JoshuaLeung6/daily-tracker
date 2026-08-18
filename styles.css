@@ -226,10 +226,20 @@ html[data-theme="light"] body::before {
    realistic page (a page would need to be nearly empty for content +
    spacer to still fit) while reading as "a bit more room down here" rather
    than an empty screen. It doubles as clearance for the fixed tab bar. */
+/* Trailing spacer so every page overflows a little and can bounce.
+   Flex tricks were tried (four variants) and cannot do this: flex exists
+   to make things fit, so it always distributes space to exactly the
+   container height and never overflows. Plain block flow with a fixed
+   spacer is the only thing that works, and the size is a compromise
+   measured against a real light day (641px of content in 812):
+     200px -> light day overflows by ~30 (a small bounce, "just past")
+             long page has ~150px of blank room after its last card
+   Bigger and the long page scrolls into nothing; smaller and the light day
+   goes rigid again. The spacer also clears the fixed tab bar. */
 .view::after {
   content: '';
   display: block;
-  height: calc(var(--bottom-pad, 0px) + 55vh);
+  height: calc(var(--bottom-pad, 0px) + 200px);
 }
 
 .tabbar {
@@ -1013,7 +1023,7 @@ html[data-theme="light"] body::before {
 .hero-sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .hero-pace { font-size: 11px; line-height: 1.35; margin-top: 2px; }
 .hero-foot { font-size: 11px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
-.gc-pace.pace-mid { color: var(--partial); }
+.gc-pace.pace-mid { color: var(--ink); }   /* neutral pace: plain, not yellow */
 
 .adh-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 6px; padding: 12px 10px; }
 .adh-cell { display: flex; flex-direction: column; align-items: center; gap: 1px; }
@@ -1414,6 +1424,12 @@ html[data-theme="light"] body::before {
   font-weight: 600;
   color: var(--accent);
 }
+/* the 7-day average beside the minimum: green when it clears the minimum,
+   red when it does not, plain when there is no data yet */
+.mt-aim-avg { color: var(--ink); }
+.mt-aim-avg.st-good { color: var(--met-day); }
+.mt-aim-avg.st-bad { color: var(--danger); }
+.mt-aim-row + .mt-aim-row { margin-top: 4px; }
 
 /* compact segmented control inside a card header */
 .seg-mini { margin: 0; flex: 0 0 auto; }
@@ -1584,7 +1600,12 @@ html[data-theme="light"] body::before {
 /* shared line status coloring (week card rows + overview cells):
    good = green, neutral = amber (partial), bad = red */
 .st-good .wk-cell-v, .rp-row.st-good .rp-value b, .wr-c.st-good { color: var(--met-day); }
-.st-neutral .wk-cell-v, .rp-row.st-neutral .rp-value b, .wr-c.st-neutral { color: var(--partial); }
+/* Neutral is NOT coloured. Green and red carry signal; yellow on "nothing to
+   flag" drew the eye to exactly the values that did not need attention.
+   Neutral text is plain ink so only the good/bad ends stand out. The
+   week-overview grade DOT keeps its yellow — that is a status light, not
+   a number to read. */
+.st-neutral .wk-cell-v, .rp-row.st-neutral .rp-value b, .wr-c.st-neutral { color: var(--ink); }
 .st-bad .wk-cell-v, .rp-row.st-bad .rp-value b, .wr-c.st-bad { color: var(--danger); }
 .wr-c.wr-workout.st-good { color: var(--met-day); }
 

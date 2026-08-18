@@ -229,11 +229,9 @@ function dashboardPane(rerender) {
         ariaLabel: 'Main-lift e1RM total over the sprint',
         domain: { from: r.start.iso, to: weightScale === 'sprint' ? r.end : st.series[st.series.length - 1].iso },
       }),
-      // how the number is built — plainly, once, where the number lives
+      // one plain line, naming the actual lifts
       el('div', { class: 'gc-window ch-note' },
-        `One dot per week. For each main lift, the best set of the week becomes an estimated 1-rep max `
-        + `(weight × (1 + reps ÷ 30); sets over 15 reps are not counted), and the three are added up. `
-        + `A week is skipped if any main lift was not trained. Day type does not matter — the best set is the best set.`),
+        `Sum of estimated 1RM for ${st.names.join(' + ')}, using each lift's best set of the week.`),
     ));
     anyChart = true;
   }
@@ -376,10 +374,19 @@ function intakeCard(gw) {
     const reqPerDay = (gw.requiredPerWeek * 3500) / 7;
     const aim = Math.round((rounded + reqPerDay) / 10) * 10;
     const gaining = gw.requiredPerWeek >= 0;
+    // the 7-day average sits right beside the minimum, coloured against it,
+    // so "am I eating enough this week" is one glance
+    const cal = calorieTracker();
+    const wk = cal ? avgOverDays(cal.id, 7) : null;
+    const avg7 = wk && wk.avg != null ? Math.round(wk.avg) : null;
+    const avgCls = avg7 == null ? '' : (gaining ? avg7 >= aim : avg7 <= aim) ? ' st-good' : ' st-bad';
     card.append(el('div', { class: 'mt-aim' },
       el('div', { class: 'mt-aim-row' },
-        el('span', { class: 'mt-aim-lab' }, gaining ? 'Eat to gain' : 'Eat to lose'),
+        el('span', { class: 'mt-aim-lab' }, gaining ? 'Minimum to reach goal' : 'Maximum to reach goal'),
         el('span', { class: 'mt-aim-val' }, `${n(aim)} ${unit}/day`)),
+      el('div', { class: 'mt-aim-row' },
+        el('span', { class: 'mt-aim-lab' }, '7-day average'),
+        el('span', { class: 'mt-aim-val mt-aim-avg' + avgCls }, avg7 != null ? `${n(avg7)} ${unit}/day` : '—')),
       el('div', { class: 'gc-window' },
         `${fmtN(Math.abs(Math.round(gw.toGo * 10) / 10))} ${wUnit} to go in `
         + `${fmtN(Math.round(gw.remainingWeeks * 10) / 10)} weeks `

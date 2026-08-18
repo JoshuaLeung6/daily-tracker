@@ -81,6 +81,18 @@ function renderOverview(container, ctx) {
     // strength score for THIS week: within-week best e1RM per main lift,
     // summed (same number as the Progress strength chart's dot for the week)
     const strength = strengthTotalInWeek(wk.ws, liftNames);
+    // colour vs the previous week that HAS a score: green if it went up, red
+    // if it went down. Skip weeks with no score rather than treating a gap as
+    // a drop. Equal is neutral.
+    let strengthStatus = null;
+    if (strength) {
+      let prev = null;
+      for (let ws = addDays(wk.ws, -7); ws >= (sprint ? sprint.start : ws) && !prev; ws = addDays(ws, -7)) {
+        prev = strengthTotalInWeek(ws, liftNames);
+        if (ws === (sprint ? sprint.start : ws)) break;
+      }
+      if (prev) strengthStatus = strength.total > prev.total + 0.5 ? 'good' : strength.total < prev.total - 0.5 ? 'bad' : 'neutral';
+    }
     const cells = el('span', { class: 'wk-cells' },
       cell('weight', w && w.weekAvg != null ? fmtN(w.weekAvg) : '—', st.weight),
       cell('kcal', r.intake && r.intake.avg != null ? Math.round(r.intake.avg).toLocaleString() : '—', st.calories),
@@ -88,7 +100,7 @@ function renderOverview(container, ctx) {
       cell('protein', r.protein && r.protein.of > 0 ? `${r.protein.hit}/${r.protein.of}`
         : (r.protein && r.protein.avg != null ? Math.round(r.protein.avg) : '—'), st.protein),
       cell('lifts', r.training ? `${r.training.days}/${daysSoFar}` : '—', st.workouts),
-      cell('strength', strength ? Math.round(strength.total).toLocaleString() : '—', null),
+      cell('strength', strength ? Math.round(strength.total).toLocaleString() : '—', strengthStatus),
     );
 
     const row = el('button', {
@@ -291,8 +303,18 @@ function renderDetail(container, ctx) {
         else g.axis = 'scroll';
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
       }
-      // scrolling stays free during a swipe — the drag is only a visual
-      // follow; willCommit() (distance OR flick velocity) decides the outcome
+      // Once committed to a SIDE swipe, own the gesture: preventDefault stops
+      // the page scrolling vertically underneath the horizontal drag, which
+      // otherwise reads as the content sliding two ways at once. Only for
+      // 'x' — a pull-down or a plain scroll must never be blocked.
+      // Own the gesture once an axis is claimed:
+      //  - 'x': stops the page scrolling vertically under a side swipe
+      //  - 'y': stops iOS's OWN top rubber-band running at the same time as
+      //    our damped pull-down. With the pane now genuinely scrollable, a
+      //    downward drag at scrollTop 0 is also a native overscroll bounce
+      //    (1:1) — two motions at once, which is why the pull-down felt
+      //    fast some of the time and right the rest. One motion only.
+      if ((g.axis === 'x' || g.axis === 'y') && e.cancelable) e.preventDefault();
       if (g.axis === 'x') {
         const blocked = dx < 0 && !g.canNext;
         // 1:1 with the finger; a blocked direction rubber-bands instead
@@ -313,7 +335,9 @@ function renderDetail(container, ctx) {
         // (1:1 tracking is right for a side swipe, wrong here — it felt fast.)
         // Never moves the page UP.
         const pull = Math.max(0, dy);
-        const shift = pull <= 0 ? 0 : 60 * Math.log1p(pull / 60) + pull * 0.25;
+        // heavier than before: ~0.45x the finger from the very first pixel and
+        // easing further out, so it never feels like the page is running away
+        const shift = pull <= 0 ? 0 : pull * 0.45 * (1 / (1 + pull / 400));
         container.style.transform = `translateY(${shift}px)`;
         const armed = dy > 0 && willCommit(dy, g.vy);
         g.hint.textContent = '⌄';
