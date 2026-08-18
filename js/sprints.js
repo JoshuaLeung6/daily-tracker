@@ -5,7 +5,7 @@
 
 import { getData } from './store.js';
 import { allWorkouts, liftStats } from './workouts.js';
-import { todayISO, addDays } from './dates.js';
+import { todayISO, addDays, startOfWeek } from './dates.js';
 import { activeTrackers, targetFor, dayMeets, ratePerWeek } from './trackers.js';
 import { getEntry } from './store.js';
 import { weightTracker, calorieTracker, proteinTracker, trendWeightOn, isCardioDay, cardioTracker } from './insights.js';
@@ -114,10 +114,27 @@ export function adherence28(days = 28) {
     if (steps && e[steps.id] === true) stepsHit++;
     if (wt && typeof e[wt.id] === 'number') weighIns++;
   }
+  // Cardio is a WEEKLY target (e.g. 1x/week), so a per-day rate would be
+  // misleading (1 session in 7 days is 100% of target, 14% of days). Score
+  // it as weeks that hit the target out of complete weeks in the window.
+  let cardioWeeksHit = 0;
+  let cardioWeeks = 0;
+  if (cardio) {
+    const tgt = targetFor(cardio, end);
+    const need = tgt && tgt.period === 'week' ? tgt.value : 1;
+    for (let ws = startOfWeek(start); addDays(ws, 6) <= end; ws = addDays(ws, 7)) {
+      if (ws < start) continue;
+      let n = 0;
+      for (let i = 0; i < 7; i++) if (isCardioDay(getEntry(addDays(ws, i))[cardio.id])) n++;
+      cardioWeeks++;
+      if (n >= need) cardioWeeksHit++;
+    }
+  }
   out.protein = { done: proHit, of: proOf || days };
   out.calories = { done: calHit, of: calOf || days };
   out.steps = steps ? { done: stepsHit, of: days } : null;
   out.weighIns = wt ? { done: weighIns, of: days } : null;
+  out.cardio = cardio && cardioWeeks > 0 ? { done: cardioWeeksHit, of: cardioWeeks } : null;
   out.days = days;
   return out;
 }

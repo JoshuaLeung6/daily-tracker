@@ -17,6 +17,18 @@ let unlockedISO = null;
 // the once-bound non-passive touchmove listener.
 const g = { hint: null, iso: null, ctx: null, startX: null, startY: null, startScroll: 0, axis: null };
 
+// Chevron glyphs as SVG, not text: the ⌄ / ‹ / › characters have wildly
+// asymmetric metrics (⌄ sits at the very bottom of its em-box and was being
+// clipped by the disc), so no amount of padding centres them reliably. A
+// path in a viewBox is centred by construction.
+const CHEV = (d) => `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">`
+  + `<path d="${d}" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+export const CHEVRON = {
+  down: CHEV('M6 9l6 6 6-6'),
+  left: CHEV('M15 6l-6 6 6 6'),
+  right: CHEV('M9 6l6 6-6 6'),
+};
+
 // Commit rule, shared by the live preview and touchend so the armed
 // indicator NEVER disagrees with what actually happens on release.
 // Distance OR velocity, like every native pager: a long deliberate drag
@@ -300,7 +312,7 @@ export function render(container, ctx) {
           : dx * 0.6;
         container.style.transform = `translateX(${shift}px)`;
         const armed = !blocked && willCommit(dx, g.vx);
-        g.hint.textContent = dx < 0 ? '›' : '‹';
+        g.hint.innerHTML = dx < 0 ? CHEVRON.right : CHEVRON.left;
         // centre the glyph in the strip the view vacated
         g.hint.style.setProperty('--hint-gap', Math.abs(shift) + 'px');
         g.hint.className = 'swipe-hint ' + (dx < 0 ? 'right' : 'left') + ' show'
@@ -323,7 +335,7 @@ export function render(container, ctx) {
         const shift = pull <= 0 ? 0 : pull * 0.45 * (1 / (1 + pull / 400));
         container.style.transform = `translateY(${shift}px)`;
         const armed = dy > 0 && willCommitPull(dy, g.vy);
-        g.hint.textContent = '⌄';
+        g.hint.innerHTML = CHEVRON.down;
         g.hint.style.setProperty('--hint-gap', shift + 'px');
         // gate on FINGER travel, not page shift: the pull-down is heavily
         // damped, so keying "roomy" off the page kept the chevron faint for

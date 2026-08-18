@@ -10,7 +10,7 @@ import { currentSprint, strengthTotalInWeek, mainLiftNames } from '../sprints.js
 import { CALORIE_BANDS } from '../config.js';
 // one commit rule and one page transition for both views, so "armed" always
 // matches what happens and every swipe moves the same way
-import { willCommit, willCommitPull, slidePage, settleSlide, EDGE_ZONE } from './day.js';
+import { willCommit, willCommitPull, slidePage, settleSlide, EDGE_ZONE, CHEVRON } from './day.js';
 
 // The tab opens zoomed out: every week graded green/yellow/red; tapping a
 // week drills into its report card. Switching away and back resets to the
@@ -330,7 +330,7 @@ function renderDetail(container, ctx) {
           : dx * 0.6;
         container.style.transform = `translateX(${shift}px)`;
         const armed = !blocked && willCommit(dx, g.vx);
-        g.hint.textContent = dx < 0 ? '›' : '‹';
+        g.hint.innerHTML = dx < 0 ? CHEVRON.right : CHEVRON.left;
         // centre the glyph in the strip the view vacated
         g.hint.style.setProperty('--hint-gap', Math.abs(shift) + 'px');
         g.hint.className = 'swipe-hint ' + (dx < 0 ? 'right' : 'left') + ' show'
@@ -349,7 +349,7 @@ function renderDetail(container, ctx) {
         const shift = pull <= 0 ? 0 : pull * 0.45 * (1 / (1 + pull / 400));
         container.style.transform = `translateY(${shift}px)`;
         const armed = dy > 0 && willCommitPull(dy, g.vy);
-        g.hint.textContent = '⌄';
+        g.hint.innerHTML = CHEVRON.down;
         g.hint.style.setProperty('--hint-gap', shift + 'px');
         // gate on FINGER travel, not page shift: the pull-down is heavily
         // damped, so keying "roomy" off the page kept the chevron faint for
@@ -478,26 +478,31 @@ function buildReportCard(ctx) {
     const ws = startOfWeek(ctx.date);
     const names = mainLiftNames();
     const cur = strengthTotalInWeek(ws, names);
-    if (cur) {
+    // per-lift bests within this week, in configured order — computed FIRST
+    // so the row can still show partial lifts when the total is not scorable
+    const wkEnd = addDays(ws, 6);
+    const partsData = names.map((n) => {
+      const s = liftStats().find((x) => x.name.toLowerCase() === n.toLowerCase());
+      const inWk = s ? s.history.filter((h) => h.date >= ws && h.date <= wkEnd && h.e1rm != null) : [];
+      return { name: n, best: inWk.length ? Math.max(...inWk.map((h) => h.e1rm)) : null };
+    });
+    const anyLift = partsData.some((x) => x.best != null);
+    if (cur || anyLift) {
       let prev = null;
       const sp = currentSprint();
       for (let p = addDays(ws, -7); p >= (sp ? sp.start : p); p = addDays(p, -7)) {
         prev = strengthTotalInWeek(p, names);
         if (prev || p === (sp ? sp.start : p)) break;
       }
-      const status = !prev ? null : cur.total > prev.total + 0.5 ? 'good' : cur.total < prev.total - 0.5 ? 'bad' : 'neutral';
-      // per-lift bests within this week, in the order they were configured
-      const wkEnd = addDays(ws, 6);
-      const parts = names.map((n) => {
-        const s = liftStats().find((x) => x.name.toLowerCase() === n.toLowerCase());
-        const inWk = s ? s.history.filter((h) => h.date >= ws && h.date <= wkEnd && h.e1rm != null) : [];
-        const best = inWk.length ? Math.max(...inWk.map((h) => h.e1rm)) : null;
-        return `${shortLift(n)} ${best != null ? Math.round(best) : '—'}`;
-      });
+      const status = !cur || !prev ? null : cur.total > prev.total + 0.5 ? 'good' : cur.total < prev.total - 0.5 ? 'bad' : 'neutral';
+      const parts = partsData.map((x) => `${shortLift(x.name)} ${x.best != null ? Math.round(x.best) : '—'}`);
       card.append(rpRowC('Strength',
         el('span', {},
-          el('b', {}, Math.round(cur.total).toLocaleString()),
-          prev ? el('span', { class: 'rp-dim' }, ` · ${cur.total - prev.total >= 0 ? '+' : ''}${Math.round(cur.total - prev.total)} vs last wk`) : null,
+          // total only when all three lifts scored; otherwise "—" with the
+          // partial lifts still listed, so a week is never silently blank
+          el('b', {}, cur ? Math.round(cur.total).toLocaleString() : '—'),
+          cur && prev ? el('span', { class: 'rp-dim' }, ` · ${cur.total - prev.total >= 0 ? '+' : ''}${Math.round(cur.total - prev.total)} vs last wk`) : null,
+          !cur ? el('span', { class: 'rp-dim' }, ' · not all three lifts trained') : null,
           el('span', { class: 'rp-dim rp-sub' }, parts.join(' + ')),
         ), status));
       any = true;
