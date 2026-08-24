@@ -608,40 +608,39 @@ html[data-theme="light"] body::before {
 
 .wo-seg-label:first-child { margin-top: 0; }
 
-/* log rows: name is a label, three compact number cells */
-.lift-labels {
-  display: grid;
-  grid-template-columns: 1fr 58px 44px 44px 26px;
-  gap: 5px;
-  margin: 16px 0 4px;
+/* logged lifts: one block per lift — the name on its own line (never
+   truncated), then lb × reps × sets cells with unit captions, and the last
+   three sessions stacked beside them as the reference to beat */
+.lift-rows { display: flex; flex-direction: column; gap: 4px; margin-top: 22px; }
+
+.lift-row {
+  padding: 12px 0 14px;
+  border-top: 1px solid var(--hairline);
+}
+.lift-row:last-child { border-bottom: 1px solid var(--hairline); }
+
+.lift-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+
+.lift-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lift-body { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+
+.lift-cells { display: flex; align-items: flex-start; gap: 6px; flex-shrink: 0; }
+.lift-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.lift-cell:first-child .lift-num { width: 66px; }
+.lift-unit {
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--faint);
 }
-
-.lift-labels span:not(.ll-name) { text-align: center; }
-
-.lift-rows { display: flex; flex-direction: column; gap: 6px; }
-
-.lift-row {
-  display: grid;
-  grid-template-columns: 1fr 58px 44px 44px 26px;
-  gap: 5px;
-  align-items: center;
-}
-
-.lift-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding-left: 2px;
-}
+.lift-x { color: var(--faint); font-size: 14px; line-height: 40px; }
 
 .lift-num {
   background: var(--surface);
@@ -650,20 +649,21 @@ html[data-theme="light"] body::before {
   color: var(--ink);
   font-family: var(--sans);
   font-size: 16px; /* keep ≥16px: iOS zooms on smaller inputs */
-  padding: 8px 2px;
-  width: 100%;
+  padding: 9px 2px;
+  width: 50px;
   min-width: 0;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
-
 .row-x {
-  width: 26px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   color: var(--faint);
   font-size: 14px;
   border-radius: 8px;
+  flex-shrink: 0;
+  margin-right: -6px;
 }
 
 /* split + day type on one line */
@@ -715,34 +715,30 @@ html[data-theme="light"] body::before {
 }
 .sheet-top .pick-list { max-height: 36dvh; }
 
-.wo-delete { width: 100%; margin-top: 22px; }
+.wo-delete { width: 100%; margin-top: 28px; }
 
-.workout-overlay .ghost-btn { margin-top: 10px; }
-
-.suggest-wrap { margin-top: 18px; }
-/* section rhythm inside the editor: classification / lifts / suggestions /
-   controls each get room to breathe instead of running into each other */
-.lift-labels { margin-top: 18px; }
-.workout-overlay .ghost-btn { margin-top: 14px; }
-.wo-delete { margin-top: 22px; }
+/* add-lift area sits under the logged lifts; its labels space it out */
+.wo-add { margin-top: 8px; }
+.wo-add .wo-seg-label { margin-top: 20px; }
+.wo-add .pick-list { max-height: none; overflow: visible; }
 .chip-suggest { border-style: dashed; color: var(--accent); border-color: var(--line); }
 
-/* one logged lift = the row + a small STACK of prior sessions beneath it,
-   newest first, one per line. Blocks are spaced apart so each lift reads as
-   its own unit rather than a wall of numbers. */
-.lift-block { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+/* prior sessions of a logged lift: newest first, one per line, right-aligned
+   beside the number cells */
 .lift-preview {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 2px 2px 0;
+  padding-top: 3px;
   font-size: 12px;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  min-width: 0;
 }
-.lp-line { display: flex; align-items: baseline; gap: 8px; line-height: 1.3; }
-.lp-set { color: var(--muted); font-weight: 600; min-width: 74px; }
-.lp-date { color: var(--faint); }
+.lp-line { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; line-height: 1.35; white-space: nowrap; }
+.lp-set { color: var(--muted); font-weight: 600; }
+.lp-date { color: var(--faint); min-width: 44px; text-align: left; }
 .lp-tag {
   font-size: 10px;
   letter-spacing: 0.04em;

@@ -1,5 +1,5 @@
-// E2E: workout editor v2.3 — empty start, picker sheet, suggestion chips,
-// last-session previews, no number prefill; e1RM trend in stats.
+// E2E: workout editor — empty start, inline PPL lift list (no popup),
+// suggestion chips, last-session previews, no number prefill; e1RM trend.
 const puppeteer = require('puppeteer-core');
 const path = require('path');
 
@@ -44,16 +44,15 @@ const localISO = (offset) => {
     eln.click();
   }, { s: sel, t: text });
 
-  // picker is keyboard-free: expand every PPL section, tap the lift if it
-  // exists, else create it via "New lift…"
+  // the lift list is INLINE now (no popup): expand every PPL section, tap
+  // the lift if it exists, else create it via "New lift…"
   const addLiftViaPicker = async (name) => {
-    await clickByText('.workout-overlay .ghost-btn', 'View all lifts');
-    await page.waitForSelector('.sheet .pick-section');
+    await page.waitForSelector('.wo-add .pick-section');
     await page.evaluate(() => {
-      for (const s of document.querySelectorAll('.pick-section:not(.open)')) s.click();
+      for (const s of document.querySelectorAll('.wo-add .pick-section:not(.open)')) s.click();
     });
     const existed = await page.evaluate((n) => {
-      const row = [...document.querySelectorAll('.pick-row')].find((r) => r.textContent.startsWith(n) && !r.disabled);
+      const row = [...document.querySelectorAll('.wo-add .pick-row')].find((r) => r.textContent.startsWith(n) && !r.disabled);
       if (row) { row.click(); return true; }
       return false;
     }, name);
@@ -63,7 +62,8 @@ const localISO = (offset) => {
       await page.type('input[aria-label="New lift name"]', name);
       await page.evaluate(() => [...document.querySelectorAll('.food-newform .btn')].find((b) => b.textContent === 'Add').click());
     }
-    await page.waitForFunction(() => !document.querySelector('.sheet-backdrop'));
+    await page.waitForFunction((n) =>
+      [...document.querySelectorAll('.lift-row .lift-label')].some((l) => l.textContent === n), {}, name);
   };
   const fillRow = async (index, w, r, s2) => {
     const set = async (label, val) => {

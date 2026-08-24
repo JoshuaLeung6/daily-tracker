@@ -175,8 +175,11 @@ function dashboardPane(rerender) {
         ring('lifts', a.lifts.done, a.lifts.of, liftTarget * 0.9),
         ring('protein', a.protein.done, a.protein.of, 0.8),
         ring('calories', a.calories.done, a.calories.of, 0.7),
-        // cardio is scored per WEEK (weeks hitting the target), not per day
+        // cardio is scored per WEEK (weeks hitting the target), not per day,
+        // and counts real conditioning only (run/squash/bike) — the 10k-step
+        // walking habit is its own daily ring
         a.cardio ? ring('cardio', a.cardio.done, a.cardio.of, 0.8) : null,
+        a.steps ? ring('10k steps', a.steps.done, a.steps.of, 0.8) : null,
       ),
     ));
   }

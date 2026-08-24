@@ -127,9 +127,13 @@ async function setNumberInput(page, selector, value) {
     const lifting = doc.trackers.find((t) => t.name === 'Weightlifting');
     cardio.targets = [{ from: isoList[9], value: 1, period: 'day' }];
     calories.targets = [{ from: isoList[9], value: 3000, period: 'day', dir: 'atmost' }];
-    for (let i = 0; i < 4; i++) {
+    // cardio on ALL 10 seeded days so the "last complete week" always has a
+    // value regardless of what weekday the suite runs on (on a Sunday, days
+    // -1..-4 all fall in the CURRENT week); calories/lifting stay on the
+    // first days only so the 5-day-streak checks are unaffected
+    for (let i = 0; i < 10; i++) {
       const iso = isoList[i];
-      doc.entries[iso] = { [cardio.id]: ['run'], [calories.id]: 2500, ...(i < 2 ? { [lifting.id]: true } : {}) };
+      doc.entries[iso] = { [cardio.id]: ['run'], ...(i < 4 ? { [calories.id]: 2500 } : {}), ...(i < 2 ? { [lifting.id]: true } : {}) };
     }
     doc.entries[todayKey] = doc.entries[todayKey] || {};
     doc.entries[todayKey][cardio.id] = ['bike'];
