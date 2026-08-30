@@ -139,8 +139,8 @@ const localISO = (offset) => {
     /Workouts/.test(spText) && /Days logged/.test(spText) && /Avg calories/.test(spText) && /Cardio/.test(spText));
   await page.screenshot({ path: path.join(__dirname, 'shots', 'sprint-pane.png') });
 
-  // ---- 2b. strength drill-down popup (tap the hero) ----
-  await page.click('.hero-tap');
+  // ---- 2b. strength drill-down popup (tap the Strength hero) ----
+  await page.evaluate(() => [...document.querySelectorAll('.hero-tap')].find((b) => b.textContent.includes('Strength')).click());
   await page.waitForSelector('.st-grid');
   const popText = await page.$eval('.workout-overlay', (e) => e.textContent);
   check('strength popup: explainer + week-by-week table', /indexed to week/.test(popText) && /Week by week/i.test(popText),
@@ -153,6 +153,19 @@ const localISO = (offset) => {
   await page.evaluate(() => document.querySelector('.workout-overlay .btn.primary').click());
   await new Promise((r) => setTimeout(r, 200));
   check('strength popup closes', (await page.$('.workout-overlay')) === null);
+
+  // ---- 2c. weight drill-down popup (tap the Weight hero) ----
+  await page.evaluate(() => [...document.querySelectorAll('.hero-tap')].find((b) => b.textContent.includes('Weight')).click());
+  await page.waitForSelector('.workout-overlay .st-grid');
+  const wpopText = await page.$eval('.workout-overlay', (e) => e.textContent);
+  check('weight popup: pacing rows + weekly table',
+    /Trending/.test(wpopText) && /Needed/.test(wpopText) && /At this pace/.test(wpopText) && /Week by week/i.test(wpopText),
+    wpopText.slice(0, 200));
+  check('weight popup: projection chart present', (await page.$('.workout-overlay .chart-card .chart')) !== null);
+  await page.screenshot({ path: path.join(__dirname, 'shots', 'weight-popup.png') });
+  await page.evaluate(() => document.querySelector('.workout-overlay .btn.primary').click());
+  await new Promise((r) => setTimeout(r, 200));
+  check('weight popup closes', (await page.$('.workout-overlay')) === null);
 
   // ---- 3. day note (ensure we're on today — the week drill-in moved the date) ----
   await page.click('.tab[data-tab="day"]');

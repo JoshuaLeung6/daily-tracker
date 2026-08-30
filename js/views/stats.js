@@ -27,7 +27,7 @@ import { lineChart, barChart, svgEl } from '../charts.js';
 import { allPhotos } from '../photos.js';
 import { SPRINTS, sprintReport, currentSprint, shortLiftName } from '../sprints.js';
 import { liftingSessionTarget, cardioDayTarget } from '../insights.js';
-import { CALORIE_BANDS } from '../config.js';
+import { CALORIE_BANDS, FLAGS } from '../config.js';
 
 let pane = 'sprint';
 let openSplit = null;      // which PPL group is expanded in the Lifts pane
@@ -123,15 +123,15 @@ function dashboardPane(rerender) {
         }
       }
     }
-    heroes.append(el('div', { class: 'card hero-card' },
-      el('div', { class: 'hero-label' }, 'Weight'),
+    heroes.append(el('button', { class: 'card hero-card hero-tap', onclick: () => openWeightSheet(r, sprint, wt) },
+      el('div', { class: 'hero-label' }, 'Weight', el('span', { class: 'hero-chev' }, '›')),
       el('div', { class: 'hero-num' }, fmtN(gw.current), el('span', { class: 'hero-unit' }, unit)),
       trendEl && el('div', { class: 'hero-sub' }, trendEl),
       needEl && el('div', { class: 'gc-pace hero-pace' + paceCls }, needEl),
     ));
   } else if (wt) {
-    heroes.append(el('div', { class: 'card hero-card' },
-      el('div', { class: 'hero-label' }, 'Weight'),
+    heroes.append(el('button', { class: 'card hero-card hero-tap', onclick: () => openWeightSheet(r, sprint, wt) },
+      el('div', { class: 'hero-label' }, 'Weight', el('span', { class: 'hero-chev' }, '›')),
       el('div', { class: 'hero-num' }, r.now.weight != null ? fmtN(r.now.weight) : '—', el('span', { class: 'hero-unit' }, unit)),
       el('div', { class: 'hero-sub rp-dim' }, 'no sprint goal set — ask Claude'),
     ));
@@ -210,8 +210,9 @@ function dashboardPane(rerender) {
   if (wt) {
     const series = measurementSeries(wt.id).filter((p) => p.iso >= r.start.iso);
     if (series.length >= 2) {
-      chartsSec.append(el('div', { class: 'card chart-card' },
-        el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Weight')),
+      chartsSec.append(el('button', { class: 'card chart-card chart-tap', onclick: () => openWeightSheet(r, sprint, wt) },
+        el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Weight'),
+          el('span', { class: 'hero-chev' }, '›')),
         lineChart({
           points: series,
           goal: gw ? { value: gw.target, label: `goal ${fmtN(gw.target)}` } : null,
@@ -325,6 +326,135 @@ function openStrengthSheet(r, sprint) {
       el('div', {},
         el('div', { class: 'eyebrow' }, sprint ? sprint.name : 'Progress'),
         el('h2', {}, 'Strength'),
+      ),
+      el('button', { class: 'btn primary', onclick: close }, 'Close'),
+    ),
+    body,
+  );
+  document.body.append(overlay);
+}
+
+// Weight drill-down (tap the hero or the chart): pacing vs the sprint goal,
+// the full-sprint projection chart, and a week-by-week table of scale
+// averages. Weekly Δs are graded against the sprint's %/wk band — green in
+// band, red below it (not gaining is the failure mode of a bulk), plain
+// above it while warnFastGain is off. A week needs 2+ weigh-ins on both
+// sides of the comparison, matching the week view's rule.
+function openWeightSheet(r, sprint, wt) {
+  const gw = r.goals && r.goals.weight;
+  const unit = wt.unit ? ` ${wt.unit}` : '';
+  const band = rateBand(wt);
+  const overlay = el('div', { class: 'workout-overlay' });
+  const close = () => overlay.remove();
+  const body = el('div', { class: 'wo-body' });
+
+  // --- pacing: where the scale is, where it must go, where it will land ---
+  if (gw) {
+    const cur = gw.currentPerWeek;
+    const req = gw.requiredPerWeek;
+    const card = el('div', { class: 'card report-card' });
+    card.append(rpRowS('Now', el('span', {}, el('b', {}, fmtN(gw.current)), unit)));
+    card.append(rpRowS('Goal', el('span', {}, el('b', {}, fmtN(gw.target)), unit,
+      el('span', { class: 'rp-dim' }, ` · by ${fmt(r.end, { month: 'short', day: 'numeric' })}`))));
+    if (cur != null) {
+      card.append(rpRowS('Trending', el('span', {}, el('b', {}, `${cur > 0 ? '+' : ''}${fmtN(Math.round(cur * 100) / 100)}`), `${unit}/wk`,
+        el('span', { class: 'rp-dim' }, ' · 28-day rate'))));
+    }
+    if (req != null && !gw.done && !r.done) {
+      card.append(rpRowS('Needed', el('span', {}, el('b', {}, `${req > 0 ? '+' : ''}${fmtN(Math.round(req * 100) / 100)}`), `${unit}/wk`,
+        el('span', { class: 'rp-dim' }, ' · to hit the goal in time'))));
+    }
+    if (cur != null && !r.done && gw.remainingWeeks > 0) {
+      const endW = gw.current + cur * gw.remainingWeeks;
+      card.append(rpRowS('At this pace', el('span', {}, el('b', {}, fmtN(Math.round(endW * 10) / 10)), unit,
+        el('span', { class: 'rp-dim' }, ` · on ${fmt(r.end, { month: 'short', day: 'numeric' })}`))));
+      // when the goal lands, extrapolating the current rate
+      if (cur !== 0 && Math.sign(cur) === Math.sign(gw.toGo)) {
+        const weeksToGoal = gw.toGo / cur;
+        card.append(rpRowS('Goal reached', weeksToGoal <= 104
+          ? el('span', {}, el('b', {}, `≈ ${fmt(addDays(todayISO(), Math.round(weeksToGoal * 7)), { month: 'short', day: 'numeric' })}`),
+            weeksToGoal * 7 > (gw.remainingWeeks * 7) ? el('span', { class: 'rp-dim' }, ' · after the sprint ends') : null)
+          : el('span', { class: 'rp-dim' }, 'years away at this pace')));
+      } else if (cur === 0 || Math.sign(cur) !== Math.sign(gw.toGo)) {
+        card.append(rpRowS('Goal reached', el('span', { class: 'rp-dim' }, 'not at this pace — trend points the wrong way')));
+      }
+    }
+    body.append(card);
+  }
+
+  // --- the sprint chart, always full-domain with the trend projected ---
+  const series = measurementSeries(wt.id).filter((p) => p.iso >= r.start.iso);
+  if (series.length >= 2) {
+    body.append(el('div', { class: 'card chart-card' },
+      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Weight')),
+      lineChart({
+        points: series,
+        goal: gw ? { value: gw.target, label: `goal ${fmtN(gw.target)}` } : null,
+        unit: wt.unit || '',
+        ariaLabel: 'Weight over the sprint, trend projected to the end',
+        domain: { from: r.start.iso, to: r.end },
+        project: true,
+      }),
+    ));
+  }
+
+  // --- week-by-week scale averages ---
+  const rows = [];
+  {
+    const stop = todayISO();
+    let index = 0;
+    for (let ws = startOfWeek(r.start.iso); ws <= stop; ws = addDays(ws, 7)) {
+      index++;
+      let sum = 0; let n = 0;
+      for (let i = 0; i < 7; i++) {
+        const v = getEntry(addDays(ws, i))[wt.id];
+        if (typeof v === 'number') { sum += v; n++; }
+      }
+      if (n > 0) rows.push({ ws, index, avg: sum / n, n, delta: null, prevAvg: null });
+    }
+    // Δ vs the latest earlier week where BOTH sides have 2+ weigh-ins;
+    // thin weeks are skipped, not treated as changes
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].n < 2) continue;
+      for (let k = i - 1; k >= 0; k--) {
+        if (rows[k].n >= 2) { rows[i].delta = rows[i].avg - rows[k].avg; rows[i].prevAvg = rows[k].avg; break; }
+      }
+    }
+  }
+  if (rows.length) {
+    const grid = el('div', { class: 'st-grid' },
+      el('span', { class: 'st-h' }, 'week'),
+      el('span', { class: 'st-h st-r' }, `avg${unit}`),
+      el('span', { class: 'st-h st-r' }, 'weigh-ins'),
+      el('span', { class: 'st-h st-r' }, 'vs prev wk'),
+    );
+    grid.style.gridTemplateColumns = 'auto 1fr 1fr 1fr';
+    for (const w of rows) {
+      grid.append(el('span', { class: 'st-wk' }, `W${w.index}`,
+        el('span', { class: 'st-wk-d' }, fmt(w.ws, { month: 'short', day: 'numeric' }))));
+      grid.append(el('span', { class: 'st-r st-score' }, fmtN(Math.round(w.avg * 10) / 10)));
+      grid.append(el('span', { class: 'st-r st-1rm' }, String(w.n)));
+      let cls = '';
+      if (w.delta != null && band) {
+        const pct = (w.delta / w.prevAvg) * 100;
+        cls = pct >= band.lo && pct <= band.hi ? ' stx-good'
+          : pct < band.lo ? ' stx-bad'
+            : FLAGS.warnFastGain ? ' stx-bad' : '';
+      }
+      grid.append(el('span', { class: 'st-r st-1rm' + cls },
+        w.delta != null ? `${w.delta >= 0 ? '+' : ''}${fmtN(Math.round(w.delta * 10) / 10)}` : '—'));
+    }
+    body.append(
+      el('div', { class: 'wo-seg-label' }, 'Week by week'),
+      el('div', { class: 'card st-table-card' }, grid),
+    );
+  }
+
+  overlay.append(
+    el('div', { class: 'wo-head' },
+      el('div', {},
+        el('div', { class: 'eyebrow' }, sprint ? sprint.name : 'Progress'),
+        el('h2', {}, 'Weight'),
       ),
       el('button', { class: 'btn primary', onclick: close }, 'Close'),
     ),

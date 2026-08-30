@@ -1107,7 +1107,10 @@ html[data-theme="light"] body::before {
 
 .chart { width: 100%; height: auto; display: block; margin-top: 6px; touch-action: pan-y; }
 .chart-card { flex-direction: column; align-items: stretch; gap: 4px; margin: 10px 0 0; }
-.settings-section > .chart-card:first-of-type, .sec-head + .chart-card { margin-top: 0; }
+/* only the section-head rule zeroes the first chart: `:first-of-type` keys
+   on the TAG, so when one chart card became a <button> it matched as "first
+   button" and lost its margin against the card above it */
+.sec-head + .chart-card { margin-top: 0; }
 
 .ch-grid { stroke: var(--hairline); stroke-width: 1; }
 .ch-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
