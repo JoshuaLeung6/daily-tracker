@@ -82,6 +82,8 @@ export const TRACKERS = [
   { name: '10k steps', type: 'checkbox',
     target: { period: 'day', value: 1 } },   // daily habit; walking = NEAT floor
   { name: 'Sleep 7h+', type: 'checkbox',
+    // CONVENTION: a day's checkbox = the night you WOKE UP FROM that morning
+    // (Monday's box = Sunday night). Log it with the morning weigh-in.
     // ~7h actually ASLEEP: the Watch number if worn, else time-in-bed minus
     // ~30 min. Groggy despite the hours? Log honestly and cap the top set.
     // Target stamps the day it was added — no backdating, no fake 0% history.
