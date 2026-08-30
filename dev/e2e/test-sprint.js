@@ -155,6 +155,13 @@ const localISO = (offset) => {
   check('strength popup closes', (await page.$('.workout-overlay')) === null);
 
   // ---- 2c. weight drill-down popup (tap the Weight hero) ----
+  // gallery first (no photos yet): empty state, then close
+  await page.click('.photos-btn');
+  await page.waitForSelector('.workout-overlay .gallery-grid');
+  check('photo gallery opens with empty state', await page.$eval('.workout-overlay', (e) => /No photos yet/.test(e.textContent)));
+  await page.evaluate(() => document.querySelector('.workout-overlay .btn.primary').click());
+  await new Promise((r) => setTimeout(r, 200));
+
   await page.evaluate(() => [...document.querySelectorAll('.hero-tap')].find((b) => b.textContent.includes('Weight')).click());
   await page.waitForSelector('.workout-overlay .st-grid');
   const wpopText = await page.$eval('.workout-overlay', (e) => e.textContent);
@@ -217,10 +224,17 @@ const localISO = (offset) => {
       return all[0].blob.size;
     });
     check('photo downscaled to a small JPEG', size > 1000 && size < 400000, `bytes: ${size}`);
-    // lightbox + delete
+    // lightbox: label via chips, then delete
     await page.waitForSelector('.photo-tile');
     await page.click('.photo-tile');
     await page.waitForSelector('.lightbox');
+    await clickByText('.lightbox .chip', 'front');
+    await new Promise((r) => setTimeout(r, 400));
+    const cap = await page.evaluate(async () => {
+      const m = await import('./js/photos.js');
+      return (await m.allPhotos())[0].caption;
+    });
+    check('lightbox chip labels the photo "front"', cap === 'front', String(cap));
     await page.click('.lightbox .btn.danger');
     await new Promise((r) => setTimeout(r, 400));
     check('lightbox delete removes photo', (await page.$$('.photo-tile')).length === 0);

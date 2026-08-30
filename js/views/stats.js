@@ -25,6 +25,7 @@ import {
 } from '../insights.js';
 import { lineChart, barChart, svgEl } from '../charts.js';
 import { allPhotos } from '../photos.js';
+import { openLightbox } from './day.js';
 import { SPRINTS, sprintReport, currentSprint, shortLiftName } from '../sprints.js';
 import { liftingSessionTarget, cardioDayTarget } from '../insights.js';
 import { CALORIE_BANDS, FLAGS } from '../config.js';
@@ -259,7 +260,52 @@ function dashboardPane(rerender) {
   tot.append(rpRowS('Cardio', el('span', {}, el('b', {}, String(t.cardioDays)), ' sessions')));
   wrap.append(el('div', { class: 'settings-section' }, el('h2', {}, r.done ? 'Sprint totals' : 'Sprint so far'), tot));
 
+  // 7. the photo record — the gallery is where monthly photos pay off
+  wrap.append(el('button', { class: 'ghost-btn photos-btn', onclick: () => openPhotoGallery(sprint) }, 'Progress photos'));
+
   return wrap;
+}
+
+// All progress photos in one place, oldest first so the story reads forward.
+// Tap a tile for the full-size lightbox (same one as the day view, delete
+// included). Object URLs are revoked on close.
+function openPhotoGallery(sprint) {
+  const overlay = el('div', { class: 'workout-overlay' });
+  const urls = [];
+  const close = () => {
+    overlay.remove();
+    urls.forEach((u) => URL.revokeObjectURL(u));
+  };
+  const grid = el('div', { class: 'gallery-grid' });
+  const load = async () => {
+    const photos = await allPhotos();   // sorted oldest → newest
+    grid.replaceChildren();
+    if (!photos.length) {
+      grid.append(el('div', { class: 'empty-state' }, 'No photos yet — + Photo on the Day view. Monthly, same light, front and side.'));
+      return;
+    }
+    for (const p of photos) {
+      const url = URL.createObjectURL(p.blob);
+      urls.push(url);
+      grid.append(el('button', { class: 'gallery-tile', onclick: () => openLightbox(p, p.date, false, load) },
+        el('img', { src: url, alt: `Progress photo ${p.date}${p.caption ? ` (${p.caption})` : ''}`, class: 'gallery-img' }),
+        el('span', { class: 'gallery-date' }, fmt(p.date, { month: 'short', day: 'numeric' }),
+          p.caption ? el('span', { class: 'gallery-label' }, p.caption) : null)));
+    }
+  };
+  load();
+
+  overlay.append(
+    el('div', { class: 'wo-head' },
+      el('div', {},
+        el('div', { class: 'eyebrow' }, sprint ? sprint.name : 'Progress'),
+        el('h2', {}, 'Photos'),
+      ),
+      el('button', { class: 'btn primary', onclick: close }, 'Close'),
+    ),
+    el('div', { class: 'wo-body' }, grid),
+  );
+  document.body.append(overlay);
 }
 
 // Strength drill-down (tap the hero or the chart): per-lift weekly-best 1RM

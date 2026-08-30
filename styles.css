@@ -640,6 +640,30 @@ html[data-theme="light"] body::before {
 /* day view: monthly progress-photo due tag on the + Photo button */
 .photo-due { color: var(--accent); font-weight: 600; }
 
+/* progress photo gallery (Progress pane → Progress photos) */
+.photos-btn { margin-top: 10px; }
+.gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gallery-grid .empty-state { grid-column: 1 / -1; }
+.gallery-tile { display: flex; flex-direction: column; gap: 3px; padding: 0; }
+.gallery-img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+}
+.gallery-date { font-size: 10px; color: var(--faint); display: flex; flex-direction: column; line-height: 1.35; text-align: center; }
+.gallery-label {
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 9px;
+}
+
+/* photo label chips in the lightbox */
+.lightbox-labels { justify-content: center; }
+
 .lift-label {
   font-size: 16px;
   font-weight: 700;

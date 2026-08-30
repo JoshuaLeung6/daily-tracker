@@ -4,7 +4,7 @@
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
 import { getEntry, setValue, persistNow, getNote, setNote } from '../store.js';
-import { photosOn, addPhoto, deletePhoto, allPhotos } from '../photos.js';
+import { photosOn, addPhoto, deletePhoto, allPhotos, updateCaption } from '../photos.js';
 import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets, previousValue } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, FOCUS_LABELS, sessionHadPR } from '../workouts.js';
 import { openWorkout } from './workout.js';
@@ -474,13 +474,46 @@ function journalSection(iso, locked) {
   return wrap;
 }
 
-function openLightbox(photo, iso, locked, onChange) {
+// Also used by the Progress pane's photo gallery (stats.js).
+export function openLightbox(photo, iso, locked, onChange) {
   const backdrop = el('div', { class: 'sheet-backdrop lightbox' });
   const close = () => { backdrop.remove(); URL.revokeObjectURL(url); };
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
   const url = URL.createObjectURL(photo.blob);
+
+  // label chips: front / side / back, plus free text — one tap, saved
+  // immediately; tapping the active chip clears it. Labels are metadata,
+  // so they stay editable even on locked days.
+  const PRESETS = ['front', 'side', 'back'];
+  const labelRow = el('div', { class: 'chips lightbox-labels' });
+  const save = async (v) => {
+    photo.caption = v;
+    await updateCaption(photo.id, v);
+    renderLabels();
+    if (onChange) onChange();
+  };
+  const renderLabels = () => {
+    const cur = photo.caption || '';
+    const isCustom = cur !== '' && !PRESETS.includes(cur);
+    labelRow.replaceChildren(
+      ...PRESETS.map((p) => el('button', {
+        class: 'chip', 'aria-pressed': String(cur === p),
+        onclick: () => save(cur === p ? '' : p),
+      }, p)),
+      el('button', {
+        class: 'chip', 'aria-pressed': String(isCustom),
+        onclick: () => {
+          const v = prompt('Label this photo', isCustom ? cur : '');
+          if (v != null) save(v.trim());
+        },
+      }, isCustom ? cur : 'custom…'),
+    );
+  };
+  renderLabels();
+
   backdrop.append(el('div', { class: 'lightbox-body' },
     el('img', { src: url, alt: `Progress photo ${iso}`, class: 'lightbox-img' }),
+    labelRow,
     el('div', { class: 'btn-row lightbox-actions' },
       el('button', { class: 'btn', onclick: close }, 'Close'),
       !locked && el('button', {
