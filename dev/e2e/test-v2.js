@@ -54,7 +54,7 @@ async function setNumberInput(page, selector, value) {
   check('day cards are Weight, Calories, Protein, Cardio, 10k steps',
     JSON.stringify(names) === JSON.stringify(['Weight', 'Calories', 'Protein', 'Cardio', '10k steps']), names.join(','));
   const chips = await page.$$eval('.chip', (els) => els.map((e) => e.textContent));
-  check('Cardio has 3 chips (walk removed)', JSON.stringify(chips) === JSON.stringify(['run', 'squash', 'bike']), chips.join(','));
+  check('Cardio has 4 chips (walk removed, kayak added)', JSON.stringify(chips) === JSON.stringify(['run', 'squash', 'bike', 'kayak']), chips.join(','));
 
   // ---- 2. multiselect chips ----
   await clickByText('.chip', 'run');

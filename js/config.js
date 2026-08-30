@@ -64,7 +64,7 @@ export const STRIP_OPTIONS = {
 
 // Cardio picks that count as a "cardio day". Walking is tracked separately
 // as the "10k steps" habit (NEAT floor), not as conditioning.
-export const CARDIO_COUNTS = ['run', 'squash', 'bike'];
+export const CARDIO_COUNTS = ['run', 'squash', 'bike', 'kayak'];
 
 // NOTE: every target/goal below is `null` = "keep whatever is already stored
 // on the phone" (the values Joshua set in-app before this switch). Change a
@@ -76,7 +76,7 @@ export const TRACKERS = [
     // 120 g/day (~2 g/kg at ~135 lb), backdated to the start of the data so
     // every past week is graded against it (was 110 in-app)
     target: { period: 'day', value: 120, dir: 'atleast', from: '2026-07-11' } },
-  { name: 'Cardio', type: 'multiselect', options: ['run', 'squash', 'bike'],
+  { name: 'Cardio', type: 'multiselect', options: ['run', 'squash', 'bike', 'kayak'],
     // real cardio only, once a week minimum — backdated to the sprint start
     target: { period: 'week', value: 1, from: '2026-07-11' } },
   { name: '10k steps', type: 'checkbox',
