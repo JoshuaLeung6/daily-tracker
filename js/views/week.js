@@ -420,12 +420,12 @@ function buildReportCard(ctx) {
           el('b', {}, `${fmtN(w.weekAvg)}${unit}`), ' avg',
           w.pctVsPrev != null
             ? ` · ${w.pctVsPrev > 0 ? '+' : ''}${w.pctVsPrev.toFixed(2)}% vs last wk `
-            // say WHY there is no comparison: the %-vs-last-week needs 3+
-            // weigh-ins on BOTH sides so lone readings can't fake a swing
+            // say WHY there is no comparison: the %-vs-last-week needs 2+
+            // weigh-ins on BOTH sides so a lone reading can't fake a swing
             : el('span', { class: 'rp-dim' },
               w.prevAvg == null ? ' · no prior week '
-                : w.weighIns < 3 ? ` · ${w.weighIns} weigh-in${w.weighIns === 1 ? '' : 's'} — 3 needed to compare `
-                  : ' · prior week under 3 weigh-ins '),
+                : w.weighIns < 2 ? ' · 1 weigh-in — 2 needed to compare '
+                  : ' · prior week under 2 weigh-ins '),
           badge,
           // trend rate drives the band verdict; keep it visible when known
           w.rate ? el('span', { class: 'rp-dim' }, ` · trend ${w.rate.pct > 0 ? '+' : ''}${w.rate.pct.toFixed(2)}%/wk`) : null,

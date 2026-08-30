@@ -244,9 +244,10 @@ export function weekReport(iso) {
       weighIns: n,
       prevAvg,
       prevWeighIns: pn,
-      // %change vs previous week's average — needs 3+ readings on both sides
-      // so two lone weigh-ins can't manufacture a swing
-      pctVsPrev: weekAvg != null && prevAvg != null && n >= 3 && pn >= 3
+      // %change vs previous week's average — needs 2+ readings on both sides
+      // so a single lone weigh-in can't manufacture a swing (owner's call:
+      // was 3, loosened to 2 — noisier but comparisons appear more often)
+      pctVsPrev: weekAvg != null && prevAvg != null && n >= 2 && pn >= 2
         ? ((weekAvg - prevAvg) / prevAvg) * 100
         : null,
       rate,
