@@ -126,8 +126,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     for (const l of recentLifts(name, iso, 3)) {
       wrap.append(el('div', { class: 'lp-line' },
         el('span', { class: 'lp-set' }, setStr(l)),
-        el('span', { class: 'lp-date' }, fmt(l.date, { month: 'short', day: 'numeric' })),
-        l.focus === 'maintenance' ? el('span', { class: 'lp-tag' }, 'maint.') : null));
+        el('span', { class: 'lp-date' }, fmt(l.date, { month: 'short', day: 'numeric' }))));
     }
     return wrap;
   };

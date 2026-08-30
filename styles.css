@@ -758,18 +758,6 @@ html[data-theme="light"] body::before {
 .lp-line { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; line-height: 1.35; white-space: nowrap; }
 .lp-set { color: var(--muted); font-weight: 600; }
 .lp-date { color: var(--faint); min-width: 44px; text-align: left; }
-.lp-tag {
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--faint);
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  padding: 0 6px;
-}
-.lp-first { font-style: italic; }
-.lp-ready { color: var(--accent); font-weight: 600; }
-
 /* lift picker sheet */
 .pick-list { display: flex; flex-direction: column; max-height: 45dvh; overflow-y: auto; }
 
