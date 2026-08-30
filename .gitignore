@@ -2,6 +2,11 @@
 docs/owner-profile.md
 docs/redesign-plan.md
 
+# personal data exports (Settings → Export) — never publish (public repo)
+fitness-analysis-*.json
+tracker-backup-*.json
+progress-*.jpg
+
 # e2e tooling artifacts
 dev/e2e/node_modules/
 dev/e2e/package-lock.json
