@@ -4,7 +4,7 @@
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
 import { getEntry, setValue, persistNow, getNote, setNote } from '../store.js';
-import { photosOn, addPhoto, deletePhoto } from '../photos.js';
+import { photosOn, addPhoto, deletePhoto, allPhotos } from '../photos.js';
 import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets, previousValue } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, FOCUS_LABELS, sessionHadPR } from '../workouts.js';
 import { openWorkout } from './workout.js';
@@ -456,7 +456,18 @@ function journalSection(iso, locked) {
         onclick: (e) => { buildNote(true); e.currentTarget.remove(); noteBox.querySelector('textarea').focus(); },
       }, '+ Note'));
     }
-    actions.append(el('button', { class: 'ghost-btn journal-btn', onclick: () => fileInput.click() }, '+ Photo'));
+    const photoBtn = el('button', { class: 'ghost-btn journal-btn', onclick: () => fileInput.click() }, '+ Photo');
+    actions.append(photoBtn);
+    // monthly cadence: mark the button once the newest photo is 28+ days old
+    // (today only — a "due" tag on a past day would be nonsense)
+    if (iso === todayISO()) {
+      allPhotos().then((photos) => {
+        const last = photos.length ? photos[photos.length - 1].date : null;
+        if (!last || last <= addDays(iso, -28)) {
+          photoBtn.append(el('span', { class: 'photo-due' }, ' · monthly photo due'));
+        }
+      }).catch(() => {});
+    }
   }
 
   wrap.append(noteBox, photoStrip, actions, fileInput);

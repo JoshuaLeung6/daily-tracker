@@ -24,6 +24,7 @@ import {
   weightTracker, rateBand, weekReport, weekSuggestions,
 } from '../insights.js';
 import { lineChart, barChart, svgEl } from '../charts.js';
+import { allPhotos } from '../photos.js';
 import { SPRINTS, sprintReport, currentSprint, shortLiftName } from '../sprints.js';
 import { liftingSessionTarget, cardioDayTarget } from '../insights.js';
 import { CALORIE_BANDS } from '../config.js';
@@ -181,6 +182,7 @@ function dashboardPane(rerender) {
         // walking habit is its own daily ring
         a.cardio ? ring('cardio', a.cardio.done, a.cardio.of, 0.8) : null,
         a.steps ? ring('10k steps', a.steps.done, a.steps.of, 0.8) : null,
+        a.sleep ? ring('sleep', a.sleep.done, a.sleep.of, 0.8) : null,
       ),
     ));
   }
@@ -687,6 +689,21 @@ function coachPane(rerender) {
     anyActive = true;
   }
 
+  // Monthly progress-photo cadence: photos only earn their keep on a schedule.
+  // Photos live in IndexedDB (async), so the card fills in after render; it
+  // replaces the "nothing needs attention" line if that was showing.
+  allPhotos().then((photos) => {
+    const last = photos.length ? photos[photos.length - 1].date : null;
+    if (last && last > addDays(today, -28)) return;   // fresh enough
+    const es = active.querySelector('.empty-state');
+    if (es) es.remove();
+    active.append(el('div', { class: 'card suggest-card' },
+      el('div', { class: 'sg-text' }, last
+        ? `Monthly progress photo due — last one ${fmt(last, { month: 'short', day: 'numeric' })}.`
+        : 'Take your first progress photo.'),
+      el('div', { class: 'sg-why' }, 'Same lighting, front and side — + Photo on the Day view. Paired with the weight trend, it is how a bulk proves it is lean.')));
+  }).catch(() => {});
+
   for (const sp of SPLITS) {
     const ds = daysSince(sp);
     if (ds != null && ds >= 7) {
@@ -835,7 +852,9 @@ function setStr(h) {
   if (h.weight != null) parts.push(h.weight.toLocaleString());
   if (h.reps != null) parts.push(String(h.reps));
   if (h.sets != null) parts.push(String(h.sets));
-  return parts.join(' × ') || '—';
+  // @N = reps in reserve on the last working set, when logged
+  const rir = h.rir != null ? ` @${h.rir >= 4 ? '4+' : h.rir}` : '';
+  return (parts.join(' × ') || '—') + rir;
 }
 
 function liftRow(s, rerender) {

@@ -619,7 +619,26 @@ html[data-theme="light"] body::before {
 }
 .lift-row:last-child { border-bottom: 1px solid var(--hairline); }
 
-.lift-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.lift-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.lift-head .lift-label { flex: 1; }
+
+/* last-set RIR pill: optional tap-cycle (— 0 1 2 3 4+), quiet until set */
+.rir-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 3px 10px;
+  min-height: 26px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.rir-pill.rir-set { color: var(--ink); border-color: var(--line); }
+
+/* day view: monthly progress-photo due tag on the + Photo button */
+.photo-due { color: var(--accent); font-weight: 600; }
 
 .lift-label {
   font-size: 16px;

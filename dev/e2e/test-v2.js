@@ -51,8 +51,8 @@ async function setNumberInput(page, selector, value) {
   // config trackers; Weightlifting has no day card (derived from the workout log)
   // weight (measurement) sorts first
   // measurements (Weight) sort first
-  check('day cards are Weight, Calories, Protein, Cardio, 10k steps',
-    JSON.stringify(names) === JSON.stringify(['Weight', 'Calories', 'Protein', 'Cardio', '10k steps']), names.join(','));
+  check('day cards are Weight, Calories, Protein, Cardio, 10k steps, Sleep 7h+',
+    JSON.stringify(names) === JSON.stringify(['Weight', 'Calories', 'Protein', 'Cardio', '10k steps', 'Sleep 7h+']), names.join(','));
   const chips = await page.$$eval('.chip', (els) => els.map((e) => e.textContent));
   check('Cardio has 4 chips (walk removed, kayak added)', JSON.stringify(chips) === JSON.stringify(['run', 'squash', 'bike', 'kayak']), chips.join(','));
 

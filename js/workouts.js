@@ -3,8 +3,9 @@
 // starts from the last workout of that same classification.
 //
 // Shape: workouts["YYYY-MM-DD"] = {
-//   split: 'push'|'pull'|'legs', focus: 'weight'|'volume',
-//   lifts: [{ name, weight, reps, sets }]   (numbers or null)
+//   split: 'push'|'pull'|'legs', focus: 'weight'|'volume'|'maintenance',
+//   lifts: [{ name, weight, reps, sets, rir }]   (numbers or null; rir is
+//     the reps-in-reserve of the LAST working set, 0–4 where 4 means "4+")
 // }
 
 import { getData, persistNow, setValue } from './store.js';
@@ -28,7 +29,7 @@ export function getWorkout(iso) {
 export function saveWorkout(iso, draft) {
   const lifts = draft.lifts
     .filter((l) => l.name && l.name.trim())
-    .map((l) => ({ name: l.name.trim(), weight: l.weight ?? null, reps: l.reps ?? null, sets: l.sets ?? null }));
+    .map((l) => ({ name: l.name.trim(), weight: l.weight ?? null, reps: l.reps ?? null, sets: l.sets ?? null, rir: l.rir ?? null }));
   if (lifts.length === 0) {
     deleteWorkout(iso);
     return null;
@@ -233,7 +234,7 @@ export function liftStats(filterSplit) {
       if (!map.has(key)) map.set(key, { name: l.name, history: [] });
       const s = map.get(key);
       s.name = l.name; // latest spelling wins
-      s.history.push({ date: w.date, split: w.split, focus: w.focus, weight: l.weight, reps: l.reps, sets: l.sets });
+      s.history.push({ date: w.date, split: w.split, focus: w.focus, weight: l.weight, reps: l.reps, sets: l.sets, rir: l.rir ?? null });
     }
   }
   const out = [...map.values()];

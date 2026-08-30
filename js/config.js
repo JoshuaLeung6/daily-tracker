@@ -81,6 +81,11 @@ export const TRACKERS = [
     target: { period: 'week', value: 1, from: '2026-07-11' } },
   { name: '10k steps', type: 'checkbox',
     target: { period: 'day', value: 1 } },   // daily habit; walking = NEAT floor
+  { name: 'Sleep 7h+', type: 'checkbox',
+    // ~7h actually ASLEEP: the Watch number if worn, else time-in-bed minus
+    // ~30 min. Groggy despite the hours? Log honestly and cap the top set.
+    // Target stamps the day it was added — no backdating, no fake 0% history.
+    target: { period: 'day', value: 1 } },
   { name: 'Weightlifting', type: 'checkbox',
     // 6 sessions/week (PPL x2) — backdated to the sprint start
     target: { period: 'week', value: 6, from: '2026-07-11' } },

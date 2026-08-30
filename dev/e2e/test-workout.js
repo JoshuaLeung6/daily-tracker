@@ -112,12 +112,17 @@ const localISO = (offset) => {
   await fillRow(0, '135', '8', '3');
   await addLiftViaPicker('Overhead press');
   await fillRow(1, '95', '10', '3');
+  // RIR pill: optional tap-cycle (— → 0 → 1 → 2); three taps lands on 2
+  for (let i = 0; i < 3; i++) await page.evaluate(() => document.querySelectorAll('.rir-pill')[0].click());
+  const pillText = await page.$eval('.rir-pill', (e) => e.textContent);
+  check('RIR pill cycles to 2 after three taps', pillText === 'RIR 2', pillText);
   await page.screenshot({ path: path.join(__dirname, 'shots', 'wo3-editor.png') });
   await clickByText('.wo-head .btn.primary', 'Done');
 
   let stored = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')));
   const wo = stored.workouts[today];
   check('workout saved with 2 lifts + numbers', wo && wo.lifts.length === 2 && wo.lifts[0].weight === 135, JSON.stringify(wo && wo.lifts));
+  check('RIR saved on the first lift, null on the second', wo && wo.lifts[0].rir === 2 && wo.lifts[1].rir === null, JSON.stringify(wo && wo.lifts.map((l) => l.rir)));
   const liftingId = stored.trackers.find((t) => t.name === 'Weightlifting').id;
   check('Weightlifting auto-checked', stored.entries[today] && stored.entries[today][liftingId] === true);
 
@@ -141,8 +146,8 @@ const localISO = (offset) => {
   await page.waitForSelector('.lift-row');
   const w2 = await page.$eval('.lift-row input[aria-label="Weight"]', (e) => e.value);
   check('chip adds name-only row (weight empty)', w2 === '');
-  check('preview shows the last session 135×8×3',
-    await page.$eval('.lift-preview', (e) => /135×8×3/.test(e.textContent)),
+  check('preview shows the last session 135×8×3 with its RIR',
+    await page.$eval('.lift-preview', (e) => /135×8×3 @2/.test(e.textContent)),
     await page.$eval('.lift-preview', (e) => e.textContent));
   const chipsAfter = await page.$$eval('.chip-suggest', (els) => els.map((e) => e.textContent));
   check('used chip disappears', !chipsAfter.includes('+ Bench press'), chipsAfter.join(','));

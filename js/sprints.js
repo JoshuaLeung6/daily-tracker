@@ -127,6 +127,7 @@ export function adherence28(days = 28) {
   const pro = proteinTracker();
   const cardio = cardioTracker();
   const steps = activeTrackers().find((t) => t.type === 'checkbox' && /step/i.test(t.name));
+  const sleep = activeTrackers().find((t) => t.type === 'checkbox' && /sleep/i.test(t.name));
 
   // lifts: workout days out of the lifting weekly target scaled to N days
   let liftDays = 0;
@@ -135,14 +136,18 @@ export function adherence28(days = 28) {
 
   let proHit = 0; let proOf = 0;
   let calHit = 0; let calOf = 0;
-  let stepsHit = 0;
+  let stepsHit = 0; let stepsOf = 0;
+  let sleepHit = 0; let sleepOf = 0;
   let weighIns = 0;
   for (let i = 0; i < days; i++) {
     const d = addDays(start, i);
     const e = getEntry(d);
     if (pro) { const t = targetFor(pro, d); if (t && t.period === 'day') { proOf++; if (dayMeets(pro, d)) proHit++; } }
     if (cal) { const t = targetFor(cal, d); if (t && t.period === 'day') { calOf++; if (dayMeets(cal, d)) calHit++; } }
-    if (steps && e[steps.id] === true) stepsHit++;
+    // habit checkboxes count only days their target was in force — a tracker
+    // added mid-sprint must not be graded on days it did not exist
+    if (steps && targetFor(steps, d)) { stepsOf++; if (e[steps.id] === true) stepsHit++; }
+    if (sleep && targetFor(sleep, d)) { sleepOf++; if (e[sleep.id] === true) sleepHit++; }
     if (wt && typeof e[wt.id] === 'number') weighIns++;
   }
   // Cardio is a WEEKLY target (e.g. 1x/week), so a per-day rate would be
@@ -163,7 +168,8 @@ export function adherence28(days = 28) {
   }
   out.protein = { done: proHit, of: proOf || days };
   out.calories = { done: calHit, of: calOf || days };
-  out.steps = steps ? { done: stepsHit, of: days } : null;
+  out.steps = steps && stepsOf > 0 ? { done: stepsHit, of: stepsOf } : null;
+  out.sleep = sleep && sleepOf > 0 ? { done: sleepHit, of: sleepOf } : null;
   out.weighIns = wt ? { done: weighIns, of: days } : null;
   out.cardio = cardio && cardioWeeks > 0 ? { done: cardioWeeksHit, of: cardioWeeks } : null;
   out.days = days;

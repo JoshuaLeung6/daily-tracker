@@ -21,9 +21,11 @@ import {
 
 const DAY_TYPE_SHORT = { weight: 'Weight', volume: 'Volume', maintenance: 'Maint.' };
 
-// "185×8×3" — the notation used everywhere a set is shown
-const setStr = (l) => [l.weight, l.reps, l.sets].filter((v) => v != null)
-  .map((v) => v.toLocaleString()).join('×') || '—';
+// "185×8×3 @2" — the notation used everywhere a set is shown. The @ suffix
+// is the RIR (reps in reserve) of the LAST working set, when logged.
+const rirStr = (r) => (r == null ? '' : ` @${r >= 4 ? '4+' : r}`);
+const setStr = (l) => ([l.weight, l.reps, l.sets].filter((v) => v != null)
+  .map((v) => v.toLocaleString()).join('×') || '—') + rirStr(l.rir);
 
 export function openWorkout(iso, { locked = false, onClose } = {}) {
   const existing = getWorkout(iso);
@@ -46,7 +48,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
 
   const addLift = (name) => {
     if (!name || !name.trim()) return;
-    draft.lifts.push({ name: name.trim(), weight: null, reps: null, sets: null });
+    draft.lifts.push({ name: name.trim(), weight: null, reps: null, sets: null, rir: null });
     touch();
     renderRows();
     renderAdd();
@@ -130,9 +132,32 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     return wrap;
   };
 
+  // RIR pill: optional, one tap cycles — → 0 → 1 → 2 → 3 → 4+ → —.
+  // It describes the LAST working set (the hardest one at a fixed load);
+  // no per-set logging. Never required, invisible cost when unused.
+  const RIR_CYCLE = [null, 0, 1, 2, 3, 4];
+  const rirLabel = (r) => (r == null ? 'RIR —' : r >= 4 ? 'RIR 4+' : `RIR ${r}`);
+  const rirPill = (lift) => {
+    if (locked && lift.rir == null) return null;   // read-only day, nothing logged: no noise
+    const b = el('button', {
+      class: 'rir-pill' + (lift.rir != null ? ' rir-set' : ''),
+      'aria-label': 'Reps in reserve on the last set',
+      disabled: locked,
+      onclick: () => {
+        const i = RIR_CYCLE.indexOf(lift.rir != null ? lift.rir : null);
+        lift.rir = RIR_CYCLE[(i + 1) % RIR_CYCLE.length];
+        touch();
+        b.textContent = rirLabel(lift.rir);
+        b.classList.toggle('rir-set', lift.rir != null);
+      },
+    }, rirLabel(lift.rir));
+    return b;
+  };
+
   const liftBlock = (lift, index) => el('div', { class: 'lift-row' },
     el('div', { class: 'lift-head' },
       el('span', { class: 'lift-label', 'aria-label': 'Lift name' }, lift.name || '—'),
+      rirPill(lift),
       el('button', {
         class: 'row-x',
         'aria-label': `Remove ${lift.name || 'lift'}`,
