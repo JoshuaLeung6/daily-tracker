@@ -4,9 +4,9 @@ import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet, dayMeets } from '../trackers.js';
-import { getWorkout, SPLIT_LABELS, SPLITS, liftStats } from '../workouts.js';
+import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
 import { weekReport, weekSuggestions, weeksOverview, weekLineStatus, verdictBadge, isCardioDay } from '../insights.js';
-import { currentSprint, strengthTotalInWeek, mainLiftNames } from '../sprints.js';
+import { currentSprint, strengthScoreInWeek, strengthBaseline, strengthPartsInWeek, mainLiftNames, shortLiftName } from '../sprints.js';
 import { CALORIE_BANDS } from '../config.js';
 // one commit rule and one page transition for both views, so "armed" always
 // matches what happens and every swipe moves the same way
@@ -68,6 +68,7 @@ function renderOverview(container, ctx) {
   }
   let currentRow = null;
   const liftNames = mainLiftNames();
+  const strengthBase = strengthBaseline(liftNames, sprint ? sprint.start : null);
   for (const wk of weeks) {
     const edgeNum = wk.index ? el('span', { class: 'wk-num' }, String(wk.index)) : null;
     const r = wk.report;
@@ -78,9 +79,9 @@ function renderOverview(container, ctx) {
       el('span', { class: 'wk-cell-l' }, label),
     );
     const w = r.weight;
-    // strength score for THIS week: within-week best e1RM per main lift,
-    // summed (same number as the Progress strength chart's dot for the week)
-    const strength = strengthTotalInWeek(wk.ws, liftNames);
+    // strength score for THIS week: normalized (week 1 = 100, each main lift
+    // 1/3 bearing) — same number as the Progress strength chart's dot
+    const strength = strengthScoreInWeek(wk.ws, liftNames, strengthBase);
     // colour vs the previous week that HAS a score: green if it went up, red
     // if it went down. Skip weeks with no score rather than treating a gap as
     // a drop. Equal is neutral.
@@ -88,10 +89,10 @@ function renderOverview(container, ctx) {
     if (strength) {
       let prev = null;
       for (let ws = addDays(wk.ws, -7); ws >= (sprint ? sprint.start : ws) && !prev; ws = addDays(ws, -7)) {
-        prev = strengthTotalInWeek(ws, liftNames);
+        prev = strengthScoreInWeek(ws, liftNames, strengthBase);
         if (ws === (sprint ? sprint.start : ws)) break;
       }
-      if (prev) strengthStatus = strength.total > prev.total + 0.5 ? 'good' : strength.total < prev.total - 0.5 ? 'bad' : 'neutral';
+      if (prev) strengthStatus = strength.score > prev.score + 0.5 ? 'good' : strength.score < prev.score - 0.5 ? 'bad' : 'neutral';
     }
     const cells = el('span', { class: 'wk-cells' },
       cell('weight', w && w.weekAvg != null ? fmtN(w.weekAvg) : '—', st.weight),
@@ -100,7 +101,7 @@ function renderOverview(container, ctx) {
       cell('protein', r.protein && r.protein.of > 0 ? `${r.protein.hit}/${r.protein.of}`
         : (r.protein && r.protein.avg != null ? Math.round(r.protein.avg) : '—'), st.protein),
       cell('lifts', r.training ? `${r.training.days}/${daysSoFar}` : '—', st.workouts),
-      cell('strength', strength ? Math.round(strength.total).toLocaleString() : '—', strengthStatus),
+      cell('strength', strength ? String(Math.round(strength.score)) : '—', strengthStatus),
     );
 
     const row = el('button', {
@@ -471,39 +472,35 @@ function buildReportCard(ctx) {
     any = true;
   }
 
-  // 6. strength: this week's score, with the three lifts behind it — the
-  // same within-week best-e1RM-per-lift sum the Progress chart plots.
-  // Coloured vs the previous scored week, like the overview row.
+  // 6. strength: this week's normalized score (week 1 = 100, each main lift
+  // 1/3 bearing), with the three lifts' raw e1RMs behind it — the same
+  // number the Progress chart plots. Coloured vs the previous scored week.
   {
     const ws = startOfWeek(ctx.date);
     const names = mainLiftNames();
-    const cur = strengthTotalInWeek(ws, names);
+    const sp = currentSprint();
+    const base = strengthBaseline(names, sp ? sp.start : null);
+    const cur = strengthScoreInWeek(ws, names, base);
     // per-lift bests within this week, in configured order — computed FIRST
-    // so the row can still show partial lifts when the total is not scorable
-    const wkEnd = addDays(ws, 6);
-    const partsData = names.map((n) => {
-      const s = liftStats().find((x) => x.name.toLowerCase() === n.toLowerCase());
-      const inWk = s ? s.history.filter((h) => h.date >= ws && h.date <= wkEnd && h.e1rm != null) : [];
-      return { name: n, best: inWk.length ? Math.max(...inWk.map((h) => h.e1rm)) : null };
-    });
+    // so the row can still show partial lifts when the score is not scorable
+    const partsData = strengthPartsInWeek(ws, names);
     const anyLift = partsData.some((x) => x.best != null);
     if (cur || anyLift) {
       let prev = null;
-      const sp = currentSprint();
       for (let p = addDays(ws, -7); p >= (sp ? sp.start : p); p = addDays(p, -7)) {
-        prev = strengthTotalInWeek(p, names);
+        prev = strengthScoreInWeek(p, names, base);
         if (prev || p === (sp ? sp.start : p)) break;
       }
-      const status = !cur || !prev ? null : cur.total > prev.total + 0.5 ? 'good' : cur.total < prev.total - 0.5 ? 'bad' : 'neutral';
-      const parts = partsData.map((x) => `${shortLift(x.name)} ${x.best != null ? Math.round(x.best) : '—'}`);
+      const status = !cur || !prev ? null : cur.score > prev.score + 0.5 ? 'good' : cur.score < prev.score - 0.5 ? 'bad' : 'neutral';
+      const parts = partsData.map((x) => `${shortLiftName(x.name)} ${x.best != null ? Math.round(x.best) : '—'}`);
       card.append(rpRowC('Strength',
         el('span', {},
-          // total only when all three lifts scored; otherwise "—" with the
+          // score only when all three lifts trained; otherwise "—" with the
           // partial lifts still listed, so a week is never silently blank
-          el('b', {}, cur ? Math.round(cur.total).toLocaleString() : '—'),
-          cur && prev ? el('span', { class: 'rp-dim' }, ` · ${cur.total - prev.total >= 0 ? '+' : ''}${Math.round(cur.total - prev.total)} vs last wk`) : null,
+          el('b', {}, cur ? String(Math.round(cur.score)) : '—'),
+          cur && prev ? el('span', { class: 'rp-dim' }, ` · ${cur.score - prev.score >= 0 ? '+' : ''}${Math.round(cur.score - prev.score)} vs last wk`) : null,
           !cur ? el('span', { class: 'rp-dim' }, ' · not all three lifts trained') : null,
-          el('span', { class: 'rp-dim rp-sub' }, parts.join(' + ')),
+          el('span', { class: 'rp-dim rp-sub' }, parts.join(' · ')),
         ), status));
       any = true;
     }
@@ -514,13 +511,6 @@ function buildReportCard(ctx) {
     el('div', { class: 'sg-why' }, s.why),
   ));
   return { card: any ? card : null, tips };
-}
-
-// Short form of a main-lift name for the tight strength calc line.
-function shortLift(n) {
-  return n.replace(/flat dumbbell press/i, 'DB press')
-    .replace(/machine leg press/i, 'Leg press')
-    .replace(/lat pulldown/i, 'Pulldown');
 }
 
 function rpRow(label, valueEl) {

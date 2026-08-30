@@ -38,49 +38,80 @@ export function mainLiftNames() {
   return [...stats].sort((a, b) => b.sessions - a.sessions).slice(0, 3).map((s) => s.name);
 }
 
-// Strength total on a date: sum of each main lift's best e1RM up to that
-// date (within the sprint). Only counts lifts that have an e1RM by then.
-export function strengthTotalAt(iso, sprintStart, names) {
-  let total = 0;
-  let counted = 0;
-  for (const s of liftStats()) {
-    if (!names.some((n) => n.toLowerCase() === s.name.toLowerCase())) continue;
-    const upTo = s.history.filter((h) => h.date >= sprintStart && h.date <= iso && h.e1rm != null);
-    if (!upTo.length) continue;
-    total += Math.max(...upTo.map((h) => h.e1rm));
-    counted++;
-  }
-  return counted ? { total, counted } : null;
+// Short display form of a main-lift name, for tight breakdown lines and
+// table headers ("DB press" fits where "Flat dumbbell press" does not).
+export function shortLiftName(n) {
+  return n.replace(/flat dumbbell press/i, 'DB press')
+    .replace(/machine leg press/i, 'Leg press')
+    .replace(/lat pulldown/i, 'Pulldown');
 }
 
-// Strength total for ONE week: per main lift, the best e1RM set WITHIN that
-// week (not the best-so-far). A running max can only ever rise, which hides
-// a bad week; the within-week max shows it as a dip, which is the truth.
-// Returns null unless EVERY main lift was trained that week — a partial
-// total would read as a strength drop that never happened.
-export function strengthTotalInWeek(weekStart, names) {
+// Per main lift, the best e1RM set WITHIN one week (not the best-so-far).
+// A running max can only ever rise, which hides a bad week; the within-week
+// max shows it as a dip, which is the truth. Lifts not trained that week
+// come back with best: null.
+export function strengthPartsInWeek(weekStart, names) {
   const weekEnd = addDays(weekStart, 6);
-  let total = 0;
-  let counted = 0;
-  for (const s of liftStats()) {
-    if (!names.some((n) => n.toLowerCase() === s.name.toLowerCase())) continue;
-    const inWeek = s.history.filter((h) => h.date >= weekStart && h.date <= weekEnd && h.e1rm != null);
-    if (!inWeek.length) continue;
-    total += Math.max(...inWeek.map((h) => h.e1rm));
-    counted++;
-  }
-  return counted === names.length ? { total, counted } : null;
+  const stats = liftStats();
+  return names.map((n) => {
+    const s = stats.find((x) => x.name.toLowerCase() === n.toLowerCase());
+    const inWeek = s ? s.history.filter((h) => h.date >= weekStart && h.date <= weekEnd && h.e1rm != null) : [];
+    return { name: n, best: inWeek.length ? Math.max(...inWeek.map((h) => h.e1rm)) : null };
+  });
 }
 
-// Weekly series of the strength total across the sprint (for the chart):
-// ONE point per week, dated the week's LAST day, each the within-week max
-// per lift summed. Weeks where a main lift was not trained are simply
-// absent — the line skips them rather than inventing a value.
-export function strengthSeries(sprintStart, endISO, names) {
+// Baseline for the NORMALIZED strength score: each main lift's best e1RM in
+// the first week (from `fromISO`, usually the sprint start) in which ALL
+// main lifts were trained — "week 1" of the score. Null until such a week
+// exists.
+export function strengthBaseline(names, fromISO = null) {
+  if (!names.length) return null;
+  const wos = allWorkouts();
+  if (!wos.length) return null;
+  const stop = todayISO();
+  for (let ws = startOfWeek(fromISO || wos[0].date); ws <= stop; ws = addDays(ws, 7)) {
+    const parts = strengthPartsInWeek(ws, names);
+    if (parts.every((p) => p.best != null)) return { ws, parts };
+  }
+  return null;
+}
+
+// Normalized strength score for ONE week: each lift's within-week best e1RM
+// divided by that lift's baseline, averaged, ×100. The baseline week scores
+// exactly 100 and every lift carries the same bearing (1/3) regardless of
+// absolute load — a raw e1RM sum let the leg press (~440) swamp the presses
+// (~180), so a pressing PR barely moved the number. 105 ≈ +5% average
+// strength on the three lifts since week 1.
+// Returns null unless EVERY main lift was trained that week — a partial
+// score would read as a strength drop that never happened.
+export function strengthScoreInWeek(weekStart, names, base) {
+  if (!base) return null;
+  const parts = strengthPartsInWeek(weekStart, names);
+  if (parts.some((p) => p.best == null)) return null;
+  const score = parts.reduce((sum, p, i) => sum + p.best / base.parts[i].best, 0) / parts.length * 100;
+  return { score, parts };
+}
+
+// Week-by-week strength breakout across the sprint: one row per week that
+// saw ANY main-lift work — sprint week number, per-lift within-week best
+// e1RMs, and the normalized score (null when not all lifts were trained).
+// Weeks with no main-lift work at all are skipped, but the numbering keeps
+// their place so gaps stay visible.
+export function strengthWeeks(sprintStart, endISO, names) {
+  const base = strengthBaseline(names, sprintStart);
   const out = [];
-  for (let ws = sprintStart; ws <= endISO; ws = addDays(ws, 7)) {
-    const v = strengthTotalInWeek(ws, names);
-    if (v) out.push({ iso: addDays(ws, 6), value: Math.round(v.total) });
+  let index = 0;
+  for (let ws = startOfWeek(sprintStart); ws <= endISO; ws = addDays(ws, 7)) {
+    index++;
+    const parts = strengthPartsInWeek(ws, names);
+    if (!parts.length || !parts.some((p) => p.best != null)) continue;
+    const scored = base && parts.every((p) => p.best != null);
+    out.push({
+      ws,
+      index,
+      parts,
+      score: scored ? parts.reduce((sum, p, i) => sum + p.best / base.parts[i].best, 0) / parts.length * 100 : null,
+    });
   }
   return out;
 }
@@ -333,20 +364,16 @@ export function sprintReport(sprint) {
     report.goals.lifts.push({ name, target, best, pct: best != null ? Math.min(1, best / target) : 0, done: best != null && best >= target });
   }
 
-  // strength story: main-lift e1RM total, start vs now, plus lift counts
+  // strength story: the normalized score (week 1 = 100, each main lift 1/3
+  // of the bearing), plus lift counts and the week-by-week breakout
   const names = mainLiftNames();
   const stEnd = s.end <= realToday ? s.end : realToday;
-  const totalNow = strengthTotalAt(stEnd, s.start, names);
-  const totalStart = (() => {
-    // first date at which all main lifts have an e1RM in the sprint
-    for (let iso = s.start; iso <= stEnd; iso = addDays(iso, 1)) {
-      const v = strengthTotalAt(iso, s.start, names);
-      if (v && v.counted === names.length) return { iso, ...v };
-    }
-    return null;
-  })();
+  const base = strengthBaseline(names, s.start);
+  const stWeeks = strengthWeeks(s.start, stEnd, names);
+  const scoredWeeks = stWeeks.filter((w) => w.score != null);
+  const latest = scoredWeeks.length ? scoredWeeks[scoredWeeks.length - 1] : null;
   const stats = liftStats();
-  // per-lift most-recent e1RM, in MAIN_LIFTS order — what the total is made of
+  // per-lift most-recent e1RM, in MAIN_LIFTS order — what the score is built on
   const perLift = names.map((n) => {
     const st = stats.find((x) => x.name.toLowerCase() === n.toLowerCase());
     const withE1 = st ? st.history.filter((h) => h.e1rm != null && h.date >= s.start && h.date <= stEnd) : [];
@@ -356,15 +383,20 @@ export function sprintReport(sprint) {
   report.strength = {
     names,
     perLift,
-    now: totalNow && totalNow.counted === names.length ? totalNow.total : null,
-    start: totalStart ? totalStart.total : null,
-    startISO: totalStart ? totalStart.iso : null,
+    weeks: stWeeks,
+    baselineISO: base ? base.ws : null,
+    // sprint week number of the baseline (= 100) — usually 1, later if the
+    // first fully-trained week came later
+    baselineIndex: base ? (stWeeks.find((w) => w.ws === base.ws) || { index: 1 }).index : null,
+    now: latest ? latest.score : null,                       // latest scored week
+    delta: latest ? latest.score - 100 : null,               // vs the baseline week
     progressing: stats.filter((x) => x.trend === 'up').length,
     withTrend: stats.filter((x) => x.trend != null).length,
     stalled: stats.filter((x) => x.stalled).length,
     ready: stats.filter((x) => x.ready).length,
     prs: report.totals.prs,
-    series: strengthSeries(s.start, stEnd, names),
+    // chart series: one point per scored week, dated the week's LAST day
+    series: scoredWeeks.map((w) => ({ iso: addDays(w.ws, 6), value: Math.round(w.score) })),
   };
   // Adherence across the WHOLE sprint so far, not a rolling 28 days: the
   // sprint is the unit being judged, and a rolling window silently drops

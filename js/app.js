@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.36.0';
+export const APP_VERSION = '2.37.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';

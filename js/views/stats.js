@@ -24,7 +24,7 @@ import {
   weightTracker, rateBand, weekReport, weekSuggestions,
 } from '../insights.js';
 import { lineChart, barChart, svgEl } from '../charts.js';
-import { SPRINTS, sprintReport, currentSprint } from '../sprints.js';
+import { SPRINTS, sprintReport, currentSprint, shortLiftName } from '../sprints.js';
 import { liftingSessionTarget, cardioDayTarget } from '../insights.js';
 import { CALORIE_BANDS } from '../config.js';
 
@@ -136,14 +136,15 @@ function dashboardPane(rerender) {
     ));
   }
 
-  // strength hero
+  // strength hero — normalized score (week 1 = 100, each main lift 1/3 of
+  // the bearing). Tapping opens the drill-down: per-lift 1RM charts and the
+  // week-by-week breakout table.
   if (st && st.names.length) {
-    const delta = st.now != null && st.start != null ? st.now - st.start : null;
-    heroes.append(el('div', { class: 'card hero-card' },
-      el('div', { class: 'hero-label' }, 'Strength'),
-      el('div', { class: 'hero-num' }, st.now != null ? Math.round(st.now).toLocaleString() : '—'),
+    heroes.append(el('button', { class: 'card hero-card hero-tap', onclick: () => openStrengthSheet(r, sprint) },
+      el('div', { class: 'hero-label' }, 'Strength', el('span', { class: 'hero-chev' }, '›')),
+      el('div', { class: 'hero-num' }, st.now != null ? String(Math.round(st.now)) : '—'),
       el('div', { class: 'hero-sub' },
-        delta != null ? el('span', { class: delta > 0 ? 'met-day-text on' : '' }, `${delta > 0 ? '+' : ''}${Math.round(delta)} this sprint`) : `${st.names.length} main lifts`,
+        st.delta != null ? el('span', { class: st.delta > 0 ? 'met-day-text on' : '' }, `${st.delta > 0 ? '+' : ''}${Math.round(st.delta)} vs week ${st.baselineIndex}`) : `${st.names.length} main lifts`,
       ),
       el('div', { class: 'hero-foot rp-dim' },
         `${st.progressing}/${st.withTrend} lifts up`,
@@ -222,15 +223,16 @@ function dashboardPane(rerender) {
     }
   }
   if (st && st.series.length >= 2) {
-    chartsSec.append(el('div', { class: 'card chart-card' },
-      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Strength')),
+    chartsSec.append(el('button', { class: 'card chart-card chart-tap', onclick: () => openStrengthSheet(r, sprint) },
+      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Strength'),
+        el('span', { class: 'hero-chev' }, '›')),
       // same x-axis as the weight chart, so the two read against each other
       lineChart({
         points: st.series,
-        ariaLabel: 'Main-lift e1RM total over the sprint',
+        ariaLabel: 'Normalized strength score over the sprint',
         domain: { from: r.start.iso, to: weightScale === 'sprint' ? r.end : st.series[st.series.length - 1].iso },
       }),
-      // what the number is made of: each main lift's most recent e1RM
+      // what the score is built on: each main lift's most recent e1RM
       el('div', { class: 'st-parts' },
         ...(st.perLift || []).map((l) => el('div', { class: 'st-part' },
           el('span', { class: 'st-part-n' }, l.e1rm != null ? Math.round(l.e1rm).toLocaleString() : '—'),
@@ -255,6 +257,78 @@ function dashboardPane(rerender) {
   wrap.append(el('div', { class: 'settings-section' }, el('h2', {}, r.done ? 'Sprint totals' : 'Sprint so far'), tot));
 
   return wrap;
+}
+
+// Strength drill-down (tap the hero or the chart): per-lift weekly-best 1RM
+// charts, then the week-by-week score breakout. Each lift's 1RM is coloured
+// by its movement vs the previous week that has a value for THAT lift (gap
+// weeks are skipped, not treated as drops); ±0.5 reads as flat. Single-week
+// colour is a hint, not a verdict — e1RM carries 5–10% session noise.
+function openStrengthSheet(r, sprint) {
+  const st = r.strength;
+  const weeks = st.weeks || [];
+  const baseIdx = st.baselineIndex || 1;
+
+  const overlay = el('div', { class: 'workout-overlay' });
+  const close = () => overlay.remove();
+  const body = el('div', { class: 'wo-body' });
+
+  body.append(el('div', { class: 'st-expl rp-dim' },
+    `Each lift's weekly best e1RM, indexed to week ${baseIdx} (= 100) and averaged — every lift carries a third of the score. 105 means +5% average strength across the three lifts.`));
+
+  // per-lift 1RM charts: one dot per trained week, shared x-axis
+  const chartEnd = weeks.length ? addDays(weeks[weeks.length - 1].ws, 6) : r.end;
+  st.names.forEach((name, i) => {
+    const points = weeks.filter((w) => w.parts[i].best != null)
+      .map((w) => ({ iso: addDays(w.ws, 6), value: Math.round(w.parts[i].best) }));
+    const cardEl = el('div', { class: 'card chart-card st-lift-card' },
+      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, name),
+        points.length ? el('span', { class: 'rp-dim' }, `1RM ${points[points.length - 1].value}`) : null));
+    cardEl.append(points.length >= 2
+      ? lineChart({ points, ariaLabel: `${name} weekly best e1RM`, domain: { from: r.start.iso, to: chartEnd } })
+      : el('div', { class: 'rp-dim st-chart-note' }, 'chart appears after two trained weeks'));
+    body.append(cardEl);
+  });
+
+  // week-by-week breakout table (columns follow the main-lift count — the
+  // fallback score can run on fewer than three lifts)
+  const grid = el('div', { class: 'st-grid' },
+    el('span', { class: 'st-h' }, 'week'),
+    el('span', { class: 'st-h st-r' }, 'score'),
+    ...st.names.map((n) => el('span', { class: 'st-h st-r' }, shortLiftName(n))),
+  );
+  grid.style.gridTemplateColumns = `auto repeat(${st.names.length + 1}, 1fr)`;
+  weeks.forEach((w, wi) => {
+    grid.append(el('span', { class: 'st-wk' }, `W${w.index}`,
+      el('span', { class: 'st-wk-d' }, fmt(w.ws, { month: 'short', day: 'numeric' }))));
+    grid.append(el('span', { class: 'st-r st-score' }, w.score != null ? String(Math.round(w.score)) : '—'));
+    w.parts.forEach((p, i) => {
+      // colour vs the previous week that has a value for THIS lift
+      let cls = '';
+      if (p.best != null) {
+        let prev = null;
+        for (let k = wi - 1; k >= 0 && prev == null; k--) prev = weeks[k].parts[i].best;
+        if (prev != null) cls = p.best > prev + 0.5 ? ' stx-good' : p.best < prev - 0.5 ? ' stx-bad' : '';
+      }
+      grid.append(el('span', { class: 'st-r st-1rm' + cls }, p.best != null ? String(Math.round(p.best)) : '—'));
+    });
+  });
+  body.append(
+    el('div', { class: 'wo-seg-label' }, 'Week by week'),
+    el('div', { class: 'card st-table-card' }, grid),
+  );
+
+  overlay.append(
+    el('div', { class: 'wo-head' },
+      el('div', {},
+        el('div', { class: 'eyebrow' }, sprint ? sprint.name : 'Progress'),
+        el('h2', {}, 'Strength'),
+      ),
+      el('button', { class: 'btn primary', onclick: close }, 'Close'),
+    ),
+    body,
+  );
+  document.body.append(overlay);
 }
 
 // The sprint plan, stated plainly: what the sprint is FOR (outcome goals),
@@ -645,12 +719,12 @@ function coachPane(rerender) {
   // --- reference cards ---
   const ref = el('div', { class: 'settings-section' }, el('h2', {}, 'Reference'));
   ref.append(
-    refCard('Rep ranges', 'Strength lives at 1–6 reps with heavy loads; muscle grows anywhere from ~5–30 reps if sets approach failure. Your weight days sit at 3–6, volume days at 8–15.', repRangeDiagram()),
+    refCard('Rep ranges', 'Strength lives at 1–6 reps with heavy loads; muscle grows anywhere from ~5–30 reps if sets approach failure. You train 8–15 across the board — weight days push load, volume days push sets.', repRangeDiagram()),
     refCard('Weekly volume', '10–20 hard sets per muscle per week is the productive band — most gains arrive by ~10, returns shrink past 20. Only sets within 0–4 reps of failure count.', volumeBandDiagram()),
     band && refCard('Gain rate', 'Faster gaining mostly adds fat: intermediates do best around +0.1–0.25% BW/week. The dashed marker is your chosen band.', rateBandDiagram(band)),
     refCard('Effort (reps in reserve)', 'A set counts when you stop 0–3 reps short of failure. Heavy compound sets: keep 2–3 in reserve — grinding true failure costs more than it gives.', rirDiagram()),
     refCard('When stuck', 'Diagnose in order: eating enough? → protein? → sleep? → missed sessions? Then: add a set, change the rep range, or deload one week at ~50% of sets. Change one thing at a time.', null),
-    refCard('e1RM', 'Estimated 1RM (weight × (1 + reps/30)) tracks strength across rep counts — but only from sets of ≤10 reps. High-rep sets count toward volume, not strength trends.', null),
+    refCard('e1RM', 'Estimated 1RM (weight × (1 + reps/30)) tracks strength across rep counts — but only from sets of ≤15 reps. Higher-rep sets count toward volume, not strength trends.', null),
   );
   wrap.append(ref);
 
@@ -690,8 +764,7 @@ function repRangeDiagram() {
     svg.append(svgEl('line', { x1: x2, y1: y - 4, x2, y2: y + 4, class: 'dg-marker' }));
     svg.append(svgEl('text', { x: x2 + 6, y: y + 3, class: 'ch-lab' }, label));
   };
-  bracket(3, 6, 54, 'weight day 3–6');
-  bracket(8, 15, 72, 'volume day 8–15');
+  bracket(8, 15, 63, 'your range 8–15');
   svg.append(svgEl('text', { x: axisX(1, 30), y: 92, class: 'ch-lab' }, '1 rep'));
   svg.append(svgEl('text', { x: axisX(30, 30), y: 92, class: 'ch-lab ch-end' }, '30'));
   return svg;

@@ -139,6 +139,21 @@ const localISO = (offset) => {
     /Workouts/.test(spText) && /Days logged/.test(spText) && /Avg calories/.test(spText) && /Cardio/.test(spText));
   await page.screenshot({ path: path.join(__dirname, 'shots', 'sprint-pane.png') });
 
+  // ---- 2b. strength drill-down popup (tap the hero) ----
+  await page.click('.hero-tap');
+  await page.waitForSelector('.st-grid');
+  const popText = await page.$eval('.workout-overlay', (e) => e.textContent);
+  check('strength popup: explainer + week-by-week table', /indexed to week/.test(popText) && /Week by week/i.test(popText),
+    popText.slice(0, 160));
+  const headCells = await page.$$eval('.st-h', (els) => els.map((e) => e.textContent));
+  check('table headers: week, score, then one per main lift',
+    headCells[0] === 'week' && headCells[1] === 'score' && headCells.length >= 3, headCells.join(','));
+  const scores = await page.$$eval('.st-score', (els) => els.map((e) => e.textContent));
+  check('baseline week scores 100', scores.includes('100'), scores.join(','));
+  await page.evaluate(() => document.querySelector('.workout-overlay .btn.primary').click());
+  await new Promise((r) => setTimeout(r, 200));
+  check('strength popup closes', (await page.$('.workout-overlay')) === null);
+
   // ---- 3. day note (ensure we're on today — the week drill-in moved the date) ----
   await page.click('.tab[data-tab="day"]');
   await page.waitForSelector('#view-day');

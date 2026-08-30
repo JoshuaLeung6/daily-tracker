@@ -1463,6 +1463,29 @@ html[data-theme="light"] body::before {
 .st-part-n { display: block; font-family: var(--serif); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .st-part-l { display: block; font-size: 10px; color: var(--faint); margin-top: 2px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* strength drill-down: tappable hero/chart + the popup's charts and table */
+.hero-tap, .chart-tap { text-align: left; width: 100%; }
+.hero-chev { color: var(--faint); font-size: 13px; margin-left: 5px; font-weight: 400; }
+.st-expl { font-size: 13px; line-height: 1.5; margin-bottom: 14px; }
+.st-lift-card { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 0 0 10px; }
+.st-chart-note { font-size: 12px; padding: 6px 0 2px; }
+.st-table-card { display: block; }
+.st-grid {
+  display: grid;
+  grid-template-columns: auto repeat(4, 1fr);
+  gap: 8px 10px;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.st-h { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-r { text-align: right; }
+.st-wk { font-size: 12px; font-weight: 600; }
+.st-wk-d { display: block; font-size: 10px; color: var(--faint); font-weight: 400; }
+.st-score { font-size: 14px; font-weight: 700; }
+.st-1rm { font-size: 13px; color: var(--muted); }
+.st-1rm.stx-good { color: var(--met-day); }
+.st-1rm.stx-bad { color: var(--danger); }
+
 /* a section heading with a control on the right (e.g. the Trends range
    toggle that governs both charts beneath it) */
 .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
