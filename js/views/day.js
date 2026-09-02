@@ -442,7 +442,22 @@ function journalSection(iso, locked) {
       img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
       const tile = el('div', { class: 'photo-tile' }, img);
       tile.addEventListener('click', () => openLightbox(p, iso, locked, loadPhotos));
-      photoStrip.append(tile);
+      // one-tap label under the thumbnail: — → front → side → back → —.
+      // Custom labels are set in the lightbox; tapping cycles onward from one.
+      const CYCLE = ['', 'front', 'side', 'back'];
+      const pill = el('button', {
+        class: 'photo-label' + (p.caption ? ' set' : ''),
+        'aria-label': 'Photo label',
+        onclick: async () => {
+          const i = CYCLE.indexOf(p.caption || '');   // custom → -1 → cycles to front
+          const next = CYCLE[(i + 1) % CYCLE.length];
+          p.caption = next;
+          await updateCaption(p.id, next);
+          pill.textContent = next || '+ label';
+          pill.classList.toggle('set', next !== '');
+        },
+      }, p.caption || '+ label');
+      photoStrip.append(el('div', { class: 'photo-col' }, tile, pill));
     }
     photoStrip.hidden = photos.length === 0;
   };

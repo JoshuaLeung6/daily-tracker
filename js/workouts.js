@@ -4,8 +4,10 @@
 //
 // Shape: workouts["YYYY-MM-DD"] = {
 //   split: 'push'|'pull'|'legs', focus: 'weight'|'volume'|'maintenance',
-//   lifts: [{ name, weight, reps, sets, rir }]   (numbers or null; rir is
-//     the reps-in-reserve of the LAST working set, 0–4 where 4 means "4+")
+//   lifts: [{ name, weight, reps, sets, rir, locked }]
+//     numbers or null; rir is the reps-in-reserve of the LAST working set,
+//     0–4 where 4 means "4+"; locked freezes the row in the editor so a
+//     finished entry can't be changed by a stray tap
 // }
 
 import { getData, persistNow, setValue } from './store.js';
@@ -29,7 +31,7 @@ export function getWorkout(iso) {
 export function saveWorkout(iso, draft) {
   const lifts = draft.lifts
     .filter((l) => l.name && l.name.trim())
-    .map((l) => ({ name: l.name.trim(), weight: l.weight ?? null, reps: l.reps ?? null, sets: l.sets ?? null, rir: l.rir ?? null }));
+    .map((l) => ({ name: l.name.trim(), weight: l.weight ?? null, reps: l.reps ?? null, sets: l.sets ?? null, rir: l.rir ?? null, locked: l.locked === true }));
   if (lifts.length === 0) {
     deleteWorkout(iso);
     return null;
@@ -332,6 +334,30 @@ export function recentLifts(name, beforeISO, n = 3) {
     }
   }
   return out.slice(-n).reverse();
+}
+
+// Did this lift set an e1RM PR on this date? (First-ever sessions don't
+// count — there was nothing to beat.) Powers the editor's ★ PR badge.
+export function isLiftPR(name, iso) {
+  const s = liftStats().find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+  if (!s) return false;
+  const h = s.history.find((x) => x.date === iso);
+  return !!(h && h.isPR);
+}
+
+// Session-average last-set RIR per workout, oldest first, optionally
+// filtered to one split. Derived from the lifts (never stored separately,
+// so editing a lift's RIR can't leave a stale average). Sessions with no
+// RIR logged simply don't appear.
+export function rirSeries(split = null) {
+  const out = [];
+  for (const w of allWorkouts()) {
+    if (split && w.split !== split) continue;
+    const vals = w.lifts.map((l) => l.rir).filter((v) => v != null);
+    if (!vals.length) continue;
+    out.push({ iso: w.date, value: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10, split: w.split });
+  }
+  return out;
 }
 
 // Most recent performance of a named lift before a date, optionally

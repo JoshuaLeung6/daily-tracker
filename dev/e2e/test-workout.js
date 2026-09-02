@@ -110,6 +110,8 @@ const localISO = (offset) => {
   // a lift with no history shows NO placeholder text — the preview is simply empty
   check('no history: preview is empty (no placeholder)', await page.$eval('.lift-preview', (e) => e.textContent.trim() === ''));
   await fillRow(0, '135', '8', '3');
+  // first-ever session: nothing to beat, so no PR badge
+  check('first-ever session shows no PR badge', await page.$eval('.lift-pr', (e) => e.hidden));
   await addLiftViaPicker('Overhead press');
   await fillRow(1, '95', '10', '3');
   // RIR pill: optional tap-cycle (— → 0 → 1 → 2); three taps lands on 2
@@ -152,6 +154,22 @@ const localISO = (offset) => {
   const chipsAfter = await page.$$eval('.chip-suggest', (els) => els.map((e) => e.textContent));
   check('used chip disappears', !chipsAfter.includes('+ Bench press'), chipsAfter.join(','));
   await fillRow(0, '140', '8', '3');
+  // 140×8 beats yesterday's 135×8 e1RM → live ★ PR badge
+  check('PR badge appears when numbers beat the previous best', !(await page.$eval('.lift-pr', (e) => e.hidden)));
+  // per-lift lock freezes the row
+  await page.click('.lift-lock');
+  await new Promise((r) => setTimeout(r, 150));
+  check('locking a lift makes its inputs read-only', await page.$eval('.lift-row input[aria-label="Weight"]', (e) => e.readOnly));
+  check('locked lift hides remove and disables RIR',
+    await page.$eval('.lift-row .row-x', (e) => e.hidden) && await page.$eval('.lift-row .rir-pill', (e) => e.disabled));
+  const lockedStored = await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('pcal:data'));
+    const days = Object.keys(d.workouts).sort();
+    return d.workouts[days[days.length - 1]].lifts[0].locked;
+  });
+  check('lift lock persists in the stored workout', lockedStored === true, String(lockedStored));
+  await page.click('.lift-lock');   // unlock so the rest of the flow is unaffected
+  await new Promise((r) => setTimeout(r, 150));
   await clickByText('.wo-head .btn.primary', 'Done');
   stored = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')));
   check('day 2 saved: bench 140', stored.workouts[localISO(-1)].lifts[0].weight === 140);
@@ -179,6 +197,7 @@ const localISO = (offset) => {
   });
   check('bench trend up (e1RM 171→177)', /up/.test(benchRow || ''), String(benchRow));
   check('weekly volume chart present', (await page.$('.chart-card .chart')) !== null);
+  check('Effort (avg RIR) card present with split filter', /Effort/.test(statsText) && /session avg RIR/.test(statsText));
   await page.evaluate(() => [...document.querySelectorAll('.stat-row')].find((r) => r.textContent.includes('Bench press')).click());
   await page.waitForSelector('.sr-history');
   const chartDots = await page.$$eval('.sr-history .chart .ch-dot', (els) => els.length);

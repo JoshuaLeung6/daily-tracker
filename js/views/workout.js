@@ -12,11 +12,12 @@
 //   4. delete workout (existing workouts only)
 
 import { el } from '../ui.js';
+import { svgEl } from '../charts.js';
 import { fmt, weekdayName } from '../dates.js';
 import {
   SPLITS, SPLIT_LABELS, FOCUSES, FOCUS_LABELS,
   getWorkout, saveWorkout, deleteWorkout, templateFor, suggestedClass,
-  liftsBySplit, recentLifts,
+  liftsBySplit, recentLifts, isLiftPR,
 } from '../workouts.js';
 
 const DAY_TYPE_SHORT = { weight: 'Weight', volume: 'Volume', maintenance: 'Maint.' };
@@ -48,7 +49,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
 
   const addLift = (name) => {
     if (!name || !name.trim()) return;
-    draft.lifts.push({ name: name.trim(), weight: null, reps: null, sets: null, rir: null });
+    draft.lifts.push({ name: name.trim(), weight: null, reps: null, sets: null, rir: null, locked: false });
     touch();
     renderRows();
     renderAdd();
@@ -89,7 +90,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
   };
 
   // ---- 2. logged lifts ----
-  const numInput = (lift, key, label, integer) => {
+  const numInput = (lift, key, label, integer, onValue) => {
     const input = el('input', {
       type: 'text',
       inputmode: integer ? 'numeric' : 'decimal',
@@ -97,15 +98,17 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
       enterkeyhint: 'next',
       class: 'lift-num',
       'aria-label': label,
-      readonly: locked,
+      readonly: locked || lift.locked === true,
       value: lift[key] != null ? String(lift[key]) : '',
     });
     input.addEventListener('input', () => {
+      if (lift.locked) return;
       const cleaned = input.value.replace(integer ? /[^0-9]/g : /[^0-9.,]/g, '');
       if (cleaned !== input.value) input.value = cleaned;
       const num = integer ? parseInt(cleaned, 10) : parseFloat(cleaned.replace(',', '.'));
       lift[key] = Number.isFinite(num) ? num : null;
       touch();
+      if (onValue) onValue();
     });
     // keep the focused cell above the iOS keyboard
     input.addEventListener('focus', () => {
@@ -113,10 +116,29 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     });
     return input;
   };
-  const cell = (lift, key, label, unit, integer) => el('label', { class: 'lift-cell' },
-    numInput(lift, key, label, integer),
+  const cell = (lift, key, label, unit, integer, onValue) => el('label', { class: 'lift-cell' },
+    numInput(lift, key, label, integer, onValue),
     el('span', { class: 'lift-unit' }, unit),
   );
+
+  // Per-lift lock: freezes the row (inputs read-only, RIR and remove off)
+  // so a finished entry can't be fat-thumbed while logging the next lift.
+  // Persisted on the lift, so it survives closing and reopening the editor.
+  const lockBtn = (lift) => {
+    if (locked) return null;   // the whole day is read-only already
+    // svgEl takes (tag, attrs, text) — element children must be appended
+    const ico = svgEl('svg', { viewBox: '0 0 24 24', class: 'lift-lock-ico', 'aria-hidden': 'true' });
+    ico.append(
+      svgEl('path', { d: 'M8 11V7a4 4 0 0 1 8 0v4', class: 'lk-shackle' }),
+      svgEl('rect', { x: '5.5', y: '11', width: '13', height: '8.5', rx: '2', class: 'lk-body' }),
+    );
+    return el('button', {
+      class: 'lift-lock' + (lift.locked ? ' on' : ''),
+      'aria-label': `${lift.locked ? 'Unlock' : 'Lock'} ${lift.name || 'lift'}`,
+      'aria-pressed': String(lift.locked === true),
+      onclick: () => { lift.locked = lift.locked !== true; touch(); renderRows(); },
+    }, ico);
+  };
 
   // The last three sessions of this lift, ANY day type, newest first, one
   // per line: what you did last is what you load against.
@@ -141,7 +163,7 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     const b = el('button', {
       class: 'rir-pill' + (lift.rir != null ? ' rir-set' : ''),
       'aria-label': 'Reps in reserve on the last set',
-      disabled: locked,
+      disabled: locked || lift.locked === true,
       onclick: () => {
         const i = RIR_CYCLE.indexOf(lift.rir != null ? lift.rir : null);
         lift.rir = RIR_CYCLE[(i + 1) % RIR_CYCLE.length];
@@ -153,28 +175,40 @@ export function openWorkout(iso, { locked = false, onClose } = {}) {
     return b;
   };
 
-  const liftBlock = (lift, index) => el('div', { class: 'lift-row' },
-    el('div', { class: 'lift-head' },
-      el('span', { class: 'lift-label', 'aria-label': 'Lift name' }, lift.name || '—'),
-      rirPill(lift),
-      el('button', {
-        class: 'row-x',
-        'aria-label': `Remove ${lift.name || 'lift'}`,
-        hidden: locked,
-        onclick: () => removeLift(index),
-      }, '✕'),
-    ),
-    el('div', { class: 'lift-body' },
-      el('div', { class: 'lift-cells' },
-        cell(lift, 'weight', 'Weight', 'lb', false),
-        el('span', { class: 'lift-x' }, '×'),
-        cell(lift, 'reps', 'Reps', 'reps', true),
-        el('span', { class: 'lift-x' }, '×'),
-        cell(lift, 'sets', 'Sets', 'sets', true),
+  const liftBlock = (lift, index) => {
+    // ★ PR the moment today's numbers beat this lift's previous best e1RM —
+    // refreshed on every keystroke (touch() persists first, so the check
+    // always sees the current numbers); first-ever sessions never badge
+    const prEl = el('span', { class: 'pr-star lift-pr', hidden: !isLiftPR(lift.name, iso) }, '★ PR');
+    const refreshPR = () => { prEl.hidden = !isLiftPR(lift.name, iso); };
+    return el('div', { class: 'lift-row' + (lift.locked ? ' lift-locked' : '') },
+      el('div', { class: 'lift-head' },
+        // badge is a SIBLING of the name, not inside it — .lift-label's
+        // textContent must stay exactly the lift name
+        el('span', { class: 'lift-name-wrap' },
+          el('span', { class: 'lift-label', 'aria-label': 'Lift name' }, lift.name || '—'),
+          prEl),
+        lockBtn(lift),
+        rirPill(lift),
+        el('button', {
+          class: 'row-x',
+          'aria-label': `Remove ${lift.name || 'lift'}`,
+          hidden: locked || lift.locked === true,
+          onclick: () => removeLift(index),
+        }, '✕'),
       ),
-      previewEl(lift.name),
-    ),
-  );
+      el('div', { class: 'lift-body' },
+        el('div', { class: 'lift-cells' },
+          cell(lift, 'weight', 'Weight', 'lb', false, refreshPR),
+          el('span', { class: 'lift-x' }, '×'),
+          cell(lift, 'reps', 'Reps', 'reps', true, refreshPR),
+          el('span', { class: 'lift-x' }, '×'),
+          cell(lift, 'sets', 'Sets', 'sets', true, refreshPR),
+        ),
+        previewEl(lift.name),
+      ),
+    );
+  };
 
   const rows = el('div', { class: 'lift-rows' });
   const renderRows = () => {

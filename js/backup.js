@@ -11,7 +11,7 @@ import {
   weekStreakFor, longestWeekStreak, weekAdherence,
   goalProgress, latestValue, ratePerWeek, avgOverDays,
 } from './trackers.js';
-import { liftStats, weeklyVolume, workoutCounts } from './workouts.js';
+import { liftStats, weeklyVolume, workoutCounts, rirSeries } from './workouts.js';
 
 export async function exportData() {
   const doc = getData();
@@ -142,6 +142,8 @@ export function buildAnalysisPayload() {
       })),
       weeklyVolume: weeklyVolume(12),
       workoutCounts: workoutCounts(),
+      // session-average last-set RIR (derived from the raw lifts above)
+      sessionRIR: rirSeries(),
     },
   };
 }

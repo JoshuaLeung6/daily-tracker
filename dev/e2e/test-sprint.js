@@ -224,17 +224,26 @@ const localISO = (offset) => {
       return all[0].blob.size;
     });
     check('photo downscaled to a small JPEG', size > 1000 && size < 400000, `bytes: ${size}`);
-    // lightbox: label via chips, then delete
+    // day-view pill: one tap cycles — → front
+    await page.waitForSelector('.photo-label');
+    await page.click('.photo-label');
+    await new Promise((r) => setTimeout(r, 400));
+    const capPill = await page.evaluate(async () => {
+      const m = await import('./js/photos.js');
+      return (await m.allPhotos())[0].caption;
+    });
+    check('day-view label pill cycles to "front"', capPill === 'front', String(capPill));
+    // lightbox: chips relabel, then delete
     await page.waitForSelector('.photo-tile');
     await page.click('.photo-tile');
     await page.waitForSelector('.lightbox');
-    await clickByText('.lightbox .chip', 'front');
+    await clickByText('.lightbox .chip', 'side');
     await new Promise((r) => setTimeout(r, 400));
     const cap = await page.evaluate(async () => {
       const m = await import('./js/photos.js');
       return (await m.allPhotos())[0].caption;
     });
-    check('lightbox chip labels the photo "front"', cap === 'front', String(cap));
+    check('lightbox chip relabels the photo "side"', cap === 'side', String(cap));
     await page.click('.lightbox .btn.danger');
     await new Promise((r) => setTimeout(r, 400));
     check('lightbox delete removes photo', (await page.$$('.photo-tile')).length === 0);

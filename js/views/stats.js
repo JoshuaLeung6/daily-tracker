@@ -17,7 +17,7 @@ import {
 import {
   SPLITS, SPLIT_LABELS, FOCUS_LABELS, workoutCounts, liftStats,
   weeklyVolume, daysSince,
-  repRange,
+  repRange, rirSeries,
 } from '../workouts.js';
 import {
   suggestedIntake, calorieTracker, adaptiveTDEE,
@@ -34,6 +34,7 @@ let pane = 'sprint';
 let openSplit = null;      // which PPL group is expanded in the Lifts pane
 let expandedLift = null;
 let weightScale = 'logged'; // 'logged' | 'sprint' — weight chart x-axis range
+let rirSplit = null;        // null (all) | 'push' | 'pull' | 'legs' — Effort chart filter
 
 const fmtN = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 const signed = (n) => `${n > 0 ? '+' : ''}${fmtN(n)}`;
@@ -266,9 +267,11 @@ function dashboardPane(rerender) {
   return wrap;
 }
 
-// All progress photos in one place, oldest first so the story reads forward.
-// Tap a tile for the full-size lightbox (same one as the day view, delete
-// included). Object URLs are revoked on close.
+// All progress photos as a structured TIMELINE: one section per photo day,
+// oldest first so the story reads forward, each with three fixed slots —
+// front · side · back — so scanning down compares the same angle across
+// months; a missing angle shows as a dashed placeholder. Custom/unlabeled
+// photos follow in the same row. Tap a tile for the full-size lightbox.
 function openPhotoGallery(sprint) {
   const overlay = el('div', { class: 'workout-overlay' });
   const urls = [];
@@ -277,20 +280,44 @@ function openPhotoGallery(sprint) {
     urls.forEach((u) => URL.revokeObjectURL(u));
   };
   const grid = el('div', { class: 'gallery-grid' });
+  const tile = (p, load) => {
+    const url = URL.createObjectURL(p.blob);
+    urls.push(url);
+    return el('button', { class: 'gallery-tile', onclick: () => openLightbox(p, p.date, false, load) },
+      el('img', { src: url, alt: `Progress photo ${p.date}${p.caption ? ` (${p.caption})` : ''}`, class: 'gallery-img' }),
+      p.caption ? el('span', { class: 'gallery-label' }, p.caption) : null);
+  };
   const load = async () => {
     const photos = await allPhotos();   // sorted oldest → newest
     grid.replaceChildren();
     if (!photos.length) {
-      grid.append(el('div', { class: 'empty-state' }, 'No photos yet — + Photo on the Day view. Monthly, same light, front and side.'));
+      grid.append(el('div', { class: 'empty-state' }, 'No photos yet — + Photo on the Day view. Monthly, same light: front, side, back.'));
       return;
     }
+    const byDate = new Map();
     for (const p of photos) {
-      const url = URL.createObjectURL(p.blob);
-      urls.push(url);
-      grid.append(el('button', { class: 'gallery-tile', onclick: () => openLightbox(p, p.date, false, load) },
-        el('img', { src: url, alt: `Progress photo ${p.date}${p.caption ? ` (${p.caption})` : ''}`, class: 'gallery-img' }),
-        el('span', { class: 'gallery-date' }, fmt(p.date, { month: 'short', day: 'numeric' }),
-          p.caption ? el('span', { class: 'gallery-label' }, p.caption) : null)));
+      if (!byDate.has(p.date)) byDate.set(p.date, []);
+      byDate.get(p.date).push(p);
+    }
+    const ANGLES = ['front', 'side', 'back'];
+    for (const [date, list] of byDate) {
+      // sprint week number ties the timeline to the app's week language
+      let wk = null;
+      if (sprint && date >= sprint.start && date <= sprint.end) {
+        wk = Math.floor((new Date(date) - new Date(startOfWeek(sprint.start))) / 604800000) + 1;
+      }
+      const row = el('div', { class: 'gal-row' });
+      const used = new Set();
+      for (const a of ANGLES) {
+        const p = list.find((x) => x.caption === a && !used.has(x));
+        if (p) { used.add(p); row.append(tile(p, load)); } else row.append(el('div', { class: 'gal-slot' }, a));
+      }
+      for (const p of list) if (!used.has(p)) row.append(tile(p, load));
+      grid.append(el('div', { class: 'gal-day' },
+        el('div', { class: 'gal-head' },
+          el('b', {}, fmt(date, { month: 'short', day: 'numeric' })),
+          wk != null ? el('span', { class: 'rp-dim' }, ` · week ${wk}`) : null),
+        row));
     }
   };
   load();
@@ -773,6 +800,29 @@ function liftingPane(rerender) {
         bars: weeks.map((w) => ({ label: fmt(w.startISO, { month: 'short', day: 'numeric' }), value: w.value })),
         ariaLabel: 'Weekly lifted volume, last 8 weeks',
       }),
+    ));
+  }
+
+  // session effort: average last-set RIR per workout — the honesty meter for
+  // whether a flat e1RM means stalling (RIR ~1) or sandbagging (RIR 3–4).
+  // Invisible until an RIR has ever been logged; filterable to one split.
+  if (rirSeries(null).length) {
+    const pts = rirSeries(rirSplit).map((p) => ({ iso: p.iso, value: p.value }));
+    const segBtn = (label, val) => el('button', {
+      class: 'seg-btn rir-btn',
+      'aria-pressed': String(rirSplit === val),
+      onclick: () => { rirSplit = val; rerender(); },
+    }, label);
+    wrap.append(el('div', { class: 'card chart-card' },
+      el('div', { class: 'gc-head' },
+        el('span', { class: 'gc-name' }, 'Effort'),
+        el('span', { class: 'seg seg-mini', role: 'group', 'aria-label': 'Effort split filter' },
+          segBtn('All', null), segBtn('Push', 'push'), segBtn('Pull', 'pull'), segBtn('Legs', 'legs')),
+      ),
+      pts.length >= 2
+        ? lineChart({ points: pts, ariaLabel: 'Average last-set RIR per session' })
+        : el('div', { class: 'rp-dim st-chart-note' }, 'chart appears after two sessions with RIR logged'),
+      el('div', { class: 'ch-caption' }, 'session avg RIR · lower = closer to failure'),
     ));
   }
 
