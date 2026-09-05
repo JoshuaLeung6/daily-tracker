@@ -12,6 +12,7 @@ import {
   goalProgress, latestValue, ratePerWeek, avgOverDays,
 } from './trackers.js';
 import { liftStats, weeklyVolume, workoutCounts, rirSeries } from './workouts.js';
+import { currentSprint } from './sprints.js';
 
 export async function exportData() {
   const doc = getData();
@@ -117,6 +118,10 @@ export function buildAnalysisPayload() {
     exportedAt: new Date().toISOString(),
     note: 'Derived stats are precomputed; days/workouts are the raw log. e1RM uses the Epley formula.',
     profile: getProfile(),
+    sprint: (() => {
+      const s = currentSprint();
+      return s ? { name: s.name, start: s.start, end: s.end, weightGoal: s.goals ? s.goals.weight : null } : null;
+    })(),
     foods: (doc.foods || []).map((f) => ({ name: f.name, kcal: f.kcal, protein: f.protein, uses: f.uses || 0 })),
     trackers: doc.trackers.map((t) => ({
       name: nameOf[t.id], type: t.type, unit: t.unit || null, archived: !!t.archived,

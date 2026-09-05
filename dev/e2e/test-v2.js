@@ -118,6 +118,17 @@ async function setNumberInput(page, selector, value) {
   check('settings has no tracker editing controls', (await page.$('.icon-btn[aria-label^="Edit"]')) === null
     && !(await page.evaluate(() => [...document.querySelectorAll('.ghost-btn')].some((b) => /Add tracker/.test(b.textContent)))));
 
+  // Claude API key: stored on-device only, cleared field removes it
+  await page.type('input[aria-label="Claude API key"]', 'sk-ant-e2e');
+  await page.evaluate(() => document.querySelector('input[aria-label="Claude API key"]').dispatchEvent(new Event('change')));
+  check('Claude key saved to this device', await page.evaluate(() => localStorage.getItem('pcal:claudeKey')) === 'sk-ant-e2e');
+  await page.evaluate(() => {
+    const i = document.querySelector('input[aria-label="Claude API key"]');
+    i.value = '';
+    i.dispatchEvent(new Event('change'));
+  });
+  check('clearing the field removes the key', await page.evaluate(() => localStorage.getItem('pcal:claudeKey')) === null);
+
   // ---- 6. streaks: inject history before app boot ----
   const isoList = [-1, -2, -3, -4, -5, -6, -7, -8, -9, -10].map(localISO);
   const streakScript = await page.evaluateOnNewDocument(({ isoList, todayKey }) => {

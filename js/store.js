@@ -8,6 +8,7 @@ const KEY = 'pcal:data';
 const KEY_PRE_IMPORT = 'pcal:backup:pre-import';
 const KEY_LAST_EXPORT = 'pcal:lastExport';
 const KEY_THEME = 'pcal:theme';
+const KEY_CLAUDE = 'pcal:claudeKey';
 
 let data = null;
 let saveTimer = null;
@@ -233,4 +234,17 @@ export function getTheme() {
 
 export function setTheme(v) {
   try { localStorage.setItem(KEY_THEME, v); } catch { /* non-critical */ }
+}
+
+// Claude API key for the in-app "Ask Claude" analysis. Lives ONLY in this
+// device's localStorage — never in the repo, never in a backup export.
+export function getClaudeKey() {
+  try { return localStorage.getItem(KEY_CLAUDE) || ''; } catch { return ''; }
+}
+
+export function setClaudeKey(k) {
+  try {
+    if (k) localStorage.setItem(KEY_CLAUDE, k);
+    else localStorage.removeItem(KEY_CLAUDE);
+  } catch { /* non-critical */ }
 }

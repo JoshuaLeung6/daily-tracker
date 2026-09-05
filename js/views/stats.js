@@ -26,6 +26,7 @@ import {
 import { lineChart, barChart, svgEl } from '../charts.js';
 import { allPhotos } from '../photos.js';
 import { openLightbox } from './day.js';
+import { askClaude, hasClaudeKey, lastAsk } from '../claude.js';
 import { SPRINTS, sprintReport, currentSprint, shortLiftName } from '../sprints.js';
 import { liftingSessionTarget, cardioDayTarget } from '../insights.js';
 import { CALORIE_BANDS, FLAGS } from '../config.js';
@@ -953,6 +954,9 @@ function coachPane(rerender) {
   if (!anyActive) active.append(el('div', { class: 'empty-state' }, 'Nothing needs attention — keep logging.'));
   wrap.append(active);
 
+  // --- Ask Claude: on-device analysis with the user's own API key ---
+  wrap.append(askClaudeSection());
+
   // --- the plan: what this sprint is for, and how it is being run ---
   // Lives here rather than on Progress: Progress is the live scoreboard,
   // this is the standing reference for what the numbers are aiming at.
@@ -972,6 +976,67 @@ function coachPane(rerender) {
   wrap.append(ref);
 
   return wrap;
+}
+
+// "Ask Claude" on the Coach pane: canned questions or free text, answered by
+// claude-opus-5 against the same JSON the analysis export produces. Needs an
+// API key (Settings); the reply survives tab switches within the session.
+function askClaudeSection() {
+  const sec = el('div', { class: 'settings-section' }, el('h2', {}, 'Ask Claude'));
+  if (!hasClaudeKey()) {
+    sec.append(el('div', { class: 'settings-note' },
+      'Add your Claude API key in Settings to analyze your data from here.'));
+    return sec;
+  }
+
+  const out = el('div', { class: 'card ai-reply', hidden: true });
+  const status = el('div', { class: 'settings-note ai-status', 'aria-live': 'polite' }, '');
+  const qIn = el('textarea', {
+    class: 'ai-q', rows: '2',
+    placeholder: 'Ask anything about your data…',
+    'aria-label': 'Question for Claude',
+  });
+
+  let busy = false;
+  const run = async (question) => {
+    if (busy || !question) return;
+    busy = true;
+    out.hidden = true;
+    status.textContent = 'Thinking… (can take ~30s)';
+    try {
+      const r = await askClaude(question);
+      out.textContent = r.text;
+      out.hidden = false;
+      status.textContent = r.usage
+        ? `${(r.usage.input_tokens || 0).toLocaleString()} tokens in · ${(r.usage.output_tokens || 0).toLocaleString()} out`
+        : '';
+    } catch (e) {
+      status.textContent = e && e.message ? e.message : 'Something went wrong.';
+    }
+    busy = false;
+  };
+
+  const chip = (label, q) => el('button', { class: 'chip chip-suggest', onclick: () => run(q) }, label);
+  sec.append(
+    el('div', { class: 'chips ai-chips' },
+      chip('Weekly review', 'Review my last 7 days: weight trend vs goal pace, intake and protein vs targets, training done vs planned, and strength movement. End with the single highest-leverage fix for next week.'),
+      chip('How’s the bulk?', 'Judge the bulk overall: is the weight-gain pace right, is it likely lean (use intake, protein, training consistency, and strength trends), and what would you change?'),
+      chip('Fix one thing', 'Across everything in my data, what is the ONE thing most limiting my results right now? Make the case with my numbers, then give the concrete fix.'),
+    ),
+    qIn,
+    el('div', { class: 'btn-row ai-ask-row' },
+      el('button', { class: 'btn primary', onclick: () => run(qIn.value.trim()) }, 'Ask'),
+    ),
+    status,
+    out,
+  );
+
+  // a reply from earlier in this session survives tab switches
+  if (lastAsk) {
+    out.textContent = lastAsk.text;
+    out.hidden = false;
+  }
+  return sec;
 }
 
 function refCard(title, text, diagram) {

@@ -695,6 +695,32 @@ html[data-theme="light"] body::before {
   text-align: center;
 }
 
+/* Ask Claude (Coach pane) */
+.ai-chips { margin-bottom: 10px; }
+.ai-q {
+  width: 100%;
+  min-height: 58px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px; /* keep ≥16px: iOS zooms on smaller inputs */
+  padding: 10px 12px;
+  resize: vertical;
+}
+.ai-ask-row { margin-top: 8px; }
+.ai-status { min-height: 18px; }
+.ai-reply {
+  display: block;
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.55;
+  margin-top: 8px;
+}
+/* author display:block beats the UA [hidden] rule — restate it */
+.ai-reply[hidden] { display: none; }
+
 /* photo label chips in the lightbox — it sits on an ALWAYS-DARK backdrop,
    so theme tokens made the text invisible in light mode; colors are fixed */
 .lightbox-labels { justify-content: center; }

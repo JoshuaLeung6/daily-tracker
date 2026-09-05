@@ -2,7 +2,7 @@
 // configured in code (with Claude), not here: this screen only shows them.
 
 import { el } from '../ui.js';
-import { loggedDayCount, getProfile, setProfile } from '../store.js';
+import { loggedDayCount, getProfile, setProfile, getClaudeKey, setClaudeKey } from '../store.js';
 import { todayISO } from '../dates.js';
 import { allTrackers, targetFor } from '../trackers.js';
 import {
@@ -155,6 +155,22 @@ export function render(container, ctx) {
     ),
   );
 
+  // ----- Claude (in-app analysis) -----
+  const keyIn = el('input', {
+    type: 'password',
+    placeholder: 'sk-ant-…',
+    autocomplete: 'off',
+    'aria-label': 'Claude API key',
+    value: getClaudeKey(),
+  });
+  keyIn.addEventListener('change', () => setClaudeKey(keyIn.value.trim()));
+  const claudeSection = el('div', { class: 'settings-section' },
+    el('h2', {}, 'Claude'),
+    el('div', { class: 'field' }, el('label', {}, 'API key'), keyIn),
+    el('div', { class: 'settings-note' },
+      'Powers “Ask Claude” on the Coach tab. The key stays on this phone and is sent only to Anthropic; usage bills to your key (an analysis costs roughly $0.10–0.15). Get one at console.anthropic.com. Clear the field to remove it.'),
+  );
+
   // ----- about -----
   const updateStatus = el('div', { class: 'settings-note', 'aria-live': 'polite' }, '');
   const checkUpdates = async () => {
@@ -203,7 +219,7 @@ export function render(container, ctx) {
   );
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }),
-    appearanceSection, trackerSection, profileSection, backupSection, aboutSection);
+    appearanceSection, trackerSection, profileSection, backupSection, claudeSection, aboutSection);
 }
 
 function targetDesc(t) {
