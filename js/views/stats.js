@@ -954,8 +954,11 @@ function coachPane(rerender) {
   if (!anyActive) active.append(el('div', { class: 'empty-state' }, 'Nothing needs attention — keep logging.'));
   wrap.append(active);
 
-  // --- Ask Claude: on-device analysis with the user's own API key ---
-  wrap.append(askClaudeSection());
+  // --- Ask Claude: on-device analysis with the user's own API key.
+  // No key = NO section (not a pointer): an unused optional feature must be
+  // invisible. Settings > Claude is the on-switch.
+  const ai = askClaudeSection();
+  if (ai) wrap.append(ai);
 
   // --- the plan: what this sprint is for, and how it is being run ---
   // Lives here rather than on Progress: Progress is the live scoreboard,
@@ -982,12 +985,8 @@ function coachPane(rerender) {
 // claude-opus-5 against the same JSON the analysis export produces. Needs an
 // API key (Settings); the reply survives tab switches within the session.
 function askClaudeSection() {
+  if (!hasClaudeKey()) return null;   // invisible until a key exists
   const sec = el('div', { class: 'settings-section' }, el('h2', {}, 'Ask Claude'));
-  if (!hasClaudeKey()) {
-    sec.append(el('div', { class: 'settings-note' },
-      'Add your Claude API key in Settings to analyze your data from here.'));
-    return sec;
-  }
 
   const out = el('div', { class: 'card ai-reply', hidden: true });
   const status = el('div', { class: 'settings-note ai-status', 'aria-live': 'polite' }, '');

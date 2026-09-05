@@ -119,7 +119,7 @@ const localISO = (offset) => {
   check('coach: 3+ diagrams render', diagrams >= 3, `diagrams: ${diagrams}`);
 
   // ---- 3b. Ask Claude (no network call is ever made without a tap) ----
-  check('coach: Ask Claude prompts for a key when none stored', /Add your Claude API key in Settings/.test(coachText));
+  check('coach: Ask Claude invisible without a key', !/Ask Claude/.test(coachText));
   await page.evaluate(() => localStorage.setItem('pcal:claudeKey', 'sk-ant-test'));
   await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Progress');
   await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Coach');
