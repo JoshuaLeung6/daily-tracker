@@ -191,9 +191,10 @@ export const SPRINTS = [
     // Monday, so the sprint begins exactly on a week boundary. The earlier
     // logged days (Sat Jul 11, Sun Jul 12) both belong to the week starting
     // Jul 6, which would have made the sprint's first week a 2-day stub.
-    // 16 whole weeks = 112 days inclusive: 2026-07-13 → 2026-11-01 (Sun).
+    // 12 whole weeks = 84 days inclusive: 2026-07-13 → 2026-10-04 (Sun).
+    // (Shortened from 16 on 2026-09-27 — vacation starts after week 12.)
     start: '2026-07-13',
-    end: '2026-11-01',
+    end: '2026-10-04',
     focus: 'Lean bulk · PPL 5–6×/wk',
     // Colour palette for this sprint. Each sprint gets its own look so a
     // new block FEELS like a new block. Palettes are defined in styles.css

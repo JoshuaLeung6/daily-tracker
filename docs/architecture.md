@@ -85,8 +85,8 @@ constant** back. Keep it that way — importing anything computed from
 earlier.
 
 **Sprint length is counted inclusively.** `daysBetween(start, end) + 1`, so
-16 weeks = 112 days. Jul 13 → Nov 1 is exactly 16 weeks; an end date one day
-later makes it 113 days, which `Math.ceil(days / 7)` renders as "of 17".
+12 weeks = 84 days. Jul 13 → Oct 4 is exactly 12 weeks; an end date one day
+later makes it 85 days, which `Math.ceil(days / 7)` renders as "of 13".
 
 **Weeks run MONDAY→SUNDAY.** `startOfWeek()` in `dates.js` is
 `(d.getDay() + 6) % 7`, which maps Monday→0. A sprint must start on a Monday
