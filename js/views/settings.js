@@ -3,7 +3,9 @@
 
 import { el } from '../ui.js';
 import { loggedDayCount, getProfile, setProfile, getClaudeKey, setClaudeKey } from '../store.js';
-import { todayISO } from '../dates.js';
+import { todayISO, fmt } from '../dates.js';
+import { allSprints } from '../sprints.js';
+import { openSprintOverlay } from './stats.js';
 import { allTrackers, targetFor } from '../trackers.js';
 import {
   exportData, exportAnalysis, exportPhotos, readBackupFile, applyImport,
@@ -155,6 +157,24 @@ export function render(container, ctx) {
     ),
   );
 
+  // ----- sprints shelf -----
+  // The archive room, deliberately OUT of the daily path: every sprint,
+  // past and present, opens the same report view (openSprintOverlay).
+  const today = todayISO();
+  const sprintsSection = el('div', { class: 'settings-section' },
+    el('h2', {}, 'Sprints'),
+    ...allSprints().map((s) => {
+      const state = today < s.start ? 'Upcoming' : today > s.end ? 'Complete' : 'Active';
+      return el('button', { class: 'card sprint-row', onclick: () => openSprintOverlay(s) },
+        el('span', { class: 'sprint-row-main' },
+          el('b', {}, s.name),
+          el('span', { class: 'rp-dim' }, ` · ${fmt(s.start, { month: 'short', day: 'numeric' })} – ${fmt(s.end, { month: 'short', day: 'numeric' })}`),
+        ),
+        el('span', { class: 'sprint-status' + (state === 'Active' ? ' on' : '') }, state),
+      );
+    }),
+  );
+
   // ----- Claude (in-app analysis) -----
   const keyIn = el('input', {
     type: 'password',
@@ -219,7 +239,7 @@ export function render(container, ctx) {
   );
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }),
-    appearanceSection, trackerSection, profileSection, backupSection, claudeSection, aboutSection);
+    appearanceSection, trackerSection, profileSection, sprintsSection, backupSection, claudeSection, aboutSection);
 }
 
 function targetDesc(t) {

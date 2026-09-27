@@ -7,6 +7,7 @@ import { getEntry, setValue, persistNow, getNote, setNote } from '../store.js';
 import { photosOn, addPhoto, deletePhoto, allPhotos, updateCaption } from '../photos.js';
 import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets, previousValue } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, FOCUS_LABELS, sessionHadPR } from '../workouts.js';
+import { sprintActive } from '../sprints.js';
 import { openWorkout } from './workout.js';
 
 // Past days are read-only unless explicitly unlocked; the unlock covers one
@@ -474,8 +475,9 @@ function journalSection(iso, locked) {
     const photoBtn = el('button', { class: 'ghost-btn journal-btn', onclick: () => fileInput.click() }, '+ Photo');
     actions.append(photoBtn);
     // monthly cadence: mark the button once the newest photo is 28+ days old
-    // (today only — a "due" tag on a past day would be nonsense)
-    if (iso === todayISO()) {
+    // (today only, and only while a sprint is RUNNING — no nags in the
+    // between-sprints gap)
+    if (iso === todayISO() && sprintActive()) {
       allPhotos().then((photos) => {
         const last = photos.length ? photos[photos.length - 1].date : null;
         if (!last || last <= addDays(iso, -28)) {

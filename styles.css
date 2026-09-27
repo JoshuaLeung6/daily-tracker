@@ -695,6 +695,24 @@ html[data-theme="light"] body::before {
   text-align: center;
 }
 
+/* Settings: sprint shelf + the inactive sprint view */
+.sprint-row { width: 100%; align-items: center; justify-content: space-between; gap: 10px; text-align: left; }
+.sprint-row-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sprint-status {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 2px 9px;
+  flex-shrink: 0;
+}
+.sprint-status.on { color: var(--accent); border-color: var(--accent); }
+.retro-card { display: block; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+.sprint-ov-dates { font-size: 13px; margin-bottom: 12px; }
+
 /* Ask Claude (Coach pane) */
 .ai-chips { margin-bottom: 10px; }
 .ai-q {

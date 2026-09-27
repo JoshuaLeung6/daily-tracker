@@ -27,7 +27,7 @@ import { lineChart, barChart, svgEl } from '../charts.js';
 import { allPhotos } from '../photos.js';
 import { openLightbox } from './day.js';
 import { askClaude, hasClaudeKey, lastAsk } from '../claude.js';
-import { SPRINTS, sprintReport, currentSprint, shortLiftName } from '../sprints.js';
+import { SPRINTS, sprintReport, currentSprint, sprintActive, shortLiftName } from '../sprints.js';
 import { liftingSessionTarget, cardioDayTarget } from '../insights.js';
 import { CALORIE_BANDS, FLAGS } from '../config.js';
 
@@ -96,6 +96,16 @@ function dashboardPane(rerender) {
     el('span', { class: 'rp-dim' }, `${fmt(r.start.iso, { month: 'short', day: 'numeric' })} → ${fmt(r.end, { month: 'short', day: 'numeric' })}`),
   ));
 
+  // TWO canonical renderings, for this and every future sprint: the ACTIVE
+  // view (live dashboard with pacing, below) while the sprint runs, and the
+  // INACTIVE view (final report) once it is done. Progress flips over
+  // automatically; the Settings sprint shelf opens the same inactive view
+  // for any sprint via openSprintOverlay().
+  if (r.done) {
+    wrap.append(...sprintFinalSections(sprint, r));
+    return wrap;
+  }
+
   // 2. hero: weight pace vs goal + strength total, side by side
   const heroes = el('div', { class: 'dash-heroes' });
 
@@ -163,32 +173,8 @@ function dashboardPane(rerender) {
   if (wt) wrap.append(intakeCard(gw));
 
   // 3. consistency across the whole sprint so far — percentages only
-  const a = r.adherence28;
-  if (a) {
-    const ring = (label, done, of, target) => {
-      const p = of > 0 ? done / of : 0;
-      const need = target != null ? target : 0.8;
-      const cls = p >= need ? ' st-good' : p >= need * 0.6 ? ' st-neutral' : ' st-bad';
-      return el('div', { class: 'adh-cell' + cls },
-        el('div', { class: 'adh-pct wk-cell-v' }, `${Math.round(p * 100)}%`),
-        el('div', { class: 'adh-l' }, label),
-      );
-    };
-    const liftTarget = liftingSessionTarget() / 7;
-    wrap.append(el('div', { class: 'settings-section' },
-      el('div', { class: 'card adh-card' },
-        ring('lifts', a.lifts.done, a.lifts.of, liftTarget * 0.9),
-        ring('protein', a.protein.done, a.protein.of, 0.8),
-        ring('calories', a.calories.done, a.calories.of, 0.7),
-        // cardio is scored per WEEK (weeks hitting the target), not per day,
-        // and counts real conditioning only (run/squash/bike) — the 10k-step
-        // walking habit is its own daily ring
-        a.cardio ? ring('cardio', a.cardio.done, a.cardio.of, 0.8) : null,
-        a.steps ? ring('10k steps', a.steps.done, a.steps.of, 0.8) : null,
-        a.sleep ? ring('sleep', a.sleep.done, a.sleep.of, 0.8) : null,
-      ),
-    ));
-  }
+  const adh = adherenceCard(r.adherence28);
+  if (adh) wrap.append(adh);
 
   // 4. charts: weight vs goal line, strength total over the sprint
   // The range toggle governs BOTH charts (weight and strength share an
@@ -408,6 +394,142 @@ function openStrengthSheet(r, sprint) {
   document.body.append(overlay);
 }
 
+// Consistency percentages across the sprint — shared by the active and
+// inactive sprint views.
+function adherenceCard(a) {
+  if (!a) return null;
+  const ring = (label, done, of, target) => {
+    const p = of > 0 ? done / of : 0;
+    const need = target != null ? target : 0.8;
+    const cls = p >= need ? ' st-good' : p >= need * 0.6 ? ' st-neutral' : ' st-bad';
+    return el('div', { class: 'adh-cell' + cls },
+      el('div', { class: 'adh-pct wk-cell-v' }, `${Math.round(p * 100)}%`),
+      el('div', { class: 'adh-l' }, label),
+    );
+  };
+  const liftTarget = liftingSessionTarget() / 7;
+  return el('div', { class: 'settings-section' },
+    el('div', { class: 'card adh-card' },
+      ring('lifts', a.lifts.done, a.lifts.of, liftTarget * 0.9),
+      ring('protein', a.protein.done, a.protein.of, 0.8),
+      ring('calories', a.calories.done, a.calories.of, 0.7),
+      // cardio is scored per WEEK (weeks hitting the target), not per day,
+      // and counts real conditioning only (run/squash/bike) — the 10k-step
+      // walking habit is its own daily ring
+      a.cardio ? ring('cardio', a.cardio.done, a.cardio.of, 0.8) : null,
+      a.steps ? ring('10k steps', a.steps.done, a.steps.of, 0.8) : null,
+      a.sleep ? ring('sleep', a.sleep.done, a.sleep.of, 0.8) : null,
+    ),
+  );
+}
+
+// The INACTIVE sprint view: the final report. No pacing, no nags — the
+// sprint is history, so it reads as a record: retrospective (once written
+// into the sprint config), outcomes vs goals, consistency, the two trend
+// charts clamped to the sprint window (tap for drill-downs), and totals.
+// Also used mid-sprint by the Settings shelf as a snapshot ("so far").
+function sprintFinalSections(sprint, r) {
+  const wt = weightTracker();
+  const unit = wt && wt.unit ? ` ${wt.unit}` : '';
+  const out = [];
+
+  // retrospective — written into js/sprints.js (retro: '...') after the
+  // end-of-sprint review; absent until then
+  if (sprint.retro) {
+    out.push(el('div', { class: 'settings-section' },
+      el('div', { class: 'card retro-card' }, sprint.retro)));
+  }
+
+  // outcomes: where it ended vs where it aimed. Plain ink for a miss — the
+  // sprint is over, and a report is not a nag.
+  const gw = r.goals && r.goals.weight;
+  const st = r.strength;
+  const oc = el('div', { class: 'card report-card' });
+  if (gw) {
+    // startValue can be null when weigh-ins began late — never let the
+    // report throw over a missing baseline
+    oc.append(rpRowS('Weight', el('span', {},
+      el('b', {}, `${gw.startValue != null ? `${fmtN(gw.startValue)} → ` : ''}${fmtN(gw.current)}`), unit,
+      el('span', { class: 'rp-dim' }, gw.done ? ' · goal met'
+        : r.done ? ` · goal ${fmtN(gw.target)}, ended ${fmtN(Math.abs(gw.toGo))} ${gw.toGo > 0 ? 'short' : 'past'}`
+          : ` · goal ${fmtN(gw.target)}`))));
+  }
+  if (st && st.now != null) {
+    oc.append(rpRowS('Strength', el('span', {},
+      el('b', {}, `100 → ${Math.round(st.now)}`),
+      el('span', { class: 'rp-dim' }, ` · ${st.delta > 0 ? '+' : ''}${Math.round(st.delta)}% avg on the main lifts`),
+      st.prs ? el('span', { class: 'pr-star' }, ` · ★ ${st.prs}`) : null)));
+  }
+  if (oc.children.length) out.push(el('div', { class: 'settings-section' }, el('h2', {}, 'Outcomes'), oc));
+
+  const adh = adherenceCard(r.adherence28);
+  if (adh) out.push(adh);
+
+  const chartsSec = el('div', { class: 'settings-section' }, el('h2', {}, 'Trends'));
+  if (wt) {
+    const series = measurementSeries(wt.id).filter((p) => p.iso >= r.start.iso && p.iso <= r.end);
+    if (series.length >= 2) {
+      chartsSec.append(el('button', { class: 'card chart-card chart-tap', onclick: () => openWeightSheet(r, sprint, wt) },
+        el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Weight'), el('span', { class: 'hero-chev' }, '›')),
+        lineChart({
+          points: series,
+          goal: gw ? { value: gw.target, label: `goal ${fmtN(gw.target)}` } : null,
+          unit: wt.unit || '',
+          ariaLabel: 'Weight over the sprint',
+          domain: { from: r.start.iso, to: r.end },
+        })));
+    }
+  }
+  if (st && st.series.length >= 2) {
+    chartsSec.append(el('button', { class: 'card chart-card chart-tap', onclick: () => openStrengthSheet(r, sprint) },
+      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Strength'), el('span', { class: 'hero-chev' }, '›')),
+      lineChart({
+        points: st.series,
+        ariaLabel: 'Normalized strength score over the sprint',
+        domain: { from: r.start.iso, to: r.end },
+      })));
+  }
+  if (chartsSec.children.length > 1) out.push(chartsSec);
+
+  const t = r.totals;
+  const tot = el('div', { class: 'card report-card' });
+  tot.append(rpRowS('Workouts', el('span', {}, el('b', {}, String(t.workouts)),
+    el('span', { class: 'rp-dim' }, ` · ${r.sessionsPerWeek.toFixed(1)}/wk`))));
+  tot.append(rpRowS('Days logged', el('span', {}, el('b', {}, String(t.adherence.logged)),
+    el('span', { class: 'rp-dim' }, ` of ${r.elapsed}`))));
+  if (t.calAvg != null) tot.append(rpRowS('Avg calories', el('span', {}, el('b', {}, Math.round(t.calAvg).toLocaleString()), ' kcal')));
+  if (t.proAvg != null) tot.append(rpRowS('Avg protein', el('span', {}, el('b', {}, Math.round(t.proAvg).toLocaleString()), ' g')));
+  tot.append(rpRowS('Cardio', el('span', {}, el('b', {}, String(t.cardioDays)), ' sessions')));
+  out.push(el('div', { class: 'settings-section' }, el('h2', {}, r.done ? 'Sprint totals' : 'Sprint so far'), tot));
+
+  out.push(el('button', { class: 'ghost-btn photos-btn', onclick: () => openPhotoGallery(sprint) }, 'Progress photos'));
+  return out;
+}
+
+// The Settings sprint shelf opens any sprint's report here — the same
+// inactive view Progress shows once a sprint completes.
+export function openSprintOverlay(sprint) {
+  const r = sprintReport(sprint);
+  const overlay = el('div', { class: 'workout-overlay' });
+  const close = () => overlay.remove();
+  const body = el('div', { class: 'wo-body' },
+    el('div', { class: 'rp-dim sprint-ov-dates' },
+      `${fmt(r.start.iso, { month: 'short', day: 'numeric' })} → ${fmt(r.end, { month: 'short', day: 'numeric' })}${r.done ? ' · complete' : ' · in progress'}`),
+    ...sprintFinalSections(sprint, r),
+  );
+  overlay.append(
+    el('div', { class: 'wo-head' },
+      el('div', {},
+        el('div', { class: 'eyebrow' }, sprint.focus || 'Sprint'),
+        el('h2', {}, sprint.name),
+      ),
+      el('button', { class: 'btn primary', onclick: close }, 'Close'),
+    ),
+    body,
+  );
+  document.body.append(overlay);
+}
+
 // Weight drill-down (tap the hero or the chart): pacing vs the sprint goal,
 // the full-sprint projection chart, and a week-by-week table of scale
 // averages. Weekly Δs are graded against the sprint's %/wk band — green in
@@ -430,7 +552,8 @@ function openWeightSheet(r, sprint, wt) {
     card.append(rpRowS('Now', el('span', {}, el('b', {}, fmtN(gw.current)), unit)));
     card.append(rpRowS('Goal', el('span', {}, el('b', {}, fmtN(gw.target)), unit,
       el('span', { class: 'rp-dim' }, ` · by ${fmt(r.end, { month: 'short', day: 'numeric' })}`))));
-    if (cur != null) {
+    // the 28-day rate is a LIVE number — meaningless months after a sprint
+    if (cur != null && !r.done) {
       card.append(rpRowS('Trending', el('span', {}, el('b', {}, `${cur > 0 ? '+' : ''}${fmtN(Math.round(cur * 100) / 100)}`), `${unit}/wk`,
         el('span', { class: 'rp-dim' }, ' · 28-day rate'))));
     }
@@ -457,7 +580,8 @@ function openWeightSheet(r, sprint, wt) {
   }
 
   // --- the sprint chart, always full-domain with the trend projected ---
-  const series = measurementSeries(wt.id).filter((p) => p.iso >= r.start.iso);
+  // (clamped to the sprint window: post-sprint weigh-ins stay out of it)
+  const series = measurementSeries(wt.id).filter((p) => p.iso >= r.start.iso && p.iso <= r.end);
   if (series.length >= 2) {
     body.append(el('div', { class: 'card chart-card' },
       el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Weight')),
@@ -472,10 +596,10 @@ function openWeightSheet(r, sprint, wt) {
     ));
   }
 
-  // --- week-by-week scale averages ---
+  // --- week-by-week scale averages (never past the sprint's end) ---
   const rows = [];
   {
-    const stop = todayISO();
+    const stop = r.end < todayISO() ? r.end : todayISO();
     let index = 0;
     for (let ws = startOfWeek(r.start.iso); ws <= stop; ws = addDays(ws, 7)) {
       index++;
@@ -889,7 +1013,18 @@ function coachPane(rerender) {
   }
 
   // --- active guidance ---
+  // Between sprints the whole "Right now" list goes QUIET: no suggestions,
+  // no stall/lagging-split nags, no photo-due card. Logging keeps working;
+  // coaching pressure resumes when the next sprint starts.
   const active = el('div', { class: 'settings-section' }, el('h2', {}, 'Right now'));
+  if (!sprintActive()) {
+    active.append(el('div', { class: 'empty-state' },
+      'Between sprints — logging stays on; coaching resumes when the next sprint starts.'));
+    wrap.append(active);
+    const aiIdle = askClaudeSection();
+    if (aiIdle) wrap.append(aiIdle);
+    return coachTail(wrap, band);
+  }
   let anyActive = false;
 
   const report = weekReport(today);
@@ -960,13 +1095,21 @@ function coachPane(rerender) {
   const ai = askClaudeSection();
   if (ai) wrap.append(ai);
 
-  // --- the plan: what this sprint is for, and how it is being run ---
+  return coachTail(wrap, band);
+}
+
+// Shared tail of the Coach pane. The plan renders only while a sprint is
+// actually RUNNING — a finished sprint's weekly process goals are not this
+// week's obligations. Reference cards are education, not pressure, so they
+// stay in both states.
+function coachTail(wrap, band) {
   // Lives here rather than on Progress: Progress is the live scoreboard,
   // this is the standing reference for what the numbers are aiming at.
-  const sprintNow = currentSprint();
-  if (sprintNow) wrap.append(planSection(sprintReport(sprintNow), sprintNow));
+  if (sprintActive()) {
+    const sprintNow = currentSprint();
+    if (sprintNow) wrap.append(planSection(sprintReport(sprintNow), sprintNow));
+  }
 
-  // --- reference cards ---
   const ref = el('div', { class: 'settings-section' }, el('h2', {}, 'Reference'));
   ref.append(
     refCard('Rep ranges', 'Strength lives at 1–6 reps with heavy loads; muscle grows anywhere from ~5–30 reps if sets approach failure. You train 8–15 across the board — weight days push load, volume days push sets.', repRangeDiagram()),

@@ -129,6 +129,10 @@ async function setNumberInput(page, selector, value) {
   });
   check('clearing the field removes the key', await page.evaluate(() => localStorage.getItem('pcal:claudeKey')) === null);
 
+  // sprints shelf: Sprint 1 listed as active while the sprint runs
+  const shelfRow = await page.$eval('.sprint-row', (e) => e.textContent);
+  check('sprints shelf: Sprint 1 active', /Sprint 1/.test(shelfRow) && /Active/.test(shelfRow), shelfRow);
+
   // ---- 6. streaks: inject history before app boot ----
   const isoList = [-1, -2, -3, -4, -5, -6, -7, -8, -9, -10].map(localISO);
   const streakScript = await page.evaluateOnNewDocument(({ isoList, todayKey }) => {

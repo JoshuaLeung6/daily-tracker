@@ -220,6 +220,18 @@ export function resolveSprint(s) {
   return start ? { ...s, start } : null;
 }
 
+// Every configured sprint, resolved, config order (oldest first).
+export function allSprints() {
+  return SPRINTS.map(resolveSprint).filter(Boolean);
+}
+
+// Is a sprint RUNNING today? The between-sprints gap keeps logging alive but
+// silences coaching pressure (pacing lines, nags, suggestions).
+export function sprintActive() {
+  const today = todayISO();
+  return allSprints().some((s) => s.start <= today && today <= s.end);
+}
+
 export function currentSprint() {
   const today = todayISO();
   for (const s of SPRINTS) {
@@ -246,6 +258,12 @@ function snapshotAt(iso, sprintStart) {
     snap.weight = trendWeightOn(wt.id, iso) ?? trendWeightOn(wt.id, addDays(iso, 6));
     if (snap.weight == null && iso === sprintStart) {
       for (let i = 7; i <= 28 && snap.weight == null; i += 7) snap.weight = trendWeightOn(wt.id, addDays(iso, i));
+    }
+    // for an END-of-sprint snapshot, fall back BACKWARD: weigh-ins often
+    // stop a few days before the end (a trip, a lapse), and a final report
+    // with no weight outcome is worse than one dated a week early
+    if (snap.weight == null && iso !== sprintStart) {
+      for (let i = 7; i <= 28 && snap.weight == null; i += 7) snap.weight = trendWeightOn(wt.id, addDays(iso, -i));
     }
   }
   for (const s of liftStats()) {
