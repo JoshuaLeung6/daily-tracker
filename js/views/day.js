@@ -3,7 +3,7 @@
 
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
-import { getEntry, setValue, persistNow, getNote, setNote } from '../store.js';
+import { getEntry, setValue, persistNow, getNote, setNote, collapsedDayGroups, setDayGroupCollapsed } from '../store.js';
 import { photosOn, addPhoto, deletePhoto, allPhotos, updateCaption } from '../photos.js';
 import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets, previousValue } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, FOCUS_LABELS, sessionHadPR } from '../workouts.js';
@@ -162,19 +162,60 @@ export function render(container, ctx) {
   // checkbox is derived from the workout log (logging a workout checks it),
   // so it has no card of its own — the workout section IS that checkbox.
   const isLiftBox = (t) => t.type === 'checkbox' && /weightlift/i.test(t.name);
-  // measurements (weight) first — the morning number leads the day
-  const active = activeTrackers()
-    .filter((t) => !isLiftBox(t) && (!locked || t.id in entry))
-    .sort((a, b) => (a.type === 'measurement' ? 0 : 1) - (b.type === 'measurement' ? 0 : 1));
-  for (const t of active) cards.append(trackerCard(t, iso, entry, locked, rerender));
-
+  const active = activeTrackers().filter((t) => !isLiftBox(t) && (!locked || t.id in entry));
   // archived trackers still show on days where they have data
   const archivedWithData = allTrackers().filter((t) => t.archived && !isLiftBox(t) && t.id in entry);
-  for (const t of archivedWithData) {
+  const all = [...active, ...archivedWithData];
+
+  const cardFor = (t) => {
     const card = trackerCard(t, iso, entry, locked, rerender);
-    card.classList.add('is-archived');
-    cards.append(card);
+    if (t.archived) card.classList.add('is-archived');
+    return card;
+  };
+
+  // GROUPED day view: Movement / Intake / Recovery (config-assigned via
+  // t.group), each collapsible with the state remembered per device. All
+  // groups default OPEN — a fold you must undo before logging is a tap tax,
+  // so folding is the user's own choice. Headers carry "n/m logged" so a
+  // folded group still glances. Ungrouped trackers (Weight) sit on top:
+  // the goal instrument leads the day.
+  const GROUPS = [['movement', 'Movement'], ['intake', 'Intake'], ['recovery', 'Recovery']];
+  const hasValue = (t) => {
+    const v = entry[t.id];
+    if (v == null || v === '' || v === false) return false;
+    if (Array.isArray(v) && v.length === 0) return false;
+    return true;
+  };
+
+  for (const t of all.filter((x) => !x.group)) cards.append(cardFor(t));
+
+  const collapsed = collapsedDayGroups();
+  for (const [key, label] of GROUPS) {
+    const members = all.filter((t) => t.group === key);
+    const isMovement = key === 'movement';
+    const wo = isMovement ? getWorkout(iso) : null;
+    const logged = members.filter(hasValue).length + (wo ? 1 : 0);
+    const total = members.length + (isMovement ? 1 : 0);
+    if (total === 0) continue;
+    if (locked && logged === 0) continue;   // locked days: silent empty groups
+    const isOpen = !collapsed[key];
+    cards.append(el('button', {
+      class: 'day-group-head' + (isOpen ? ' open' : ''),
+      'aria-expanded': String(isOpen),
+      onclick: () => { setDayGroupCollapsed(key, isOpen); rerender(); },
+    },
+      el('span', { class: 'dg-label' }, label),
+      el('span', { class: 'dg-sum' }, `${logged}/${total} logged`),
+      el('span', { class: 'wo-chevron' }, isOpen ? '⌄' : '›'),
+    ));
+    if (isOpen) {
+      const body = el('div', { class: 'day-group' });
+      if (isMovement) body.append(workoutSection(iso, locked, rerender));
+      for (const t of members) body.append(cardFor(t));
+      cards.append(body);
+    }
   }
+
   if (locked && active.length === 0 && archivedWithData.length === 0) {
     cards.append(el('div', { class: 'empty-state' }, 'Nothing logged this day.'));
   }
@@ -191,9 +232,8 @@ export function render(container, ctx) {
     }, lockIcon(locked), locked ? 'Locked — tap to edit' : 'Editing past day');
     pieces.push(el('div', { class: 'lock-row' }, pill));
   }
-  container.replaceChildren(...pieces, cards,
-    workoutSection(iso, locked, () => render(container, ctx)),
-    journalSection(iso, locked));
+  // the workout logger lives inside the Movement group now
+  container.replaceChildren(...pieces, cards, journalSection(iso, locked));
 
   if (!locked && active.length === 0 && archivedWithData.length === 0) {
     cards.append(el('div', { class: 'empty-state' }, 'No trackers yet. Add one in Settings.'));

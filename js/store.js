@@ -235,3 +235,18 @@ export function setTheme(v) {
   try { localStorage.setItem(KEY_THEME, v); } catch { /* non-critical */ }
 }
 
+// Day-view group collapse state (UI preference, per device).
+const KEY_DAY_GROUPS = 'pcal:dayGroups';
+export function collapsedDayGroups() {
+  try { return JSON.parse(localStorage.getItem(KEY_DAY_GROUPS)) || {}; } catch { return {}; }
+}
+
+export function setDayGroupCollapsed(group, collapsed) {
+  try {
+    const g = collapsedDayGroups();
+    if (collapsed) g[group] = true;
+    else delete g[group];
+    localStorage.setItem(KEY_DAY_GROUPS, JSON.stringify(g));
+  } catch { /* non-critical */ }
+}
+

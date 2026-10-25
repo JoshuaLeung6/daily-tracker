@@ -51,8 +51,14 @@ async function setNumberInput(page, selector, value) {
   // config trackers; Weightlifting has no day card (derived from the workout log)
   // weight (measurement) sorts first
   // measurements (Weight) sort first
-  check('day cards are Weight, Calories, Protein, Cardio, 10k steps, Sleep 7h+',
-    JSON.stringify(names) === JSON.stringify(['Weight', 'Calories', 'Protein', 'Cardio', '10k steps', 'Sleep 7h+']), names.join(','));
+  // grouped day view: Weight ungrouped on top, then Movement (Cardio,
+  // 10k steps), Intake (Calories, Protein), Recovery (Sleep)
+  check('day cards grouped: Weight, then Movement, Intake, Recovery',
+    JSON.stringify(names) === JSON.stringify(['Weight', 'Cardio', '10k steps', 'Calories', 'Protein', 'Sleep 7h+']), names.join(','));
+  const groupHeads = await page.$$eval('.day-group-head', (els) => els.map((e) => e.textContent));
+  check('three group headers with logged counts',
+    groupHeads.length === 3 && /Movement/.test(groupHeads[0]) && /Intake/.test(groupHeads[1]) && /Recovery/.test(groupHeads[2])
+    && groupHeads.every((t) => /\d\/\d logged/.test(t)), groupHeads.join(' | '));
   const chips = await page.$$eval('.chip', (els) => els.map((e) => e.textContent));
   check('Cardio has 4 chips (walk removed, kayak added)', JSON.stringify(chips) === JSON.stringify(['run', 'squash', 'bike', 'kayak']), chips.join(','));
 
@@ -68,6 +74,19 @@ async function setNumberInput(page, selector, value) {
   stored = await page.evaluate(() => JSON.parse(localStorage.getItem('pcal:data')));
   v = (stored.entries[today] || {})[cardioId];
   check('deselecting run leaves [bike]', JSON.stringify(v) === JSON.stringify(['bike']), JSON.stringify(v));
+
+  // collapse Intake: its cards hide, the choice survives a reload
+  const intakeVisible = () => page.evaluate(() =>
+    [...document.querySelectorAll('.card .t-name')].some((n) => n.childNodes[0].textContent.trim() === 'Calories'));
+  await page.evaluate(() => [...document.querySelectorAll('.day-group-head')].find((h) => h.textContent.includes('Intake')).click());
+  await new Promise((r) => setTimeout(r, 200));
+  check('collapsed group hides its cards', !(await intakeVisible()));
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForSelector('.card');
+  check('collapse state survives reload', !(await intakeVisible()));
+  await page.evaluate(() => [...document.querySelectorAll('.day-group-head')].find((h) => h.textContent.includes('Intake')).click());
+  await new Promise((r) => setTimeout(r, 200));
+  check('reopening restores the cards', await intakeVisible());
 
   // ---- 3. theme toggle ----
   await page.click('.tab[data-tab="settings"]');

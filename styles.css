@@ -369,6 +369,37 @@ html[data-theme="light"] body::before {
 
 .cards { display: flex; flex-direction: column; gap: 10px; }
 
+/* grouped day view: Movement / Intake / Recovery section headers */
+.day-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  min-height: 40px;
+  margin-top: 8px;
+  padding: 4px 2px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--hairline);
+}
+.day-group-head:first-child { margin-top: 0; }
+.day-group-head .dg-label { flex: 1; }
+.day-group-head .dg-sum {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.day-group-head .wo-chevron { font-size: 18px; }
+.day-group { display: flex; flex-direction: column; gap: 10px; }
+.day-group .workout-section { margin-top: 0; }
+
 .card {
   display: flex;
   align-items: center;

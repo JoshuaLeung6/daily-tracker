@@ -66,29 +66,32 @@ export const STRIP_OPTIONS = {
 // as the "10k steps" habit (NEAT floor), not as conditioning.
 export const CARDIO_COUNTS = ['run', 'squash', 'bike', 'kayak'];
 
+// Day-view grouping: group is one of movement | intake | recovery; the
+// Day tab renders collapsible sections in that order. No group (Weight) =
+// ungrouped at the top — the goal instrument leads the day.
 // NOTE: every target/goal below is `null` = "keep whatever is already stored
 // on the phone" (the values Joshua set in-app before this switch). Change a
 // null to a concrete target here to make it the source of truth from then on.
 export const TRACKERS = [
-  { name: 'Calories', type: 'number', unit: 'kcal',
+  { name: 'Calories', type: 'number', unit: 'kcal', group: 'intake',
     target: null },   // the in-app target (≥3,000 since Aug 8) stays; grading below
-  { name: 'Protein', type: 'number', unit: 'g',
+  { name: 'Protein', type: 'number', unit: 'g', group: 'intake',
     // 120 g/day (~2 g/kg at ~135 lb), backdated to the start of the data so
     // every past week is graded against it (was 110 in-app)
     target: { period: 'day', value: 120, dir: 'atleast', from: '2026-07-11' } },
-  { name: 'Cardio', type: 'multiselect', options: ['run', 'squash', 'bike', 'kayak'],
+  { name: 'Cardio', type: 'multiselect', options: ['run', 'squash', 'bike', 'kayak'], group: 'movement',
     // real cardio only, once a week minimum — backdated to the sprint start
     target: { period: 'week', value: 1, from: '2026-07-11' } },
-  { name: '10k steps', type: 'checkbox',
+  { name: '10k steps', type: 'checkbox', group: 'movement',
     target: { period: 'day', value: 1 } },   // daily habit; walking = NEAT floor
-  { name: 'Sleep 7h+', type: 'checkbox',
+  { name: 'Sleep 7h+', type: 'checkbox', group: 'recovery',
     // CONVENTION: a day's checkbox = the night you WOKE UP FROM that morning
     // (Monday's box = Sunday night). Log it with the morning weigh-in.
     // ~7h actually ASLEEP: the Watch number if worn, else time-in-bed minus
     // ~30 min. Groggy despite the hours? Log honestly and cap the top set.
     // Target stamps the day it was added — no backdating, no fake 0% history.
     target: { period: 'day', value: 1 } },
-  { name: 'Weightlifting', type: 'checkbox',
+  { name: 'Weightlifting', type: 'checkbox', group: 'movement',
     // 6 sessions/week (PPL x2) — backdated to the sprint start
     target: { period: 'week', value: 6, from: '2026-07-11' } },
   { name: 'Weight', type: 'measurement', unit: 'lb',

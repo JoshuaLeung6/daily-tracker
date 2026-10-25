@@ -87,13 +87,14 @@ export function applyConfig(configTrackers, paceLookup) {
       t = {
         id: 't_' + crypto.randomUUID(), name: c.name, type: c.type,
         unit: c.unit || null, order: i, archived: false,
+        group: c.group || null,
       };
       if (c.options) t.options = [...c.options];
       doc.trackers.push(t);
       byName.set(key, t);
       changed = true;
     } else {
-      const patch = { type: c.type, unit: c.unit || null, order: i, archived: false };
+      const patch = { type: c.type, unit: c.unit || null, order: i, archived: false, group: c.group || null };
       if (c.options) patch.options = [...c.options];
       for (const [k, v] of Object.entries(patch)) {
         if (JSON.stringify(t[k]) !== JSON.stringify(v)) { t[k] = v; changed = true; }
