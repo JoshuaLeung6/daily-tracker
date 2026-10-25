@@ -276,17 +276,22 @@ async function setNumberInput(page, selector, value) {
   check('single-select keeps one value (rough replaces great)', moodVal === 'rough', JSON.stringify(moodVal));
 
 
-  // ---- Manual tab: five zone pages, plan + persistent notes ----
+  // ---- Manual tab: Coach first, then five zone pages (plan + notes) ----
   await page.click('.tab[data-tab="manual"]');
-  await page.waitForSelector('.manual-pane');
+  await page.waitForSelector('.mn-btn');
   const mnBtns = await page.$$eval('.mn-btn', (els) => els.map((e) => e.textContent));
-  check('manual: five zone subtabs', JSON.stringify(mnBtns) === JSON.stringify(['Move', 'Intake', 'Recover', 'Maintain', 'Repair']), mnBtns.join(','));
+  check('manual: Coach + five zone subtabs', JSON.stringify(mnBtns) === JSON.stringify(['Coach', 'Move', 'Intake', 'Recover', 'Maint.', 'Repair']), mnBtns.join(','));
+  check('manual: Coach is the default page', (await page.$('#view-manual .ref-card')) !== null);
+  await page.evaluate(() => [...document.querySelectorAll('.mn-btn')].find((b) => b.textContent === 'Move').click());
+  await page.waitForSelector('.manual-pane');
   check('manual: movement plan renders', await page.evaluate(() => /8–15 reps/.test(document.querySelector('.manual-pane').textContent)));
   await page.type('.manual-notes', 'bench cue: tuck elbows');
   await new Promise((r) => setTimeout(r, 700));
   await page.reload({ waitUntil: 'networkidle0' });
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="manual"]');
+  await page.waitForSelector('.mn-btn');
+  await page.evaluate(() => [...document.querySelectorAll('.mn-btn')].find((b) => b.textContent === 'Move').click());
   await page.waitForSelector('.manual-notes');
   check('manual: note persists across reload', await page.$eval('.manual-notes', (e) => e.value) === 'bench cue: tuck elbows');
 

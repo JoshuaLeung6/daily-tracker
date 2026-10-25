@@ -391,7 +391,7 @@ html[data-theme="light"] body::before {
    tint for the lead card's edge; Maintenance and Repair reuse app tokens
    (service blue, alert red) rather than minting new hues. */
 .manual-seg { margin-top: 14px; padding: 3px; }
-.manual-seg .seg-btn { min-height: 34px; font-size: 11px; padding: 0 2px; }
+.manual-seg .seg-btn { min-height: 34px; font-size: 10.5px; padding: 0 1px; }   /* six buttons on 390px */
 .mnp-movement { --gt: var(--g-move); }
 .mnp-intake { --gt: var(--g-intake); }
 .mnp-recovery { --gt: var(--g-recover); }

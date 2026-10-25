@@ -66,12 +66,14 @@ function check(name, ok, extra = '') {
   check('inactive view: weight outcome vs goal', /goal 145/.test(spText), spText.slice(0, 400));
   await page.screenshot({ path: path.join(__dirname, 'shots', 'sprint-done.png') });
 
-  // ---- 3. Coach goes quiet ----
-  await page.evaluate(() => [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((b) => b.textContent === 'Coach').click());
+  // ---- 3. Coach (in the Manual) goes quiet ----
+  await page.click('.tab[data-tab="manual"]');
+  await page.waitForSelector('.mn-btn');
+  await page.evaluate(() => [...document.querySelectorAll('.mn-btn')].find((b) => b.textContent === 'Coach').click());
   await new Promise((r) => setTimeout(r, 300));
-  const coachText = await page.$eval('#view-stats', (e) => e.textContent);
+  const coachText = await page.$eval('#view-manual', (e) => e.textContent);
   check('gap: Coach shows the between-sprints note', /Between sprints/.test(coachText));
-  check('gap: no suggestion or nag cards', (await page.$$('#view-stats .suggest-card, #view-stats .rx-card')).length === 0);
+  check('gap: no suggestion or nag cards', (await page.$$('#view-manual .suggest-card, #view-manual .rx-card')).length === 0);
   check('gap: no plan section, reference cards stay', !/Process goals/.test(coachText) && /Reference/.test(coachText));
 
   // ---- 4. Settings shelf: Complete row opens the report overlay ----

@@ -101,12 +101,36 @@ export const MANUAL = {
     ],
   },
   maintenance: {
-    text: 'Scheduled upkeep — the appointments that silently lapse for years because nothing tracks them. The reminder calendar lands here once the last-visit dates are in.',
-    rows: [
-      ['Dentist', 'every 6 months'],
-      ['Physical', 'yearly'],
-      ['Skin check', 'yearly'],
-      ['Physio', 'as needed — via Repair'],
+    text: 'The upkeep encyclopedia: habits, cadences, and who to see for what. Scan it now and then and ask one question — is anything here missing from my life right now?',
+    sections: [
+      ['Daily', [
+        ['Teeth', 'brush 2× with fluoride · floss once, evenings'],
+        ['Skin', 'cleanse + moisturize; SPF 30 on the face when outdoors'],
+        ['Sunlight', '10–30 min outside, ideally before noon'],
+        ['Vitamin D', '1,000–2,000 IU/day through the dark months (Oct–Apr)'],
+        ['After training', 'shower soon; rinse the face after heavy sweat'],
+      ]],
+      ['Monthly', [
+        ['Skin self-check', 'scan moles — asymmetry, border, colour, diameter, evolving'],
+        ['This Manual', 'reread this page; update what changed'],
+      ]],
+      ['Scheduled', [
+        ['Dentist', 'cleaning every 6 months'],
+        ['Physical + bloodwork', 'yearly — lipids, A1c, vitamin D'],
+        ['Skin check (professional)', 'yearly, GP or dermatologist'],
+        ['Eyes', 'optometrist every 2 years — you work on screens'],
+      ]],
+      ['Who to see for what', [
+        ['Joint or muscle pain > 2 weeks', 'physiotherapist — and log it in Repair'],
+        ['A mole that changed', 'dermatologist, soon'],
+        ['Bleeding gums', 'dentist'],
+        ['Eye strain, headaches', 'optometrist'],
+        ['Persistent fatigue or low mood', 'GP + bloodwork before guessing'],
+      ]],
+      ['Supplements', [
+        ['Worth it', 'creatine 5 g/day · vitamin D in winter · omega-3 if you rarely eat fish'],
+        ['Skip', 'almost everything else; protein powder is food, not a supplement'],
+      ]],
     ],
   },
   repair: {

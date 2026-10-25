@@ -7,15 +7,18 @@
 import { el } from '../ui.js';
 import { MANUAL } from '../config.js';
 import { getManualNote, setManualNote, persistNow } from '../store.js';
+import { coachPane } from './stats.js';
 
+// Coach leads: the live "what should I do now" page, then the five zones.
 const CATS = [
+  ['coach', 'Coach'],
   ['movement', 'Move'],
   ['intake', 'Intake'],
   ['recovery', 'Recover'],
-  ['maintenance', 'Maintain'],
+  ['maintenance', 'Maint.'],
   ['repair', 'Repair'],
 ];
-let cat = 'movement';
+let cat = 'coach';
 
 export function render(container) {
   const head = el('header', { class: 'view-head' },
@@ -34,17 +37,27 @@ export function render(container) {
       onclick: () => { cat = key; render(container); },
     }, label)));
 
+  if (cat === 'coach') {
+    container.replaceChildren(head, el('div', { class: 'ledger-rule' }), seg, coachPane(() => render(container)));
+    return;
+  }
+
   const m = MANUAL[cat] || { text: '', rows: [] };
   const pane = el('div', { class: `pane manual-pane mnp-${cat}` });
   if (m.text) pane.append(el('div', { class: 'card manual-text' }, m.text));
-  if (m.rows && m.rows.length) {
-    const plan = el('div', { class: 'card plan-card' });
-    for (const [k, v] of m.rows) {
-      plan.append(el('div', { class: 'plan-row' },
+  const rowCard = (rows) => {
+    const card = el('div', { class: 'card plan-card' });
+    for (const [k, v] of rows) {
+      card.append(el('div', { class: 'plan-row' },
         el('span', { class: 'plan-k' }, k),
         el('span', { class: 'plan-v' }, v)));
     }
-    pane.append(plan);
+    return card;
+  };
+  if (m.rows && m.rows.length) pane.append(rowCard(m.rows));
+  // encyclopedia-style pages (Maintain) carry titled sections of rows
+  for (const [title, rows] of m.sections || []) {
+    pane.append(el('div', { class: 'settings-section' }, el('h2', {}, title), rowCard(rows)));
   }
 
   // notes: one free text per zone, autosaved like the day note

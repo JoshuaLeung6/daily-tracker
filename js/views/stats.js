@@ -42,31 +42,28 @@ const signed = (n) => `${n > 0 ? '+' : ''}${fmtN(n)}`;
 export function render(container, ctx) {
   const rerender = () => render(container, ctx);
 
-  // Three panes: the sprint dashboard, the lift ledger, and Coach.
-  // (This used to force anything non-Coach back to 'sprint', which silently
-  // made the Lifts tab unopenable once it was added.)
-  const PANES = ['sprint', 'lifts', 'coach'];
+  // Two panes: the sprint scoreboard and the lift ledger. This tab is pure
+  // MEASUREMENT now — Coach (guidance, plans, reference) lives in the
+  // Manual, rendered from here via coachPane (exported below).
+  const PANES = ['sprint', 'lifts'];
   if (!PANES.includes(pane)) pane = 'sprint';
   const sprint = currentSprint();
-  const TITLES = { sprint: 'Progress', lifts: 'Lifts', coach: 'Coach' };
+  const TITLES = { sprint: 'Stats', lifts: 'Lifts' };
   const head = el('header', { class: 'view-head' },
     el('span'),
     el('div', { class: 'masthead' },
-      el('div', { class: 'eyebrow' }, sprint ? sprint.name : 'Progress'),
+      el('div', { class: 'eyebrow' }, sprint ? sprint.name : 'Stats'),
       el('h1', {}, TITLES[pane]),
     ),
     el('span'),
   );
 
-  const paneSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Progress section' },
+  const paneSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Stats section' },
     el('button', { class: 'seg-btn', 'aria-pressed': String(pane === 'sprint'), onclick: () => { pane = 'sprint'; rerender(); } }, 'Progress'),
     el('button', { class: 'seg-btn', 'aria-pressed': String(pane === 'lifts'), onclick: () => { pane = 'lifts'; rerender(); } }, 'Lifts'),
-    el('button', { class: 'seg-btn', 'aria-pressed': String(pane === 'coach'), onclick: () => { pane = 'coach'; rerender(); } }, 'Coach'),
   );
 
-  const paneEl = pane === 'coach' ? coachPane(rerender)
-    : pane === 'lifts' ? liftingPane(rerender)
-      : dashboardPane(rerender);
+  const paneEl = pane === 'lifts' ? liftingPane(rerender) : dashboardPane(rerender);
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), paneSeg, paneEl);
 }
 
@@ -996,7 +993,8 @@ function rpRowS(label, valueEl) {
 
 /* ================= Coach pane ================= */
 
-function coachPane(rerender) {
+// Exported: the Manual renders Coach as its first page.
+export function coachPane(rerender) {
   const wrap = el('div', { class: 'pane' });
   const today = todayISO();
 

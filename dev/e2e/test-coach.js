@@ -108,14 +108,16 @@ const localISO = (offset) => {
   check('rep range shown read-only as 8–15', /8–15/.test(expText), expText.slice(0, 240));
   check('no rep-range inputs in the UI', (await page.$('input[aria-label$="rep range low"]')) === null);
 
-  // ---- 3. Coach pane ----
-  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Coach');
+  // ---- 3. Coach page (lives in the Manual now) ----
+  await page.click('.tab[data-tab="manual"]');
+  await page.waitForSelector('.mn-btn');
+  await page.evaluate(() => [...document.querySelectorAll('.mn-btn')].find((b) => b.textContent === 'Coach').click());
   await page.waitForSelector('.ref-card');
-  const coachText = await page.$eval('#view-stats', (e) => e.textContent);
+  const coachText = await page.$eval('#view-manual', (e) => e.textContent);
   check('coach: ready-to-load card lists Row', /Ready to add weight: Row \(try 160\)/.test(coachText), coachText.slice(0, 400));
   check('coach: bench stall card', /Bench has stalled/.test(coachText));
   check('coach: reference cards present', /Rep ranges/.test(coachText) && /Weekly volume/.test(coachText) && /reps in reserve|Effort/.test(coachText));
-  const diagrams = await page.$$eval('#view-stats svg.diagram', (els) => els.length);
+  const diagrams = await page.$$eval('#view-manual svg.diagram', (els) => els.length);
   check('coach: 3+ diagrams render', diagrams >= 3, `diagrams: ${diagrams}`);
 
   await page.screenshot({ path: path.join(__dirname, 'shots', 'coach-pane.png') });
