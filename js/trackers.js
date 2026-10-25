@@ -90,12 +90,14 @@ export function applyConfig(configTrackers, paceLookup) {
         group: c.group || null,
       };
       if (c.options) t.options = [...c.options];
+      if (c.range) t.range = [...c.range];
       doc.trackers.push(t);
       byName.set(key, t);
       changed = true;
     } else {
       const patch = { type: c.type, unit: c.unit || null, order: i, archived: false, group: c.group || null };
       if (c.options) patch.options = [...c.options];
+      if (c.range) patch.range = [...c.range];
       for (const [k, v] of Object.entries(patch)) {
         if (JSON.stringify(t[k]) !== JSON.stringify(v)) { t[k] = v; changed = true; }
       }

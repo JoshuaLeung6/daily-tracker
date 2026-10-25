@@ -52,14 +52,20 @@ async function setNumberInput(page, selector, value) {
   // weight (measurement) sorts first
   // measurements (Weight) sort first
   // grouped day view: Weight ungrouped on top, then Movement (Cardio,
-  // 10k steps), Intake (Calories, Protein), Recovery (Sleep)
+  // Mobility), Intake (Calories, Protein, Alcohol, Caffeine), Recovery
+  // (Mental health, Sleep)
   check('day cards grouped: Weight, then Movement, Intake, Recovery',
-    JSON.stringify(names) === JSON.stringify(['Weight', 'Cardio', '10k steps', 'Calories', 'Protein', 'Sleep 7h+']), names.join(','));
+    JSON.stringify(names) === JSON.stringify(['Weight', 'Cardio', 'Mobility', 'Calories', 'Protein', 'Alcohol', 'Caffeine', 'Mental health', 'Sleep 7h+']), names.join(','));
   const groupHeads = await page.$$eval('.day-group-head', (els) => els.map((e) => e.textContent));
   check('three group headers with logged counts',
     groupHeads.length === 3 && /Movement/.test(groupHeads[0]) && /Intake/.test(groupHeads[1]) && /Recovery/.test(groupHeads[2])
     && groupHeads.every((t) => /\d\/\d logged/.test(t)), groupHeads.join(' | '));
-  const chips = await page.$$eval('.chip', (els) => els.map((e) => e.textContent));
+  // scope to the Cardio card — Alcohol and Caffeine carry chips too now
+  const chips = await page.evaluate(() => {
+    const card = [...document.querySelectorAll('.card')]
+      .find((c) => c.querySelector('.t-name') && c.querySelector('.t-name').childNodes[0].textContent.trim() === 'Cardio');
+    return [...card.querySelectorAll('.chip')].map((e) => e.textContent);
+  });
   check('Cardio has 4 chips (walk removed, kayak added)', JSON.stringify(chips) === JSON.stringify(['run', 'squash', 'bike', 'kayak']), chips.join(','));
 
   // ---- 2. multiselect chips ----

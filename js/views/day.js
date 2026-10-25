@@ -666,7 +666,14 @@ function numberCard(t, iso, entry, locked, rerender) {
   input.addEventListener('input', () => {
     const cleaned = input.value.replace(/[^0-9.,]/g, '');
     if (cleaned !== input.value) input.value = cleaned;
-    const num = parseFloat(cleaned.replace(',', '.'));
+    let num = parseFloat(cleaned.replace(',', '.'));
+    // config `range` clamps bounded scores (mental health 0–5) so a typo
+    // can't poison averages; only rewrite the field when actually out of
+    // range, or mid-typing decimals ("3.") would lose the dot
+    if (t.range && Number.isFinite(num) && (num < t.range[0] || num > t.range[1])) {
+      num = Math.min(t.range[1], Math.max(t.range[0], num));
+      input.value = String(num);
+    }
     setValue(iso, t.id, Number.isFinite(num) ? num : '');
     updateFill();
   });

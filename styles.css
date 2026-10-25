@@ -374,6 +374,9 @@ html[data-theme="light"] body::before {
   border: 1px solid var(--hairline);
   border-radius: 16px;
   padding: 2px 10px 10px;
+  /* a shade off the page background — mixes correctly in every palette
+     and theme; cards (--surface) still stand out inside it */
+  background: color-mix(in srgb, var(--surface) 45%, var(--bg));
 }
 .day-group-wrap.is-collapsed { padding-bottom: 2px; }
 .day-group-wrap.is-collapsed .day-group-head { border-bottom: none; }

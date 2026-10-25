@@ -79,11 +79,31 @@ export const TRACKERS = [
     // 120 g/day (~2 g/kg at ~135 lb), backdated to the start of the data so
     // every past week is graded against it (was 110 in-app)
     target: { period: 'day', value: 120, dir: 'atleast', from: '2026-07-11' } },
+  // EXCEPTION-LOGGED intake pair: an untouched card = none today, zero
+  // taps. Alcohol is a dose category, not a drink count; caffeine tracks
+  // WHEN (the sleep-relevant fact), not how much. No targets — these are
+  // correlation instruments (alcohol/late caffeine vs sleep vs session
+  // quality), not graded habits.
+  { name: 'Alcohol', type: 'select', options: ['low', 'moderate', 'high'], group: 'intake',
+    target: null },
+  { name: 'Caffeine', type: 'multiselect', options: ['morning', 'afternoon', 'night'], group: 'intake',
+    target: null },
   { name: 'Cardio', type: 'multiselect', options: ['run', 'squash', 'bike', 'kayak'], group: 'movement',
     // real cardio only, once a week minimum — backdated to the sprint start
     target: { period: 'week', value: 1, from: '2026-07-11' } },
-  { name: '10k steps', type: 'checkbox', group: 'movement',
-    target: { period: 'day', value: 1 } },   // daily habit; walking = NEAT floor
+  // ('10k steps' was removed 2026-10-25: unlisting archives it — history
+  // kept, hidden everywhere. SEED_VALUES above stays as a historical record.)
+  { name: 'Mobility', type: 'checkbox', group: 'movement',
+    // ≥10 min of mobility/stretch/posture work counts; gentle 2×/week so it
+    // grades without nagging. Target stamps the day it was added.
+    target: { period: 'week', value: 2 } },
+  { name: 'Mental health', type: 'number', unit: '/5', group: 'recovery',
+    // subjective 0–5, halves welcome (type 3.5). range clamps typos so a
+    // stray "35" can't poison averages. No target on purpose: a graded mood
+    // is a guilt machine — this is a correlation instrument (sleep, alcohol,
+    // training load vs how you actually feel).
+    range: [0, 5],
+    target: null },
   { name: 'Sleep 7h+', type: 'checkbox', group: 'recovery',
     // CONVENTION: a day's checkbox = the night you WOKE UP FROM that morning
     // (Monday's box = Sunday night). Log it with the morning weigh-in.

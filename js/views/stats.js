@@ -721,7 +721,6 @@ function planSection(r, sprint) {
   sec.append(block('Process goals', 'what has to happen every week', [
     ['Lifting', `PPL · ${liftT}×/week`],
     ['Cardio', `${cardioT}×/week`],
-    ['Steps', '10k/day'],
     ['Calories', calT],
     proT && ['Protein', proT],
   ]));
@@ -731,7 +730,7 @@ function planSection(r, sprint) {
     ['Calories', 'drives the surplus — and measures maintenance'],
     ['Protein', 'keeps the gain lean rather than fat'],
     ['Weight', 'the feedback signal for pace'],
-    ['Cardio + 10k steps', 'health and body-fat maintenance'],
+    ['Cardio', 'health and body-fat maintenance'],
     ['Workouts', 'PPL sessions, lifts, and e1RM progression'],
   ]));
 
