@@ -199,7 +199,9 @@ export function render(container, ctx) {
     if (total === 0) continue;
     if (locked && logged === 0) continue;   // locked days: silent empty groups
     const isOpen = !collapsed[key];
-    cards.append(el('button', {
+    // the whole group lives in one faint bubble: header + cards
+    const bubble = el('div', { class: 'day-group-wrap' + (isOpen ? '' : ' is-collapsed') });
+    bubble.append(el('button', {
       class: 'day-group-head' + (isOpen ? ' open' : ''),
       'aria-expanded': String(isOpen),
       onclick: () => { setDayGroupCollapsed(key, isOpen); rerender(); },
@@ -212,8 +214,9 @@ export function render(container, ctx) {
       const body = el('div', { class: 'day-group' });
       if (isMovement) body.append(workoutSection(iso, locked, rerender));
       for (const t of members) body.append(cardFor(t));
-      cards.append(body);
+      bubble.append(body);
     }
+    cards.append(bubble);
   }
 
   if (locked && active.length === 0 && archivedWithData.length === 0) {
