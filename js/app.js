@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.57.0';
+export const APP_VERSION = '2.58.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -146,8 +146,23 @@ function switchTab(tab) {
   // the gear is redundant while Settings is open
   const gearBtn = document.querySelector('.settings-gear');
   if (gearBtn) gearBtn.hidden = tab === 'settings';
+  updateSprintFill();
   renderActive();
   sections[tab].scrollTop = 0;
+}
+
+// The footer's top hairline fills day by day toward the sprint end —
+// per-DAY, not per-week, so it visibly moves. Empty between sprints.
+function updateSprintFill() {
+  const fill = document.getElementById('tab-sprint-fill');
+  if (!fill) return;
+  const s = currentSprint();
+  const today = todayISO();
+  if (!s || today < s.start || today > s.end) { fill.style.width = '0'; return; }
+  const DAY = 86400000;
+  const total = (Date.parse(s.end) - Date.parse(s.start)) / DAY + 1;
+  const done = (Date.parse(today) - Date.parse(s.start)) / DAY + 1;
+  fill.style.width = `${Math.min(100, Math.max(0, (done / total) * 100)).toFixed(1)}%`;
 }
 
 document.querySelector('.settings-gear').addEventListener('click', () => switchTab('settings'));

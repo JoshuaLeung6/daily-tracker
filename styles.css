@@ -392,6 +392,19 @@ html[data-theme="light"] body::before {
 }
 .settings-gear svg { width: 19px; height: 19px; }
 
+/* sprint progress hairline: the footer's top edge fills day by day toward
+   the sprint end — the chrome counts down with you. Empty between sprints. */
+.tab-sprint-fill {
+  position: absolute;
+  top: -1px;            /* sits on the bar's top hairline */
+  left: 0;
+  height: 2px;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.3s;
+  pointer-events: none;
+}
+
 /* bounded-score slider (e.g. Mental health 0–5 in halves) */
 .slider { width: 100%; accent-color: var(--accent); min-height: 30px; }
 .slider:disabled { opacity: 0.6; }
