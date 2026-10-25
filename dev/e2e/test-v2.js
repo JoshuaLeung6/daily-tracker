@@ -66,7 +66,7 @@ async function setNumberInput(page, selector, value) {
       .find((c) => c.querySelector('.t-name') && c.querySelector('.t-name').childNodes[0].textContent.trim() === 'Cardio');
     return [...card.querySelectorAll('.chip')].map((e) => e.textContent);
   });
-  check('Cardio has 4 chips (walk removed, kayak added)', JSON.stringify(chips) === JSON.stringify(['run', 'squash', 'bike', 'kayak']), chips.join(','));
+  check('Cardio has 7 chips', JSON.stringify(chips) === JSON.stringify(['run', 'squash', 'bike', 'kayak', 'tennis', 'swim', 'climb']), chips.join(','));
 
   // ---- 2. multiselect chips ----
   await clickByText('.chip', 'run');
@@ -193,7 +193,7 @@ async function setNumberInput(page, selector, value) {
   await setNumberInput(page, '.card input[aria-label="Calories"]', '2500');
 
   // ---- 7. week view: totals, weekly goal, days count ----
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
   // Open the LAST COMPLETE week, not the current one: on a Monday the current
   // week has no completed days, so per-day lines have nothing to average.

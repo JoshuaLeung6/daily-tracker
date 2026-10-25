@@ -89,7 +89,7 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.reload({ waitUntil: 'networkidle0' });
   await page.removeScriptToEvaluateOnNewDocument(injA.identifier);
   await page.waitForSelector('.card');
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
   // Open the LAST COMPLETE week, not the current one. On a Monday the current
   // week has zero completed days, so its calorie/protein lines correctly have
@@ -118,9 +118,9 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
 
   // ---- overview: tab away and back resets to the zoomed-out graded list ----
   await page.click('.tab[data-tab="day"]');
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
-  check('A: week tab reopens on overview', (await page.$('.report-card')) === null);
+  check('A: sprint tab is the ledger (no report card in it)', (await page.$('#view-sprint .report-card')) === null);
   const firstRow = await page.$eval('.wk-row.is-current', (e) => e.textContent);
   check('A: current overview row is This week (in progress)', /This week/.test(firstRow) && /in progress/.test(firstRow), firstRow);
   check('A: overview row carries weight/kcal/protein/lifts cells',
@@ -141,7 +141,7 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.reload({ waitUntil: 'networkidle0' });
   await page.removeScriptToEvaluateOnNewDocument(injB.identifier);
   await page.waitForSelector('.card');
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');
@@ -163,7 +163,7 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.reload({ waitUntil: 'networkidle0' });
   await page.removeScriptToEvaluateOnNewDocument(injC.identifier);
   await page.waitForSelector('.card');
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');
@@ -183,7 +183,7 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.reload({ waitUntil: 'networkidle0' });
   await page.removeScriptToEvaluateOnNewDocument(injD.identifier);
   await page.waitForSelector('.card');
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');
@@ -229,7 +229,7 @@ const inject = (page, { weightFn, calDaily, proteinDaily, proteinTarget, goal, w
   await page.reload({ waitUntil: 'networkidle0' });
   await page.removeScriptToEvaluateOnNewDocument(injE.identifier);
   await page.waitForSelector('.card');
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');

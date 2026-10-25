@@ -91,7 +91,7 @@ const localISO = (offset) => {
   await page.reload({ waitUntil: 'networkidle0' });
   await page.removeScriptToEvaluateOnNewDocument(injC.identifier);
   await page.waitForSelector('.card');
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');

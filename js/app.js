@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.53.0';
+export const APP_VERSION = '2.54.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -21,10 +21,19 @@ import { currentSprint } from './sprints.js';
 const sections = {
   day: document.getElementById('view-day'),
   week: document.getElementById('view-week'),
+  sprint: document.getElementById('view-sprint'),
   stats: document.getElementById('view-stats'),
   settings: document.getElementById('view-settings'),
 };
-const views = { day: dayView, week: weekView, stats: statsView, settings: settingsView };
+// Week tab = the CURRENT week's detail; Sprint tab = the weeks ledger.
+// Both render from week.js — same module, two canonical surfaces.
+const views = {
+  day: dayView,
+  week: weekView,
+  sprint: { render: (container, c) => weekView.renderOverview(container, c) },
+  stats: statsView,
+  settings: settingsView,
+};
 
 const state = {
   tab: 'day',
@@ -105,10 +114,16 @@ const ctx = {
     switchTab('day');
   },
   version: APP_VERSION,
-  // let a view hand off to another tab (day pull-down -> that day's week)
-  goTab(tab, opts = {}) {
-    if (tab === 'week' && opts.detail) weekView.openWeekDetail();
-    switchTab(tab, { keepMode: tab === 'week' && opts.detail });
+  // let a view hand off to another tab (day pull-down -> that day's week;
+  // week detail's back arrow -> the Sprint ledger)
+  goTab(tab) {
+    switchTab(tab);
+  },
+  // Sprint ledger row -> that week's detail on the Week tab
+  openWeek(iso) {
+    state.date = iso;
+    state.followToday = iso === todayISO();
+    switchTab('week');
   },
 };
 
@@ -116,13 +131,13 @@ function renderActive() {
   views[state.tab].render(sections[state.tab], ctx);
 }
 
-function switchTab(tab, opts = {}) {
+function switchTab(tab) {
   state.tab = tab;
   // the swipe hint lives on <body> (outside the transformed views), so it
   // must be cleared by hand when the view it belonged to goes away
   const hint = document.getElementById('swipe-hint');
   if (hint) hint.className = 'swipe-hint';
-  if (views[tab].enter && !opts.keepMode) views[tab].enter();
+  if (views[tab].enter) views[tab].enter();
   for (const [name, section] of Object.entries(sections)) section.hidden = name !== tab;
   for (const btn of document.querySelectorAll('.tab')) {
     if (btn.dataset.tab === tab) btn.setAttribute('aria-current', 'page');
@@ -134,9 +149,10 @@ function switchTab(tab, opts = {}) {
 
 for (const btn of document.querySelectorAll('.tab')) {
   btn.addEventListener('click', () => {
-    // Tapping the Day tab always lands on today. Only explicit "open this
-    // day" actions (from the week detail) carry a different date across.
-    if (btn.dataset.tab === 'day') {
+    // Tapping the Day tab always lands on today, and the Week tab always
+    // lands on THIS week. Only explicit "open this day/week" actions (week
+    // detail rows, sprint ledger rows) carry a different date across.
+    if (btn.dataset.tab === 'day' || btn.dataset.tab === 'week') {
       state.date = todayISO();
       state.followToday = true;
     }

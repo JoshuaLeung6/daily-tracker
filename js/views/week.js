@@ -12,31 +12,23 @@ import { CALORIE_BANDS } from '../config.js';
 // matches what happens and every swipe moves the same way
 import { willCommit, willCommitPull, slidePage, settleSlide, EDGE_ZONE, CHEVRON } from './day.js';
 
-// The tab opens zoomed out: every week graded green/yellow/red; tapping a
-// week drills into its report card. Switching away and back resets to the
-// overview.
-let mode = 'overview';
+// Two tabs render from this module: WEEK (the current week's detail — the
+// tab button always snaps to this week) and SPRINT (the zoomed-out ledger,
+// every week graded green/yellow/red; tapping a row opens it on the Week
+// tab via ctx.openWeek).
 
 // Live swipe-gesture state, shared between the per-render on* handlers and
 // the once-bound non-passive touchmove listener. `live` is false on the
-// overview, which has no gestures.
+// sprint ledger, which has no gestures.
 const g = { hint: null, canNext: false, live: false, gx: null, gy: null, startScroll: 0, axis: null };
 
-export function enter() {
-  mode = 'overview';
-}
-
-// Open the week containing a date directly (day view pull-down).
-export function openWeekDetail() {
-  mode = 'detail';
-}
-
+// the Week tab: always the detail of the week containing ctx.date
 export function render(container, ctx) {
-  if (mode === 'overview') renderOverview(container, ctx);
-  else renderDetail(container, ctx);
+  renderDetail(container, ctx);
 }
 
-function renderOverview(container, ctx) {
+// the Sprint tab: the ledger of all weeks
+export function renderOverview(container, ctx) {
   const sprint = currentSprint();
   const weeks = weeksOverview(sprint ? { start: sprint.start, end: sprint.end } : null);
   const cur = weeks.find((w) => w.isCurrent);
@@ -106,7 +98,7 @@ function renderOverview(container, ctx) {
 
     const row = el('button', {
       class: 'wk-row wk-row-ledger' + (wk.isCurrent ? ' is-current' : ''),
-      onclick: () => { mode = 'detail'; ctx.setDate(wk.ws); },
+      onclick: () => ctx.openWeek(wk.ws),
     },
       edgeNum,
       el('span', { class: 'wk-main' },
@@ -159,7 +151,7 @@ function renderDetail(container, ctx) {
   const head = el('header', { class: 'view-head' },
     el('button', {
       class: 'nav-arrow', 'aria-label': 'All weeks',
-      onclick: () => { mode = 'overview'; render(container, ctx); },
+      onclick: () => ctx.goTab('sprint'),
     }, '‹'),
     // the current week is marked with a live dot + accent eyebrow, so it is
     // obvious at a glance whether you are looking at now or at history
@@ -385,8 +377,7 @@ function renderDetail(container, ctx) {
     }
     resetGesture();
     if (usedAxis === 'y' && g.startScroll <= 0 && container.scrollTop <= 0 && dy > 0 && willCommitPull(dy, vy)) {
-      mode = 'overview';
-      render(container, ctx);
+      ctx.goTab('sprint');   // pull down from the week detail -> the ledger
     }
   };
   container.ontouchcancel = resetGesture;

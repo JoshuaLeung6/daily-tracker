@@ -94,9 +94,9 @@ const localISO = (offset) => {
   }
 
   // ---- 1. five-line week card ----
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
-  const overviewText = await page.$eval('#view-week', (e) => e.textContent);
+  const overviewText = await page.$eval('#view-sprint', (e) => e.textContent);
   check('overview titled by sprint', /Sprint 2/.test(overviewText));
   check('no future placeholder rows', (await page.$$('.wk-row.is-future')).length === 0);
   const progressText = await page.$eval('.wk-progress-label', (e) => e.textContent);

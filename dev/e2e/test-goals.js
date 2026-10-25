@@ -154,7 +154,7 @@ const localISO = (offset) => {
   await page.screenshot({ path: path.join(__dirname, 'shots', 'lifting-goals.png') });
 
   // ---- 5. week + month coloring ----
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');

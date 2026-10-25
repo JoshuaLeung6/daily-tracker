@@ -64,7 +64,7 @@ export const STRIP_OPTIONS = {
 
 // Cardio picks that count as a "cardio day". Walking is tracked separately
 // as the "10k steps" habit (NEAT floor), not as conditioning.
-export const CARDIO_COUNTS = ['run', 'squash', 'bike', 'kayak'];
+export const CARDIO_COUNTS = ['run', 'squash', 'bike', 'kayak', 'tennis', 'swim', 'climb'];
 
 // Day-view grouping: group is one of movement | intake | recovery; the
 // Day tab renders collapsible sections in that order. No group (Weight) =
@@ -88,7 +88,7 @@ export const TRACKERS = [
     target: null },
   { name: 'Caffeine', type: 'multiselect', options: ['morning', 'afternoon', 'night'], group: 'intake',
     target: null },
-  { name: 'Cardio', type: 'multiselect', options: ['run', 'squash', 'bike', 'kayak'], group: 'movement',
+  { name: 'Cardio', type: 'multiselect', options: ['run', 'squash', 'bike', 'kayak', 'tennis', 'swim', 'climb'], group: 'movement',
     // real cardio only, once a week minimum — backdated to the sprint start
     target: { period: 'week', value: 1, from: '2026-07-11' } },
   // ('10k steps' was removed 2026-10-25: unlisting archives it — history

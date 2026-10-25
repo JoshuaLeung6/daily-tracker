@@ -75,7 +75,7 @@ const localISO = (offset) => {
   // ---- 3. week totals: weight shows latest + avg, never a sum ----
   await page.type('.card input[aria-label="Weight"]', '186');
   await new Promise((r) => setTimeout(r, 400));
-  await page.click('.tab[data-tab="week"]');
+  await page.click('.tab[data-tab="sprint"]');
   await page.waitForSelector('.wk-row');
   await page.click('.wk-row.is-current');
   await page.waitForSelector('.report-card');
