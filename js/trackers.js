@@ -2,7 +2,7 @@
 // history; "archive" hides a tracker from the day form without touching data.
 
 import { getData, persistNow } from './store.js';
-import { todayISO, addDays, startOfWeek, fromISO } from './dates.js';
+import { todayISO, addDays, startOfWeek, nextWeek, prevWeek, endOfWeek, fromISO } from './dates.js';
 
 export const TYPES = ['number', 'measurement', 'text', 'checkbox', 'select', 'multiselect'];
 const OPTION_TYPES = ['select', 'multiselect'];
@@ -291,14 +291,15 @@ export function streakFor(tracker, iso) {
 // Uses the target in force at that week's end.
 export function weekMeets(tracker, weekStartISO) {
   if (tracker.type === 'measurement' || tracker.type === 'text') return false;
-  const tgt = targetFor(tracker, addDays(weekStartISO, 6));
+  const we = endOfWeek(weekStartISO);   // the Oct 2026 seam week is 6 days
+  const tgt = targetFor(tracker, we);
   if (!tgt || tgt.period !== 'week') return false;
   const entries = getData().entries;
   if (tracker.type === 'number') {
     let sum = 0;
     let logged = false;
-    for (let i = 0; i < 7; i++) {
-      const day = entries[addDays(weekStartISO, i)];
+    for (let d = weekStartISO; d <= we; d = addDays(d, 1)) {
+      const day = entries[d];
       const v = day ? day[tracker.id] : undefined;
       if (typeof v === 'number') { sum += v; logged = true; }
     }
@@ -306,8 +307,8 @@ export function weekMeets(tracker, weekStartISO) {
     return tgt.dir === 'atmost' ? sum <= tgt.value : sum >= tgt.value;
   }
   let days = 0;
-  for (let i = 0; i < 7; i++) {
-    const day = entries[addDays(weekStartISO, i)];
+  for (let d = weekStartISO; d <= we; d = addDays(d, 1)) {
+    const day = entries[d];
     if (day && tracker.id in day) days++;
   }
   return days >= tgt.value;
@@ -317,11 +318,11 @@ export function weekMeets(tracker, weekStartISO) {
 // containing iso — or the week before if the current week isn't met yet.
 export function weekStreakFor(tracker, iso) {
   let start = startOfWeek(iso);
-  if (!weekMeets(tracker, start)) start = addDays(start, -7);
+  if (!weekMeets(tracker, start)) start = prevWeek(start);
   let streak = 0;
   while (weekMeets(tracker, start) && streak < 530) {
     streak++;
-    start = addDays(start, -7);
+    start = prevWeek(start);
   }
   return streak;
 }
@@ -389,7 +390,7 @@ export function longestWeekStreak(tracker) {
   const lastWeek = startOfWeek(todayISO());
   let best = 0;
   let run = 0;
-  for (let ws = startOfWeek(start); ws <= lastWeek; ws = addDays(ws, 7)) {
+  for (let ws = startOfWeek(start); ws <= lastWeek; ws = nextWeek(ws)) {
     if (weekMeets(tracker, ws)) {
       run++;
       if (run > best) best = run;
@@ -401,12 +402,11 @@ export function longestWeekStreak(tracker) {
 }
 
 export function weekAdherence(tracker, weeks = 8) {
-  const thisWeek = startOfWeek(todayISO());
+  let ws = startOfWeek(todayISO());
   let hit = 0;
   let of = 0;
-  for (let i = 0; i < weeks; i++) {
-    const ws = addDays(thisWeek, -7 * i);
-    const tgt = targetFor(tracker, addDays(ws, 6));
+  for (let i = 0; i < weeks; i++, ws = prevWeek(ws)) {
+    const tgt = targetFor(tracker, endOfWeek(ws));
     if (!tgt || tgt.period !== 'week') continue;
     of++;
     if (weekMeets(tracker, ws)) hit++;

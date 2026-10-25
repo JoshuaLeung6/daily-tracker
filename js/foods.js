@@ -7,12 +7,12 @@ import { todayISO } from './dates.js';
 import { calorieTracker, proteinTracker } from './insights.js';
 
 export function listFoods() {
-  // most-used first, then most recent — the top of the sheet is the staples
-  return [...getData().foods].sort((a, b) => {
-    const byUses = (b.uses || 0) - (a.uses || 0);
-    if (byUses !== 0) return byUses;
-    return (b.lastUsed || '') > (a.lastUsed || '') ? 1 : -1;
-  });
+  // most-used first, then most recent, then name — every tiebreak is a real
+  // three-way compare so equal foods keep a stable order between renders
+  return [...getData().foods].sort((a, b) =>
+    (b.uses || 0) - (a.uses || 0)
+    || (b.lastUsed || '').localeCompare(a.lastUsed || '')
+    || a.name.localeCompare(b.name));
 }
 
 export function addFood({ name, kcal, protein }) {

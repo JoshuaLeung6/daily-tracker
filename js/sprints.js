@@ -5,7 +5,7 @@
 
 import { getData } from './store.js';
 import { allWorkouts, liftStats } from './workouts.js';
-import { todayISO, addDays, startOfWeek } from './dates.js';
+import { todayISO, addDays, startOfWeek, nextWeek, endOfWeek } from './dates.js';
 import { activeTrackers, targetFor, dayMeets, ratePerWeek } from './trackers.js';
 import { getEntry } from './store.js';
 import { weightTracker, calorieTracker, proteinTracker, trendWeightOn, isCardioDay, cardioTracker } from './insights.js';
@@ -51,7 +51,7 @@ export function shortLiftName(n) {
 // max shows it as a dip, which is the truth. Lifts not trained that week
 // come back with best: null.
 export function strengthPartsInWeek(weekStart, names) {
-  const weekEnd = addDays(weekStart, 6);
+  const weekEnd = endOfWeek(weekStart);
   const stats = liftStats();
   return names.map((n) => {
     const s = stats.find((x) => x.name.toLowerCase() === n.toLowerCase());
@@ -69,7 +69,7 @@ export function strengthBaseline(names, fromISO = null) {
   const wos = allWorkouts();
   if (!wos.length) return null;
   const stop = todayISO();
-  for (let ws = startOfWeek(fromISO || wos[0].date); ws <= stop; ws = addDays(ws, 7)) {
+  for (let ws = startOfWeek(fromISO || wos[0].date); ws <= stop; ws = nextWeek(ws)) {
     const parts = strengthPartsInWeek(ws, names);
     if (parts.every((p) => p.best != null)) return { ws, parts };
   }
@@ -101,7 +101,7 @@ export function strengthWeeks(sprintStart, endISO, names) {
   const base = strengthBaseline(names, sprintStart);
   const out = [];
   let index = 0;
-  for (let ws = startOfWeek(sprintStart); ws <= endISO; ws = addDays(ws, 7)) {
+  for (let ws = startOfWeek(sprintStart); ws <= endISO; ws = nextWeek(ws)) {
     index++;
     const parts = strengthPartsInWeek(ws, names);
     if (!parts.length || !parts.some((p) => p.best != null)) continue;
@@ -116,10 +116,12 @@ export function strengthWeeks(sprintStart, endISO, names) {
   return out;
 }
 
-// Rolling adherence over the last N completed days for the process habits.
-export function adherence28(days = 28) {
-  const realToday = todayISO();
-  const end = addDays(realToday, -1);
+// Rolling adherence over the last N completed days for the process habits,
+// ending at `endISO` (default: yesterday). A finished sprint passes its own
+// end date so the window stays inside the sprint instead of drifting
+// forward into the gap after it.
+export function adherence28(days = 28, endISO = null) {
+  const end = endISO || addDays(todayISO(), -1);
   const start = addDays(end, -(days - 1));
   const out = {};
   const wt = weightTracker();
@@ -164,10 +166,10 @@ export function adherence28(days = 28) {
   if (cardio) {
     const tgt = targetFor(cardio, end);
     const need = tgt && tgt.period === 'week' ? tgt.value : 1;
-    for (let ws = startOfWeek(start); addDays(ws, 6) <= end; ws = addDays(ws, 7)) {
+    for (let ws = startOfWeek(start); endOfWeek(ws) <= end; ws = nextWeek(ws)) {
       if (ws < start) continue;
       let n = 0;
-      for (let i = 0; i < 7; i++) if (isCardioDay(getEntry(addDays(ws, i))[cardio.id])) n++;
+      for (let d = ws; d <= endOfWeek(ws); d = addDays(d, 1)) if (isCardioDay(getEntry(d)[cardio.id])) n++;
       cardioWeeks++;
       if (n >= need) cardioWeeksHit++;
     }
@@ -449,12 +451,12 @@ export function sprintReport(sprint) {
     ready: stats.filter((x) => x.ready).length,
     prs: report.totals.prs,
     // chart series: one point per scored week, dated the week's LAST day
-    series: scoredWeeks.map((w) => ({ iso: addDays(w.ws, 6), value: Math.round(w.score) })),
+    series: scoredWeeks.map((w) => ({ iso: endOfWeek(w.ws), value: Math.round(w.score) })),
   };
   // Adherence across the WHOLE sprint so far, not a rolling 28 days: the
   // sprint is the unit being judged, and a rolling window silently drops
   // early weeks. `elapsed` counts completed days from the sprint start.
-  report.adherence28 = adherence28(Math.max(1, elapsed));
+  report.adherence28 = adherence28(Math.max(1, elapsed), endEff);
 
   return report;
 }

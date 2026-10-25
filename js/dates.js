@@ -34,6 +34,22 @@ export function startOfWeek(iso) {
   return addDays(iso, -offset);
 }
 
+// Step between WEEK STARTS across the convention seam. Raw ±7 days from a
+// week start lands mid-week when the step crosses 2026-10-25 (the seam week
+// Oct 19–24 is only 6 days long), so every step re-normalizes. Use these —
+// never addDays(ws, ±7) — when walking the week grid.
+export function nextWeek(ws) {
+  return startOfWeek(addDays(ws, 7));
+}
+export function prevWeek(ws) {
+  return startOfWeek(addDays(ws, -1));   // the day before a week start is always in the previous week
+}
+// Inclusive last day of the week starting at ws (addDays(ws, 6) overshoots
+// the 6-day seam week).
+export function endOfWeek(ws) {
+  return addDays(nextWeek(ws), -1);
+}
+
 export function addMonths(iso, n) {
   const d = fromISO(iso);
   const day = d.getDate();

@@ -11,7 +11,7 @@
 // }
 
 import { getData, persistNow, setValue } from './store.js';
-import { todayISO, addDays, startOfWeek } from './dates.js';
+import { todayISO, startOfWeek, nextWeek, prevWeek } from './dates.js';
 
 export const SPLITS = ['push', 'pull', 'legs'];
 export const SPLIT_LABELS = { push: 'Push', pull: 'Pull', legs: 'Legs' };
@@ -227,7 +227,14 @@ export function sessionHadPR(iso) {
 }
 
 // Per-lift aggregates, most recently trained first.
+// Memoized for the duration of the current task: the Weeks ledger calls this
+// (via strengthScoreInWeek) once per week row plus a walk-back per row, each
+// a full O(workouts×lifts) rebuild. The cache clears on the next microtask,
+// before any user edit can land, so it can never serve stale data.
+const liftStatsCache = new Map();
 export function liftStats(filterSplit) {
+  const cacheKey = filterSplit || '';
+  if (liftStatsCache.has(cacheKey)) return liftStatsCache.get(cacheKey);
   const map = new Map();
   for (const w of allWorkouts()) {
     if (filterSplit && w.split !== filterSplit) continue;
@@ -285,8 +292,10 @@ export function liftStats(filterSplit) {
       : 'flat';
 
     s.goal = liftGoal(s.name);
-    s.goalPct = s.goal && s.best && s.best.weight != null
-      ? Math.min(1, s.best.weight / s.goal.target)
+    // goal targets are e1RM (what the sprint report judges them against) —
+    // grading by best raw weight here made the two surfaces disagree
+    s.goalPct = s.goal && s.bestE1rm
+      ? Math.min(1, s.bestE1rm.e1rm / s.goal.target)
       : null;
 
     // double progression: latest WORKING session hit the top of the rep
@@ -317,6 +326,8 @@ export function liftStats(filterSplit) {
     }
   }
   out.sort((a, b) => (a.last.date < b.last.date ? 1 : -1));
+  if (liftStatsCache.size === 0) queueMicrotask(() => liftStatsCache.clear());
+  liftStatsCache.set(cacheKey, out);
   return out;
 }
 
@@ -378,11 +389,10 @@ export function lastLiftOfFocus(name, focus, beforeISO) {
 // Total lifted volume per week for the last `weeks` weeks (oldest first),
 // optionally filtered to one split. Weeks with no workouts count as 0.
 export function weeklyVolume(weeks = 8, split = null) {
-  const thisWeek = startOfWeek(todayISO());
   const out = [];
-  for (let i = weeks - 1; i >= 0; i--) {
-    const ws = addDays(thisWeek, -7 * i);
-    const we = addDays(ws, 7);
+  let ws = startOfWeek(todayISO());
+  for (let i = 0; i < weeks; i++, ws = prevWeek(ws)) {
+    const we = nextWeek(ws);
     let sum = 0;
     for (const w of allWorkouts()) {
       if (w.date < ws || w.date >= we) continue;
@@ -392,7 +402,7 @@ export function weeklyVolume(weeks = 8, split = null) {
         if (v != null) sum += v;
       }
     }
-    out.push({ startISO: ws, value: sum });
+    out.unshift({ startISO: ws, value: sum });   // walking backward; oldest stays first
   }
   return out;
 }

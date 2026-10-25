@@ -291,7 +291,9 @@ export function render(container, ctx) {
   g.axis = null;
 
   const resetGesture = () => {
-    container.classList.remove('gesture-live');
+    // 'gesture-armed' too — week.js clears both; leaving it dims the whole
+    // page (opacity 0.82) until some later gesture happens to toggle it off
+    container.classList.remove('gesture-live', 'gesture-armed');
     container.style.transform = '';
     // reset the WHOLE class list. touchmove writes className wholesale
     // ('swipe-hint top show roomy armed'), and .armed sets opacity:1

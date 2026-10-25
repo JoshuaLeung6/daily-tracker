@@ -4,7 +4,7 @@
 //   Lifting: workout counts and per-lift stats with PR goals.
 
 import { el } from '../ui.js';
-import { fmt, todayISO, addDays, startOfWeek } from '../dates.js';
+import { fmt, todayISO, addDays, startOfWeek, nextWeek, endOfWeek } from '../dates.js';
 import { getEntry, getData, getRepairs } from '../store.js';
 // NOTE: no goal/target WRITE imports here on purpose — goals and targets are
 // configured in js/config.js and js/sprints.js, never set from the UI.
@@ -384,10 +384,10 @@ function openStrengthSheet(r, sprint) {
     `Each lift's weekly best e1RM, indexed to week ${baseIdx} (= 100) and averaged — every lift carries a third of the score. 105 means +5% average strength across the three lifts.`));
 
   // per-lift 1RM charts: one dot per trained week, shared x-axis
-  const chartEnd = weeks.length ? addDays(weeks[weeks.length - 1].ws, 6) : r.end;
+  const chartEnd = weeks.length ? endOfWeek(weeks[weeks.length - 1].ws) : r.end;
   st.names.forEach((name, i) => {
     const points = weeks.filter((w) => w.parts[i].best != null)
-      .map((w) => ({ iso: addDays(w.ws, 6), value: Math.round(w.parts[i].best) }));
+      .map((w) => ({ iso: endOfWeek(w.ws), value: Math.round(w.parts[i].best) }));
     const cardEl = el('div', { class: 'card chart-card st-lift-card' },
       el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, name),
         points.length ? el('span', { class: 'rp-dim' }, `1RM ${points[points.length - 1].value}`) : null));
@@ -645,7 +645,7 @@ function openWeightSheet(r, sprint, wt) {
   {
     const stop = r.end < todayISO() ? r.end : todayISO();
     let index = 0;
-    for (let ws = startOfWeek(r.start.iso); ws <= stop; ws = addDays(ws, 7)) {
+    for (let ws = startOfWeek(r.start.iso); ws <= stop; ws = nextWeek(ws)) {
       index++;
       let sum = 0; let n = 0;
       for (let i = 0; i < 7; i++) {
@@ -802,7 +802,7 @@ function intakePane() {
     // weekly average kcal/day across the sprint — consistency made visible
     if (cal) {
       const bars = [];
-      for (let ws = startOfWeek(w.sprint.start); ws <= w.days[w.days.length - 1]; ws = addDays(ws, 7)) {
+      for (let ws = startOfWeek(w.sprint.start); ws <= w.days[w.days.length - 1]; ws = nextWeek(ws)) {
         let sum = 0; let n = 0;
         for (let i = 0; i < 7; i++) {
           const v = getEntry(addDays(ws, i))[cal.id];
@@ -974,74 +974,6 @@ function intakeCard(gw) {
   }
 
   return card;
-}
-
-function buildInsight(t, p, rerender) {
-  const unit = t.unit ? ` ${t.unit}` : '';
-  const rate = ratePerWeek(t.id, 28);
-  const cal = activeTrackers().find((x) => x.type === 'number' && x.name.toLowerCase() === 'calories');
-  const intake = cal ? avgOverDays(cal.id, 28) : null;
-
-  const bits = [];
-  if (rate != null) bits.push(`trending ${signed(Math.round(rate * 10) / 10)}${unit}/wk`);
-  if (intake) bits.push(`avg ${Math.round(intake.avg).toLocaleString()} ${cal.unit || ''}/day`.trimEnd());
-  if (bits.length === 0) return null;
-
-  let pace = null;
-  let paceClass = '';
-  if (rate != null && !p.done) {
-    const remaining = p.target - p.current;
-    if (Math.abs(rate) <= 0.05) {
-      pace = 'weight holding steady';
-    } else if (Math.sign(rate) === Math.sign(remaining)) {
-      const daysTo = Math.round(remaining / (rate / 7));
-      if (daysTo <= 730) {
-        const when = addDays(todayISO(), daysTo);
-        const opts = when.slice(0, 4) === todayISO().slice(0, 4)
-          ? { month: 'short', day: 'numeric' }
-          : { month: 'short', day: 'numeric', year: 'numeric' };
-        pace = `on pace for ${fmtN(p.target)} by ${fmt(when, opts)}`;
-        paceClass = ' pace-good';
-      } else {
-        pace = 'at this pace: over 2 years out';
-      }
-    } else {
-      pace = 'trending away from the goal';
-      paceClass = ' pace-bad';
-    }
-  }
-
-  // adaptive TDEE + the goals→actions link: suggested intake, one tap to set
-  let tdeeEl = null;
-  const sug = /weight/i.test(t.name) ? suggestedIntake() : null;
-  if (sug && sug.locked) {
-    tdeeEl = el('div', { class: 'gc-tdee rp-dim' }, `Measured TDEE: ${sug.reason}.`);
-  } else if (sug) {
-    const mid = Math.round((sug.lo + sug.hi) / 2 / 10) * 10;
-    const calT = calorieTracker();
-    const cur = calT ? targetFor(calT, todayISO()) : null;
-    // The suggestion is INFORMATION only. Targets are set in js/config.js,
-    // not from the UI, so there is no "apply this" button — if the suggested
-    // number differs from the configured one, say so and leave the change
-    // to a config edit.
-    const drifted = calT && (!cur || cur.period !== 'day' || Math.abs(cur.value - mid) > 50);
-    tdeeEl = el('div', { class: 'gc-tdee' },
-      el('div', {}, 'maintenance ≈ ', el('b', {}, `${Math.round(sug.tdee).toLocaleString()} ${sug.unit}`),
-        el('span', { class: 'gc-window' }, ' measured from your logs, ±200')),
-      el('div', {}, `suggested for this ${sug.phase === 'gain' ? 'bulk' : 'cut'}: `,
-        el('b', {}, `${sug.lo.toLocaleString()}–${sug.hi.toLocaleString()} ${sug.unit}/day`)),
-      drifted && el('div', { class: 'gc-window' },
-        cur && cur.period === 'day'
-          ? `your target is ${cur.value.toLocaleString()} — change it in config if you want ${mid.toLocaleString()}`
-          : `no daily calorie target set — add one in config (${mid.toLocaleString()} suggested)`),
-    );
-  }
-
-  return el('div', { class: 'gc-insight' },
-    el('div', {}, bits.join(' · '), el('span', { class: 'gc-window' }, ' · last 28 days')),
-    pace && el('div', { class: 'gc-pace' + paceClass }, pace),
-    tdeeEl,
-  );
 }
 
 function measurementSeries(id) {

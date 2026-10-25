@@ -57,6 +57,53 @@ function migrateV2(doc) {
   doc.schemaVersion = 2;
 }
 
+// Bring a document up to the current schema + defaults. Runs at startup AND
+// on replaceData, so an imported older backup is migrated immediately — not
+// left broken (Weight as 'number', no repairs/manualNotes) until the next
+// cold launch happens to re-run init.
+function migrate(doc) {
+  if ((doc.schemaVersion || 1) < 2) migrateV2(doc);
+  if (doc.schemaVersion < 3) {
+    // v3 adds the workouts log
+    doc.workouts ??= {};
+    doc.schemaVersion = 3;
+  }
+  if (doc.schemaVersion < 4) {
+    // v4 adds lift PR goals
+    doc.liftGoals ??= {};
+    doc.schemaVersion = 4;
+  }
+  if (doc.schemaVersion < 5) {
+    // v5 splits point-in-time measurements from daily amounts: anything
+    // with a destination goal (or named Weight) becomes a measurement,
+    // and recurring targets don't apply to measurements.
+    for (const t of doc.trackers) {
+      if (t.type === 'number' && (t.goal || t.name.trim().toLowerCase() === 'weight')) {
+        t.type = 'measurement';
+        delete t.targets;
+      }
+    }
+    doc.schemaVersion = 5;
+  }
+  if (doc.schemaVersion < 6) {
+    // v6 adds per-zone Manual notes
+    doc.manualNotes ??= {};
+    doc.schemaVersion = 6;
+  }
+  if (doc.schemaVersion < 7) {
+    // v7 adds Repair issues
+    doc.repairs ??= [];
+    doc.schemaVersion = 7;
+  }
+  doc.workouts ??= {};
+  doc.liftGoals ??= {};
+  doc.profile ??= {};
+  doc.foods ??= [];
+  doc.notes ??= {};
+  doc.manualNotes ??= {};
+  doc.repairs ??= [];
+}
+
 export function init({ onStorageError } = {}) {
   errorHandler = onStorageError || null;
   try {
@@ -69,54 +116,8 @@ export function init({ onStorageError } = {}) {
     data = seed();
     persistNow();
   }
-  if ((data.schemaVersion || 1) < 2) {
-    migrateV2(data);
-    persistNow();
-  }
-  if (data.schemaVersion < 3) {
-    // v3 adds the workouts log
-    data.workouts ??= {};
-    data.schemaVersion = 3;
-    persistNow();
-  }
-  if (data.schemaVersion < 4) {
-    // v4 adds lift PR goals
-    data.liftGoals ??= {};
-    data.schemaVersion = 4;
-    persistNow();
-  }
-  if (data.schemaVersion < 5) {
-    // v5 splits point-in-time measurements from daily amounts: anything
-    // with a destination goal (or named Weight) becomes a measurement,
-    // and recurring targets don't apply to measurements.
-    for (const t of data.trackers) {
-      if (t.type === 'number' && (t.goal || t.name.trim().toLowerCase() === 'weight')) {
-        t.type = 'measurement';
-        delete t.targets;
-      }
-    }
-    data.schemaVersion = 5;
-    persistNow();
-  }
-  if (data.schemaVersion < 6) {
-    // v6 adds per-zone Manual notes
-    data.manualNotes ??= {};
-    data.schemaVersion = 6;
-    persistNow();
-  }
-  if (data.schemaVersion < 7) {
-    // v7 adds Repair issues
-    data.repairs ??= [];
-    data.schemaVersion = 7;
-    persistNow();
-  }
-  data.workouts ??= {};
-  data.liftGoals ??= {};
-  data.profile ??= {};
-  data.foods ??= [];
-  data.notes ??= {};
-  data.manualNotes ??= {};
-  data.repairs ??= [];
+  migrate(data);
+  persistNow();
 
   window.addEventListener('pagehide', () => persistNow());
   document.addEventListener('visibilitychange', () => {
@@ -176,6 +177,7 @@ export function loggedDayCount() {
 
 export function replaceData(next) {
   data = next;
+  migrate(data);
   persistNow();
 }
 

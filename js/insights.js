@@ -9,7 +9,7 @@
 //   weeks off-band (the playbook's confirmation lag), and only with
 //   enough logged data to trust the trend.
 
-import { todayISO, addDays, addMonths, startOfWeek, fromISO, toLocalISO } from './dates.js';
+import { todayISO, addDays, addMonths, startOfWeek, nextWeek, prevWeek, endOfWeek, fromISO, toLocalISO } from './dates.js';
 import { getEntry, getData } from './store.js';
 import { activeTrackers, targetFor, dayMeets, dayAllMet, ratePerWeek, avgOverDays } from './trackers.js';
 import { allWorkouts, liftVolume, liftStats, SPLITS, SPLIT_LABELS } from './workouts.js';
@@ -203,20 +203,22 @@ function volumeBetween(startISO, endISOExcl, split = null) {
 export function weekReport(iso) {
   const realToday = todayISO();
   const ws = startOfWeek(iso);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
+  const we = endOfWeek(ws);   // 6 days for the Oct 2026 seam week, 7 otherwise
+  const days = [];
+  for (let d = ws; d <= we; d = addDays(d, 1)) days.push(d);
   // Today is still in progress, so week averages / "N of M days" count
   // COMPLETED days only: for the current week, measure through yesterday.
   // (Trend weight still uses today's weigh-in — a morning reading is done.)
   const yesterday = addDays(realToday, -1);
   const today = yesterday;
-  const end = days[6] <= today ? days[6] : today;
+  const end = we <= today ? we : today;
   const report = { ws, days, end, isCurrent: startOfWeek(realToday) === ws };
 
   // --- weight (never for fully-future weeks — their data window is empty) ---
   const wt = weightTracker();
   if (wt && ws <= realToday) {
     // trend/rate through today (a morning weigh-in is a completed reading)
-    const trendEnd = days[6] <= realToday ? days[6] : realToday;
+    const trendEnd = we <= realToday ? we : realToday;
     const rate = weeklyRate(wt.id, trendEnd);
     const band = rateBand(wt);
     // plain mean of THIS week's readings incl. today's (weigh-ins are complete
@@ -229,10 +231,12 @@ export function weekReport(iso) {
       if (typeof v === 'number') { sum += v; n++; }
     }
     // previous week's plain average, for the week-over-week % change
+    // (walked as a real week, not raw ws-7 — the seam week is 6 days)
     let psum = 0;
     let pn = 0;
-    for (let i = 1; i <= 7; i++) {
-      const v = getEntry(addDays(ws, -i))[wt.id];
+    const pws = prevWeek(ws);
+    for (let d = pws; d <= endOfWeek(pws); d = addDays(d, 1)) {
+      const v = getEntry(d)[wt.id];
       if (typeof v === 'number') { psum += v; pn++; }
     }
     const weekAvg = n > 0 ? sum / n : null;
@@ -306,7 +310,7 @@ export function weekReport(iso) {
   const workoutDays = new Set();
   for (const w of allWorkouts()) {
     // completed days only for the current week (today's session shows up tomorrow)
-    if (w.date < ws || w.date > days[6] || w.date > today) continue;
+    if (w.date < ws || w.date > we || w.date > today) continue;
     sessions++;
     workoutDays.add(w.date);
     bySplit[w.split] = (bySplit[w.split] || 0) + 1;
@@ -320,12 +324,15 @@ export function weekReport(iso) {
       if (getEntry(d)[liftT.id] === true) workoutDays.add(d);
     }
   }
-  const vol = volumeBetween(ws, addDays(ws, 7));
+  // volume over COMPLETED days only, like sessions/days above — counting
+  // today's session here while excluding it there made the card disagree
+  // with itself ("0 days" next to a non-zero volume)
+  const volEnd = nextWeek(ws) <= today ? nextWeek(ws) : realToday;   // exclusive: today's lifts excluded
+  const vol = volumeBetween(ws, volEnd);
   let prior = 0;
   let priorWeeks = 0;
-  for (let i = 1; i <= 4; i++) {
-    const pws = addDays(ws, -7 * i);
-    const v = volumeBetween(pws, addDays(pws, 7));
+  for (let i = 1, p = prevWeek(ws); i <= 4; i++, p = prevWeek(p)) {
+    const v = volumeBetween(p, nextWeek(p));
     if (v > 0) { prior += v; priorWeeks++; }
   }
   report.training = {
@@ -351,7 +358,7 @@ export function weekSuggestions(report) {
 
   if (w && w.band && w.rate) {
     // confirmation lag: this week's rate AND last week's rate both off-band
-    const lastWeek = weeklyRate(w.tracker.id, addDays(report.end, -7));
+    const lastWeek = weeklyRate(w.tracker.id, addDays(report.ws, -1));
     const spanOK = (() => {
       const first = earliestValueISO(w.tracker.id);
       return first && first <= addDays(report.end, -14);
@@ -664,7 +671,7 @@ export function weeksOverview(window = null, maxWeeks = 26) {
     const totalWeeks = Math.round((Date.parse(end) - Date.parse(start)) / (7 * 86400000)) + 1;
     const out = [];
     let idx = 1;
-    for (let ws = start; ws <= end && ws <= current && out.length < 60; ws = addDays(ws, 7)) {
+    for (let ws = start; ws <= end && ws <= current && out.length < 60; ws = nextWeek(ws)) {
       out.push({ ws, index: idx++, totalWeeks, isCurrent: ws === current, isFuture: false, ...weekGrade(ws) });
     }
     return out.reverse();
@@ -673,7 +680,7 @@ export function weeksOverview(window = null, maxWeeks = 26) {
   if (!first) return [];
   const start = startOfWeek(first);
   const out = [];
-  for (let ws = current; ws >= start && out.length < maxWeeks; ws = addDays(ws, -7)) {
+  for (let ws = current; ws >= start && out.length < maxWeeks; ws = prevWeek(ws)) {
     out.push({ ws, isCurrent: ws === current, isFuture: false, ...weekGrade(ws) });
   }
   return out;

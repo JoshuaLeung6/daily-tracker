@@ -1,7 +1,7 @@
 // Week view — seven ledger rows plus totals, weekly goals, and streaks.
 
 import { el, checkIcon } from '../ui.js';
-import { todayISO, addDays, startOfWeek, weekLabel, fmt } from '../dates.js';
+import { todayISO, addDays, startOfWeek, nextWeek, prevWeek, endOfWeek, weekLabel, fmt } from '../dates.js';
 import { getEntry } from '../store.js';
 import { activeTrackers, targetFor, weekStreakFor, weekMeets, dayAllMet, dayMeets } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, SPLITS } from '../workouts.js';
@@ -80,7 +80,7 @@ export function renderOverview(container, ctx) {
     let strengthStatus = null;
     if (strength) {
       let prev = null;
-      for (let ws = addDays(wk.ws, -7); ws >= (sprint ? sprint.start : ws) && !prev; ws = addDays(ws, -7)) {
+      for (let ws = prevWeek(wk.ws); ws >= (sprint ? sprint.start : ws) && !prev; ws = prevWeek(ws)) {
         prev = strengthScoreInWeek(ws, liftNames, strengthBase);
         if (ws === (sprint ? sprint.start : ws)) break;
       }
@@ -139,7 +139,8 @@ function renderDetail(container, ctx) {
   container.scrollTop = 0;
   const today = todayISO();
   const start = startOfWeek(ctx.date);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const days = [];
+  for (let d = start; d <= endOfWeek(start); d = addDays(d, 1)) days.push(d);   // 6-day seam week aware
   const trackers = activeTrackers();
   const inWeek = days.includes(today);
 
@@ -164,8 +165,8 @@ function renderDetail(container, ctx) {
     el('button', {
       class: 'nav-arrow', 'aria-label': 'Next week',
       // never navigate into weeks that have not started
-      disabled: addDays(start, 7) > startOfWeek(today),
-      onclick: () => ctx.setDate(addDays(ctx.date, 7)),
+      disabled: nextWeek(start) > startOfWeek(today),
+      onclick: () => ctx.setDate(nextWeek(start)),
     }, '›'),
   );
 
@@ -249,7 +250,7 @@ function renderDetail(container, ctx) {
   if (hint.parentElement !== document.body) document.body.append(hint);
   // refresh the shared gesture state for this render (see `g` at module scope)
   g.hint = hint;
-  g.canNext = addDays(start, 7) <= startOfWeek(today);
+  g.canNext = nextWeek(start) <= startOfWeek(today);
   g.live = true;
   g.gx = g.gy = null;
   g.axis = null;
@@ -380,7 +381,8 @@ function renderDetail(container, ctx) {
     // That was the chevron that "sometimes doesn't disappear".
     g.hint.className = 'swipe-hint';
       container.classList.remove('gesture-armed');
-      const target = addDays(ctx.date, forward ? 7 : -7);
+      const ws0 = startOfWeek(ctx.date);
+      const target = forward ? nextWeek(ws0) : prevWeek(ws0);
       g.gx = g.gy = null; g.axis = null;
       slidePage(container, forward ? -1 : 1, () => ctx.setDate(target));
       return;
@@ -493,7 +495,7 @@ function buildReportCard(ctx) {
     const anyLift = partsData.some((x) => x.best != null);
     if (cur || anyLift) {
       let prev = null;
-      for (let p = addDays(ws, -7); p >= (sp ? sp.start : p); p = addDays(p, -7)) {
+      for (let p = prevWeek(ws); p >= (sp ? sp.start : p); p = prevWeek(p)) {
         prev = strengthScoreInWeek(p, names, base);
         if (prev || p === (sp ? sp.start : p)) break;
       }
@@ -524,80 +526,6 @@ function rpRow(label, valueEl) {
     el('span', { class: 'rp-label' }, label),
     el('span', { class: 'rp-value' }, valueEl),
   );
-}
-
-function buildSummary(trackers, days) {
-  const endOfWeek = days[6];
-  const items = [];
-
-  for (const t of trackers) {
-    const tgt = targetFor(t, endOfWeek);
-
-    if (t.type === 'number') {
-      const logged = days.map((iso) => getEntry(iso)[t.id]).filter((v) => typeof v === 'number');
-      if (logged.length === 0 && !tgt) continue;
-      const sum = logged.reduce((a, b) => a + b, 0);
-      const avg = logged.length ? sum / logged.length : 0;
-      const item = { name: t.name, main: fmtN(sum) + (t.unit ? ` ${t.unit}` : ''), sub: logged.length ? `avg ${fmtN(avg)}/day` : 'nothing logged' };
-      if (tgt) {
-        const goal = tgt.period === 'week' ? tgt.value : tgt.value * 7;
-        const atMost = tgt.dir === 'atmost';
-        item.goalText = `${atMost ? '≤' : '≥'} ${fmtN(tgt.value)}${t.unit ? ' ' + t.unit : ''}${tgt.period === 'day' ? '/day' : '/week'}`;
-        item.ratio = goal > 0 ? sum / goal : 0;
-        item.over = atMost && item.ratio > 1;
-        if (tgt.period === 'week') {
-          item.wkMet = weekMeets(t, days[0]);
-          const streak = weekStreakFor(t, endOfWeek);
-          if (streak >= 2) item.streak = `${streak}-week streak`;
-        }
-      }
-      items.push(item);
-    } else if (t.type === 'measurement') {
-      // no totals for measurements — show latest and average instead
-      const logged = days
-        .map((iso) => ({ iso, v: getEntry(iso)[t.id] }))
-        .filter((x) => typeof x.v === 'number');
-      if (logged.length === 0) continue;
-      const latest = logged[logged.length - 1].v;
-      const avg = logged.reduce((a, b) => a + b.v, 0) / logged.length;
-      items.push({
-        name: t.name,
-        main: `${fmtN(latest)}${t.unit ? ' ' + t.unit : ''}`,
-        sub: logged.length > 1 ? `avg ${fmtN(avg)}` : 'latest',
-      });
-    } else if (t.type !== 'text' && tgt && tgt.period === 'week') {
-      const count = days.filter((iso) => t.id in getEntry(iso)).length;
-      const item = {
-        name: t.name,
-        main: `${count} / ${tgt.value} days`,
-        ratio: tgt.value > 0 ? count / tgt.value : 0,
-        goalText: `${tgt.value} days/week`,
-        wkMet: count >= tgt.value,
-      };
-      const streak = weekStreakFor(t, endOfWeek);
-      if (streak >= 2) item.streak = `${streak}-week streak`;
-      items.push(item);
-    }
-  }
-
-  if (items.length === 0) return null;
-
-  const box = el('div', { class: 'week-totals' }, el('h2', {}, 'Week totals'));
-  for (const item of items) {
-    box.append(el('div', { class: 'wt-row' },
-      el('span', {}, item.name, item.goalText ? el('span', { class: 'wt-goal' }, `  ·  ${item.goalText}`) : null),
-      el('span', {}, el('b', item.wkMet ? { class: 'wk-met' } : {}, item.main), item.sub ? el('span', { class: 'avg' }, item.sub) : null),
-    ));
-    if (item.ratio !== undefined) {
-      const fill = el('i', { class: (item.over ? 'over' : '') + (item.wkMet ? ' wk-met' : '') });
-      fill.style.width = Math.min(100, item.ratio * 100) + '%';
-      box.append(el('div', { class: 'wt-bar' }, fill));
-    }
-    if (item.streak) {
-      box.append(el('div', { class: 'wt-goal' }, item.streak));
-    }
-  }
-  return box;
 }
 
 function fmtN(n) {
