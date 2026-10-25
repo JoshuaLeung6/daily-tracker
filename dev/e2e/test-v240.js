@@ -29,7 +29,7 @@ const localISO = (offset) => {
   // Open that pane and expand every group so .stat-row is reachable.
   const openLifts = async () => {
     await page.evaluate(() => {
-      const b = [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((x) => x.textContent === 'Lifts');
+      const b = [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((x) => x.textContent === 'Move');
       if (b) b.click();
     });
     await new Promise((r) => setTimeout(r, 250));
@@ -80,14 +80,17 @@ const localISO = (offset) => {
   check('day summary shows ★ PR (bench e1RM record today)', /★ PR/.test(daySummary), daySummary);
 
   await page.click('.tab[data-tab="stats"]');
+  await page.waitForSelector('.hero-pace');
+  const heroPace = await page.$eval('.hero-pace', (e) => e.textContent);
+  check('weight hero shows required vs trending pace', /need [+-][\d.]+/.test(heroPace), heroPace);
+  // the maintenance/intake card lives on the Intake stats pane now
+  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Intake');
   await page.waitForSelector('.card.dash-insight');
   const insight = await page.$eval('.card.dash-insight', (e) => e.textContent);
   // this fixture logs only 10 weigh-ins in 28 days; the gate needs 12, so
   // maintenance must REFUSE to estimate and say exactly what is missing
   check('maintenance locked below the weigh-in gate', /Not enough data yet/.test(insight), insight.slice(0, 200));
   check('locked reason names the shortfall', /10\/12 weigh-ins/.test(insight), insight.slice(0, 200));
-  const heroPace = await page.$eval('.hero-pace', (e) => e.textContent);
-  check('weight hero shows required vs trending pace', /need [+-][\d.]+/.test(heroPace), heroPace);
 
   await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Progress');
   await openLifts();

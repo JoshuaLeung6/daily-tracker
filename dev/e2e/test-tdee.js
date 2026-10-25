@@ -62,6 +62,7 @@ const localISO = (offset) => {
   await page.removeScriptToEvaluateOnNewDocument(injA.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="stats"]');
+  await page.evaluate(() => [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((b) => b.textContent === 'Intake').click());
   await page.waitForSelector('.mt-eq');
   const tdeeText = await page.$eval('.card.dash-insight', (e) => e.textContent);
   check('maintenance ≈ 2,733 shown as the equation result', /2,73\d/.test(tdeeText), tdeeText.slice(0, 160));
@@ -77,6 +78,7 @@ const localISO = (offset) => {
   await page.removeScriptToEvaluateOnNewDocument(injB.identifier);
   await page.waitForSelector('.card');
   await page.click('.tab[data-tab="stats"]');
+  await page.evaluate(() => [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((b) => b.textContent === 'Intake').click());
   await page.waitForSelector('.mt-locked');
   const lockedText = await page.$eval('.mt-locked', (e) => e.textContent);
   check('sparse logging locks TDEE with reason', /needs ~4 weeks of logs/.test(lockedText), lockedText);
@@ -100,6 +102,7 @@ const localISO = (offset) => {
 
   // the dashboard still surfaces the measured TDEE + suggestion
   await page.click('.tab[data-tab="stats"]');
+  await page.evaluate(() => [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((b) => b.textContent === 'Intake').click());
   await page.waitForSelector('.mt-eq');
   const tdeeAgain = await page.$eval('.card.dash-insight', (e) => e.textContent);
   check('dashboard shows measured maintenance', /2,73\d/.test(tdeeAgain), tdeeAgain.slice(0, 120));

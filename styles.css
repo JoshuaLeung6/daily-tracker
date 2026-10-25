@@ -1755,6 +1755,7 @@ html[data-theme="light"] body::before {
 .st-1rm { font-size: 13px; color: var(--muted); }
 .st-1rm.stx-good { color: var(--met-day); }
 .st-1rm.stx-bad { color: var(--danger); }
+.st-bad-note { color: var(--danger); }
 
 /* a section heading with a control on the right (e.g. the Trends range
    toggle that governs both charts beneath it) */

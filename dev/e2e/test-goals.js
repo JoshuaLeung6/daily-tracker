@@ -155,7 +155,7 @@ const localISO = (offset) => {
   // ---- 4. lifting pane: PR goal ----
   // Lift PR goals are configured in js/sprints.js, never set from the UI:
   // the Lifts pane must expose NO goal-editing controls.
-  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Lifts');
+  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Move');
   await page.waitForSelector('#view-stats .pane');
   // expand every PPL group that exists, then assert the rows are read-only
   await page.evaluate(() => {

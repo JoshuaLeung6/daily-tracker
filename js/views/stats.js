@@ -22,6 +22,7 @@ import {
 import {
   suggestedIntake, calorieTracker, adaptiveTDEE,
   weightTracker, rateBand, weekReport, weekSuggestions,
+  isCardioDay, cardioTracker,
 } from '../insights.js';
 import { lineChart, barChart, svgEl } from '../charts.js';
 import { allPhotos } from '../photos.js';
@@ -42,13 +43,13 @@ const signed = (n) => `${n > 0 ? '+' : ''}${fmtN(n)}`;
 export function render(container, ctx) {
   const rerender = () => render(container, ctx);
 
-  // Two panes: the sprint scoreboard and the lift ledger. This tab is pure
-  // MEASUREMENT now — Coach (guidance, plans, reference) lives in the
-  // Manual, rendered from here via coachPane (exported below).
-  const PANES = ['sprint', 'lifts'];
+  // Pure MEASUREMENT, broken out the same way as the Day view and the
+  // Manual: the goal layer (Progress) on top, then one stats pane per
+  // zone — Movement, Intake, Recovery. Coach lives in the Manual.
+  const PANES = ['sprint', 'movement', 'intake', 'recovery'];
   if (!PANES.includes(pane)) pane = 'sprint';
   const sprint = currentSprint();
-  const TITLES = { sprint: 'Stats', lifts: 'Lifts' };
+  const TITLES = { sprint: 'Stats', movement: 'Movement', intake: 'Intake', recovery: 'Recovery' };
   const head = el('header', { class: 'view-head' },
     el('span'),
     el('div', { class: 'masthead' },
@@ -58,13 +59,32 @@ export function render(container, ctx) {
     el('span'),
   );
 
+  const segBtn = (key, label) => el('button', {
+    class: 'seg-btn',
+    'aria-pressed': String(pane === key),
+    onclick: () => { pane = key; rerender(); },
+  }, label);
   const paneSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Stats section' },
-    el('button', { class: 'seg-btn', 'aria-pressed': String(pane === 'sprint'), onclick: () => { pane = 'sprint'; rerender(); } }, 'Progress'),
-    el('button', { class: 'seg-btn', 'aria-pressed': String(pane === 'lifts'), onclick: () => { pane = 'lifts'; rerender(); } }, 'Lifts'),
-  );
+    segBtn('sprint', 'Progress'), segBtn('movement', 'Move'), segBtn('intake', 'Intake'), segBtn('recovery', 'Recover'));
 
-  const paneEl = pane === 'lifts' ? liftingPane(rerender) : dashboardPane(rerender);
+  const paneEl = pane === 'movement' ? movementPane(rerender)
+    : pane === 'intake' ? intakePane(rerender)
+      : pane === 'recovery' ? recoveryPane(rerender)
+        : dashboardPane(rerender);
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), paneSeg, paneEl);
+}
+
+// Shared: the active sprint's elapsed day list (start → today, capped at
+// the end) — every zone pane counts over the same window.
+function sprintWindow() {
+  const s = currentSprint();
+  if (!s) return null;
+  const today = todayISO();
+  if (today < s.start) return null;
+  const end = today < s.end ? today : s.end;
+  const days = [];
+  for (let d = s.start; d <= end; d = addDays(d, 1)) days.push(d);
+  return { sprint: s, days, weeks: Math.max(1, days.length / 7) };
 }
 
 /* ================= Dashboard (the sprint story) ================= */
@@ -102,7 +122,32 @@ function dashboardPane(rerender) {
     return wrap;
   }
 
-  // 2. hero: weight pace vs goal + strength total, side by side
+  // 2. THE GOAL — Sprint 2's contract: the FINAL WEEK's weigh-ins must
+  // average ≥ the target. Projection carries the 28-day trend to the final
+  // week's midpoint; "needed" is the rate that lands exactly on target.
+  if (gw && !r.done && !gw.done) {
+    const mid = addDays(r.end, -3);
+    const weeksToMid = Math.max(0, (Date.parse(mid) - Date.parse(todayISO())) / (7 * 86400000));
+    const cur = gw.currentPerWeek;
+    const projected = cur != null && weeksToMid > 0 ? gw.current + cur * weeksToMid : (cur != null ? gw.current : null);
+    const needRate = weeksToMid > 0.2 ? (gw.target - gw.current) / weeksToMid : null;
+    const onTrack = projected != null && projected >= gw.target;
+    wrap.append(el('div', { class: 'card goal-card dash-insight' },
+      el('div', { class: 'gc-head' },
+        el('span', { class: 'gc-name' }, `The goal: ${fmtN(gw.target)}${unit}`),
+        el('span', { class: 'rp-dim' }, `final-week avg · ${fmt(addDays(r.end, -6), { month: 'short', day: 'numeric' })}–${fmt(r.end, { day: 'numeric' })}`)),
+      el('div', { class: 'mt-aim' },
+        el('div', { class: 'mt-aim-row' },
+          el('span', { class: 'mt-aim-lab' }, 'Projected final week'),
+          el('span', { class: 'mt-aim-val mt-aim-avg' + (projected == null ? '' : onTrack ? ' st-good' : ' st-bad') },
+            projected != null ? `${fmtN(Math.round(projected * 10) / 10)}${unit}` : 'weigh in to project')),
+        needRate != null ? el('div', { class: 'mt-aim-row' },
+          el('span', { class: 'mt-aim-lab' }, 'Needed from here'),
+          el('span', { class: 'mt-aim-val' }, `${needRate > 0 ? '+' : ''}${fmtN(Math.round(needRate * 100) / 100)}${unit}/wk`)) : null),
+    ));
+  }
+
+  // 3. hero: weight pace vs goal + strength total, side by side
   const heroes = el('div', { class: 'dash-heroes' });
 
   // weight hero
@@ -169,8 +214,7 @@ function dashboardPane(rerender) {
   }
   wrap.append(heroes);
 
-  // 2b. intake: measured maintenance + what to eat to hit the sprint goal
-  if (wt) wrap.append(intakeCard(gw));
+  // (the Intake maintenance card lives on the Intake stats pane now)
 
   // 3. consistency across the whole sprint so far — percentages only
   const adh = adherenceCard(r.adherence28);
@@ -739,6 +783,140 @@ function planSection(r, sprint) {
 // The whole method is: whatever you ate, minus whatever the scale says you
 // banked or burned. 1 lb of body mass ~ 3,500 kcal, so a weekly rate converts
 // to a daily calorie surplus/deficit by (rate * 3500) / 7.
+// ================= Intake pane (fuel: kcal, protein, substances) =======
+
+function intakePane() {
+  const wrap = el('div', { class: 'pane' });
+  const sprint = currentSprint();
+  const gw = sprint ? (sprintReport(sprint).goals || {}).weight : null;
+  const wt = weightTracker();
+
+  // measured maintenance + the minimum that reaches the goal
+  if (wt) wrap.append(intakeCard(gw));
+
+  const w = sprintWindow();
+  if (w) {
+    const cal = calorieTracker();
+    const pro = activeTrackers().find((t) => t.type === 'number' && /protein/i.test(t.name));
+
+    // weekly average kcal/day across the sprint — consistency made visible
+    if (cal) {
+      const bars = [];
+      for (let ws = startOfWeek(w.sprint.start); ws <= w.days[w.days.length - 1]; ws = addDays(ws, 7)) {
+        let sum = 0; let n = 0;
+        for (let i = 0; i < 7; i++) {
+          const v = getEntry(addDays(ws, i))[cal.id];
+          if (typeof v === 'number') { sum += v; n++; }
+        }
+        if (n > 0) bars.push({ label: fmt(ws, { month: 'short', day: 'numeric' }), value: Math.round(sum / n) });
+      }
+      if (bars.length) {
+        wrap.append(el('div', { class: 'card chart-card' },
+          el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Calories'),
+            el('span', { class: 'att-desc' }, 'weekly avg/day · target ≥ 3,000')),
+          barChart({ bars, ariaLabel: 'Weekly average calories per day' })));
+      }
+    }
+
+    // protein: sprint average + hit rate
+    if (pro) {
+      let sum = 0; let n = 0; let hit = 0; let of = 0;
+      for (const d of w.days) {
+        const v = getEntry(d)[pro.id];
+        if (typeof v === 'number') { sum += v; n++; }
+        const t = targetFor(pro, d);
+        if (t && t.period === 'day') { of++; if (dayMeets(pro, d)) hit++; }
+      }
+      const card = el('div', { class: 'card report-card' });
+      card.append(rpRowS('Protein', el('span', {},
+        el('b', {}, n ? `${Math.round(sum / n)} g` : '—'), n ? ' avg/day' : '',
+        of ? el('span', { class: 'rp-dim' }, ` · target hit ${hit}/${of} days`) : null)));
+      wrap.append(card);
+    }
+
+    // substances: frequencies only — the judgment lives in correlations later
+    const alc = activeTrackers().find((t) => /alcohol/i.test(t.name));
+    const caf = activeTrackers().find((t) => /caffeine/i.test(t.name));
+    const can = activeTrackers().find((t) => /cannabis/i.test(t.name));
+    const sub = el('div', { class: 'card report-card' });
+    let any = false;
+    if (alc) {
+      const counts = { low: 0, moderate: 0, high: 0 };
+      for (const d of w.days) { const v = getEntry(d)[alc.id]; if (counts[v] != null) counts[v]++; }
+      const total = counts.low + counts.moderate + counts.high;
+      sub.append(rpRowS('Alcohol', el('span', {}, el('b', {}, String(total)), ` day${total === 1 ? '' : 's'}`,
+        total ? el('span', { class: 'rp-dim' }, ` · ${counts.low} low · ${counts.moderate} mod · ${counts.high} high`) : null)));
+      any = true;
+    }
+    if (caf) {
+      let days = 0; let nights = 0;
+      for (const d of w.days) {
+        const v = getEntry(d)[caf.id];
+        if (Array.isArray(v) && v.length) { days++; if (v.includes('night')) nights++; }
+      }
+      sub.append(rpRowS('Caffeine', el('span', {}, el('b', {}, String(days)), ` day${days === 1 ? '' : 's'}`,
+        el('span', { class: nights > 0 ? 'st-bad-note' : 'rp-dim' }, ` · ${nights} night${nights === 1 ? '' : 's'}`))));
+      any = true;
+    }
+    if (can) {
+      let days = 0;
+      for (const d of w.days) if (getEntry(d)[can.id] === true) days++;
+      sub.append(rpRowS('Cannabis', el('span', {}, el('b', {}, String(days)), ` day${days === 1 ? '' : 's'}`)));
+      any = true;
+    }
+    if (any) wrap.append(el('div', { class: 'settings-section' }, el('h2', {}, 'Substances · this sprint'), sub));
+  }
+  return wrap;
+}
+
+// ================= Recovery pane (sleep + mental health) ================
+
+function recoveryPane() {
+  const wrap = el('div', { class: 'pane' });
+  const w = sprintWindow();
+  if (!w) {
+    wrap.append(el('div', { class: 'empty-state' }, 'Recovery stats appear once a sprint is running.'));
+    return wrap;
+  }
+  const sleep = activeTrackers().find((t) => /sleep/i.test(t.name));
+  const mh = activeTrackers().find((t) => /mental/i.test(t.name));
+
+  if (sleep) {
+    const counts = { good: 0, okay: 0, poor: 0 };
+    let logged = 0;
+    for (const d of w.days) {
+      const v = getEntry(d)[sleep.id];
+      if (v === true) { counts.good++; logged++; }           // old checkbox era
+      else if (counts[v] != null) { counts[v]++; logged++; }
+    }
+    const okPct = logged ? Math.round(((counts.good + counts.okay) / logged) * 100) : null;
+    const card = el('div', { class: 'card report-card' });
+    card.append(rpRowS('Sleep', el('span', {},
+      el('b', {}, okPct != null ? `${okPct}%` : '—'), okPct != null ? ' okay or better' : ' logged yet',
+      logged ? el('span', { class: 'rp-dim' }, ` · ${counts.good} good · ${counts.okay} okay · ${counts.poor} poor`) : null)));
+    wrap.append(card);
+  }
+
+  if (mh) {
+    const points = [];
+    for (const d of w.days) {
+      const v = getEntry(d)[mh.id];
+      if (typeof v === 'number') points.push({ iso: d, value: v });
+    }
+    const card = el('div', { class: 'card chart-card' },
+      el('div', { class: 'gc-head' }, el('span', { class: 'gc-name' }, 'Mental health'),
+        points.length ? el('span', { class: 'att-desc' }, `latest ${points[points.length - 1].value}/5`) : null));
+    card.append(points.length >= 2
+      ? lineChart({ points, ariaLabel: 'Mental health score over the sprint', domain: { from: w.sprint.start, to: w.sprint.end } })
+      : el('div', { class: 'rp-dim st-chart-note' }, 'chart appears after two logged days'));
+    wrap.append(card);
+  }
+
+  wrap.append(el('div', { class: 'settings-note' },
+    'Correlations (sleep × training quality, alcohol × next-day scores) switch on once a few weeks of this data exist.'));
+  return wrap;
+}
+
 function intakeCard(gw) {
   const t = adaptiveTDEE();
   const card = el('div', { class: 'card goal-card dash-insight' },
@@ -876,7 +1054,34 @@ function measurementSeries(id) {
 
 /* ================= Lifting pane ================= */
 
-function liftingPane(rerender) {
+// ================= Movement pane (lifting + cardio + mobility) =========
+
+function movementPane(rerender) {
+  const wrap = liftingPaneBody(rerender);
+  // cardio + mobility weekly rates over the sprint, ahead of the ledger
+  const w = sprintWindow();
+  if (w) {
+    const cardio = cardioTracker();
+    const mob = activeTrackers().find((t) => t.type === 'checkbox' && /mobilit/i.test(t.name));
+    let cardioDays = 0;
+    let mobDays = 0;
+    for (const d of w.days) {
+      const e = getEntry(d);
+      if (cardio && isCardioDay(e[cardio.id])) cardioDays++;
+      if (mob && e[mob.id] === true) mobDays++;
+    }
+    const rate = (n) => (n / w.weeks).toFixed(1);
+    const sessions = el('div', { class: 'card report-card' });
+    sessions.append(rpRowS('Cardio', el('span', {}, el('b', {}, String(cardioDays)), ' sessions',
+      el('span', { class: 'rp-dim' }, ` · ${rate(cardioDays)}/wk, target 1`))));
+    sessions.append(rpRowS('Mobility', el('span', {}, el('b', {}, String(mobDays)), ' sessions',
+      el('span', { class: 'rp-dim' }, ` · ${rate(mobDays)}/wk, target 2`))));
+    wrap.prepend(sessions);
+  }
+  return wrap;
+}
+
+function liftingPaneBody(rerender) {
   const wrap = el('div', { class: 'pane' });
   const counts = workoutCounts();
 

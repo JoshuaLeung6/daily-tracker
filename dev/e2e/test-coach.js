@@ -29,7 +29,7 @@ const localISO = (offset) => {
   // Open that pane and expand every group so .stat-row is reachable.
   const openLifts = async () => {
     await page.evaluate(() => {
-      const b = [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((x) => x.textContent === 'Lifts');
+      const b = [...document.querySelectorAll('#view-stats .seg-btn:not(.range-btn)')].find((x) => x.textContent === 'Move');
       if (b) b.click();
     });
     await new Promise((r) => setTimeout(r, 250));
