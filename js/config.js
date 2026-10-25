@@ -69,6 +69,52 @@ export const CARDIO_COUNTS = ['run', 'squash', 'bike', 'kayak', 'tennis', 'swim'
 // Day-view grouping: group is one of movement | intake | recovery; the
 // Day tab renders collapsible sections in that order. No group (Weight) =
 // ungrouped at the top — the goal instrument leads the day.
+// The Manual (footer tab): the standing plan for each zone, written HERE
+// (with Claude) like every other plan in this app. The free-text notes on
+// each Manual page live in the data document, not here.
+export const MANUAL = {
+  movement: {
+    text: 'Lift on the push/pull/legs rotation, everything at 8–15 reps — weight days push load, volume days push sets. Take the last set of each lift to 0–2 reps in reserve, and when every set hits the top of the range two sessions running, add load and reset to ~10.',
+    rows: [
+      ['Lifting', '5–6 sessions/week'],
+      ['Main lifts', 'DB press · Lat pulldown · Leg press'],
+      ['Cardio', '1×/week minimum, any sport'],
+      ['Mobility', '2×/week, 10+ minutes'],
+      ['When stuck', 'eating? sleep? → add a set → change range → deload'],
+    ],
+  },
+  intake: {
+    text: 'The bulk is won at the table. Calories every single day — weekends are the historical failure mode, and the sprint goal needs the surplus to be boringly consistent. Protein is the one number to log tightly; it has no self-correcting signal.',
+    rows: [
+      ['Calories', '≥ 3,000 kcal/day, every day'],
+      ['Protein', '≥ 120 g/day, logged carefully'],
+      ['Alcohol · caffeine · cannabis', 'log by exception — night caffeine is the sleep killer'],
+      ['Weekends', 'anchor breakfast; do not let Saturday erase the week'],
+    ],
+  },
+  recovery: {
+    text: 'Muscle is built between sessions. Sleep is the strongest lever in the log; a poor night means cap the top set, not skip the session.',
+    rows: [
+      ['Sleep', 'aim 7h+ — good / okay / poor, logged with the morning weigh-in'],
+      ['Mental health', '0–5 slider, honest, no target on purpose'],
+      ['Deload', 'one easy week every 4–8 weeks, or after two declining sessions'],
+    ],
+  },
+  maintenance: {
+    text: 'Scheduled upkeep — the appointments that silently lapse for years because nothing tracks them. The reminder calendar lands here once the last-visit dates are in.',
+    rows: [
+      ['Dentist', 'every 6 months'],
+      ['Physical', 'yearly'],
+      ['Skin check', 'yearly'],
+      ['Physio', 'as needed — via Repair'],
+    ],
+  },
+  repair: {
+    text: 'Whatever is broken right now and needs a professional. Empty is the goal state. When something hurts beyond normal soreness: write it down here, book the appointment, train around it. While this page is not empty, it comes first.',
+    rows: [],
+  },
+};
+
 // NOTE: every target/goal below is `null` = "keep whatever is already stored
 // on the phone" (the values Joshua set in-app before this switch). Change a
 // null to a concrete target here to make it the source of truth from then on.

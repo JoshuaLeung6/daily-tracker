@@ -275,6 +275,21 @@ async function setNumberInput(page, selector, value) {
   const moodVal = (stored.entries[localISO(0)] || {})[moodId];
   check('single-select keeps one value (rough replaces great)', moodVal === 'rough', JSON.stringify(moodVal));
 
+
+  // ---- Manual tab: five zone pages, plan + persistent notes ----
+  await page.click('.tab[data-tab="manual"]');
+  await page.waitForSelector('.manual-pane');
+  const mnBtns = await page.$$eval('.mn-btn', (els) => els.map((e) => e.textContent));
+  check('manual: five zone subtabs', JSON.stringify(mnBtns) === JSON.stringify(['Move', 'Intake', 'Recover', 'Maintain', 'Repair']), mnBtns.join(','));
+  check('manual: movement plan renders', await page.evaluate(() => /8–15 reps/.test(document.querySelector('.manual-pane').textContent)));
+  await page.type('.manual-notes', 'bench cue: tuck elbows');
+  await new Promise((r) => setTimeout(r, 700));
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForSelector('.card');
+  await page.click('.tab[data-tab="manual"]');
+  await page.waitForSelector('.manual-notes');
+  check('manual: note persists across reload', await page.$eval('.manual-notes', (e) => e.value) === 'bench cue: tuck elbows');
+
   check('no console/page errors during whole run', errors.length === 0, errors.join(' | ').slice(0, 300));
 
   await browser.close();

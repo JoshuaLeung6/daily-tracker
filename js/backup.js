@@ -27,6 +27,7 @@ export async function exportData() {
     profile: doc.profile || {},
     foods: doc.foods || [],
     notes: doc.notes || {},
+    manualNotes: doc.manualNotes || {},
   };
   const result = await shareJSON(JSON.stringify(payload, null, 2), `tracker-backup-${todayISO()}.json`, 'Tracker backup');
   if (result !== 'cancelled') setLastExport();
@@ -129,6 +130,7 @@ export function buildAnalysisPayload() {
     })),
     days,
     notes: doc.notes || {},
+    manualNotes: doc.manualNotes || {},
     workouts: doc.workouts,
     stats: {
       targets: targetStats,

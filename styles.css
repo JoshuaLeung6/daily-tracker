@@ -387,6 +387,38 @@ html[data-theme="light"] body::before {
 
 .cards { display: flex; flex-direction: column; gap: 10px; }
 
+/* The Manual: five zone pages, plan + notes. Each page borrows its zone's
+   tint for the lead card's edge; Maintenance and Repair reuse app tokens
+   (service blue, alert red) rather than minting new hues. */
+.manual-seg { margin-top: 14px; padding: 3px; }
+.manual-seg .seg-btn { min-height: 34px; font-size: 11px; padding: 0 2px; }
+.mnp-movement { --gt: var(--g-move); }
+.mnp-intake { --gt: var(--g-intake); }
+.mnp-recovery { --gt: var(--g-recover); }
+.mnp-maintenance { --gt: var(--met-week); }
+.mnp-repair { --gt: var(--danger); }
+.manual-text {
+  display: block;
+  font-size: 14px;
+  line-height: 1.6;
+  border-left: 3px solid var(--gt, var(--accent));
+}
+.manual-pane .plan-card { margin-top: 10px; }
+.manual-notes {
+  width: 100%;
+  min-height: 96px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px; /* keep ≥16px: iOS zooms on smaller inputs */
+  line-height: 1.5;
+  padding: 10px 12px;
+  resize: none;
+  overflow: hidden;
+}
+
 /* Settings gear: fixed top-right, the only door to Settings now that it
    left the tab bar. Sits in the eyebrow band, clear of the nav arrows. */
 .settings-gear {

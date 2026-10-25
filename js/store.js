@@ -2,7 +2,7 @@
 // One JSON document under `pcal:data`; debounced autosave with
 // immediate flush on blur/hide so iOS suspending the PWA never loses input.
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 const KEY = 'pcal:data';
 const KEY_PRE_IMPORT = 'pcal:backup:pre-import';
@@ -28,6 +28,7 @@ function seed() {
     profile: {},
     foods: [],
     notes: {},
+    manualNotes: {},
   };
 }
 
@@ -96,11 +97,18 @@ export function init({ onStorageError } = {}) {
     data.schemaVersion = 5;
     persistNow();
   }
+  if (data.schemaVersion < 6) {
+    // v6 adds per-zone Manual notes
+    data.manualNotes ??= {};
+    data.schemaVersion = 6;
+    persistNow();
+  }
   data.workouts ??= {};
   data.liftGoals ??= {};
   data.profile ??= {};
   data.foods ??= [];
   data.notes ??= {};
+  data.manualNotes ??= {};
 
   window.addEventListener('pagehide', () => persistNow());
   document.addEventListener('visibilitychange', () => {
@@ -201,6 +209,19 @@ export function setNote(iso, text) {
   const t = (text || '').trim();
   if (t) data.notes[iso] = text;
   else delete data.notes[iso];
+  scheduleSave();
+}
+
+// ----- Manual notes: one free-text note per zone (movement, intake, …) -----
+
+export function getManualNote(cat) {
+  return (data.manualNotes || {})[cat] || '';
+}
+
+export function setManualNote(cat, text) {
+  data.manualNotes ??= {};
+  if ((text || '').trim()) data.manualNotes[cat] = text;
+  else delete data.manualNotes[cat];
   scheduleSave();
 }
 

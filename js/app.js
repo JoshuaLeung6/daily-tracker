@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.60.0';
+export const APP_VERSION = '2.61.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -16,6 +16,7 @@ import * as dayView from './views/day.js';
 import * as weekView from './views/week.js';
 import * as statsView from './views/stats.js';
 import * as settingsView from './views/settings.js';
+import * as manualView from './views/manual.js';
 import { currentSprint } from './sprints.js';
 
 const sections = {
@@ -23,6 +24,7 @@ const sections = {
   week: document.getElementById('view-week'),
   sprint: document.getElementById('view-sprint'),
   stats: document.getElementById('view-stats'),
+  manual: document.getElementById('view-manual'),
   settings: document.getElementById('view-settings'),
 };
 // Week tab = the CURRENT week's detail; Sprint tab = the weeks ledger.
@@ -32,6 +34,7 @@ const views = {
   week: weekView,
   sprint: { render: (container, c) => weekView.renderOverview(container, c) },
   stats: statsView,
+  manual: manualView,
   settings: settingsView,
 };
 
