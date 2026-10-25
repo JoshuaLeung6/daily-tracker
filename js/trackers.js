@@ -91,6 +91,7 @@ export function applyConfig(configTrackers, paceLookup) {
       };
       if (c.options) t.options = [...c.options];
       if (c.range) t.range = [...c.range];
+      if (c.step) t.step = c.step;
       doc.trackers.push(t);
       byName.set(key, t);
       changed = true;
@@ -98,6 +99,7 @@ export function applyConfig(configTrackers, paceLookup) {
       const patch = { type: c.type, unit: c.unit || null, order: i, archived: false, group: c.group || null };
       if (c.options) patch.options = [...c.options];
       if (c.range) patch.range = [...c.range];
+      if (c.step) patch.step = c.step;
       for (const [k, v] of Object.entries(patch)) {
         if (JSON.stringify(t[k]) !== JSON.stringify(v)) { t[k] = v; changed = true; }
       }

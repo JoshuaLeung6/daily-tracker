@@ -55,7 +55,7 @@ async function setNumberInput(page, selector, value) {
   // Mobility), Intake (Calories, Protein, Alcohol, Caffeine), Recovery
   // (Mental health, Sleep)
   check('day cards grouped: Weight, then Movement, Intake, Recovery',
-    JSON.stringify(names) === JSON.stringify(['Weight', 'Cardio', 'Mobility', 'Calories', 'Protein', 'Alcohol', 'Caffeine', 'Mental health', 'Sleep 7h+']), names.join(','));
+    JSON.stringify(names) === JSON.stringify(['Weight', 'Cardio', 'Mobility', 'Calories', 'Protein', 'Alcohol', 'Caffeine', 'Mental health', 'Sleep']), names.join(','));
   const groupHeads = await page.$$eval('.day-group-head', (els) => els.map((e) => e.textContent));
   check('three group headers with logged counts',
     groupHeads.length === 3 && /Movement/.test(groupHeads[0]) && /Intake/.test(groupHeads[1]) && /Recovery/.test(groupHeads[2])
@@ -95,7 +95,7 @@ async function setNumberInput(page, selector, value) {
   check('reopening restores the cards', await intakeVisible());
 
   // ---- 3. theme toggle ----
-  await page.click('.tab[data-tab="settings"]');
+  await page.click('.settings-gear');
   await page.waitForSelector('.seg');
   await clickByText('.seg-btn', 'Light');
   let theme = await page.evaluate(() => document.documentElement.dataset.theme);
@@ -139,7 +139,7 @@ async function setNumberInput(page, selector, value) {
     ]);
   });
   check('config re-apply is a no-op', changedAgain === false);
-  await page.click('.tab[data-tab="settings"]');
+  await page.click('.settings-gear');
   await page.waitForSelector('.tracker-row');
   const metaLine = await page.evaluate(() => [...document.querySelectorAll('.tr-info .meta')].map((m) => m.textContent).join(' | '));
   check('settings shows targets read-only', /≤ 3,000 kcal\/day/.test(metaLine) && /4 days\/wk/.test(metaLine), metaLine);
@@ -265,7 +265,7 @@ async function setNumberInput(page, selector, value) {
       { name: 'Mood', type: 'select', options: ['great', 'ok', 'rough'] },
     ]);
   });
-  await page.click('.tab[data-tab="settings"]');
+  await page.click('.settings-gear');
   await page.click('.tab[data-tab="day"]');
   await page.waitForSelector('.chip');
   await clickByText('.chip', 'great');

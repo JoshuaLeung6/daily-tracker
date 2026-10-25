@@ -75,7 +75,7 @@ function check(name, ok, extra = '') {
   check('gap: no plan section, reference cards stay', !/Process goals/.test(coachText) && /Reference/.test(coachText));
 
   // ---- 4. Settings shelf: Complete row opens the report overlay ----
-  await page.click('.tab[data-tab="settings"]');
+  await page.click('.settings-gear');
   await page.waitForSelector('.sprint-row');
   const rowText = await page.$eval('.sprint-row', (e) => e.textContent);
   check('shelf: Sprint 1 listed as Complete', /Sprint 1/.test(rowText) && /Complete/.test(rowText), rowText);

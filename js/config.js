@@ -102,14 +102,18 @@ export const TRACKERS = [
     // stray "35" can't poison averages. No target on purpose: a graded mood
     // is a guilt machine — this is a correlation instrument (sleep, alcohol,
     // training load vs how you actually feel).
+    // renders as a SLIDER (number + range + step): 0.5 notches, no keyboard
     range: [0, 5],
+    step: 0.5,
     target: null },
-  { name: 'Sleep 7h+', type: 'checkbox', group: 'recovery',
-    // CONVENTION: a day's checkbox = the night you WOKE UP FROM that morning
-    // (Monday's box = Sunday night). Log it with the morning weigh-in.
-    // ~7h actually ASLEEP: the Watch number if worn, else time-in-bed minus
-    // ~30 min. Groggy despite the hours? Log honestly and cap the top set.
-    // Target stamps the day it was added — no backdating, no fake 0% history.
+  { name: 'Sleep', type: 'select', options: ['poor', 'okay', 'good'], group: 'recovery',
+    // CONVENTION: a day's pick = the night you WOKE UP FROM that morning.
+    // Log it with the morning weigh-in. Rough guide: good = 7h+ and rested,
+    // okay = adequate, poor = short or broken (the day to cap the top set).
+    // (Replaced the 'Sleep 7h+' checkbox 2026-10-25 — that tracker is
+    // archived; old checked days still count as hits in the consistency
+    // ring, which grades okay/good as hit and poor as the flag.)
+    // Daily target = "log it every day", which also dates the ring.
     target: { period: 'day', value: 1 } },
   { name: 'Weightlifting', type: 'checkbox', group: 'movement',
     // 6 sessions/week (PPL x2) — backdated to the sprint start

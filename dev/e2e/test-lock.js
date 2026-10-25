@@ -40,7 +40,7 @@ function check(name, ok, extra = '') {
   const unlockedCards = await page.$$eval('.cards .card', (els) => els.length);
   // config trackers minus the Weightlifting checkbox (derived from the
   // workout log): Weight, Cardio, Mobility, Calories, Protein, Alcohol,
-  // Caffeine, Mental health, Sleep 7h+
+  // Caffeine, Mental health, Sleep
   check('unlocking reveals the 9 loggable trackers', unlockedCards === 9, `cards: ${unlockedCards}`);
   await page.click('.card input[type="text"]');
   await page.keyboard.type('1800');

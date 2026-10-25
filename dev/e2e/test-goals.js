@@ -194,7 +194,7 @@ const localISO = (offset) => {
   check(`locked empty day (${emptyOff}) says nothing logged`, /Nothing logged this day/.test(emptyText), emptyText.slice(0, 120));
 
   // ---- 7. About note removed ----
-  await page.click('.tab[data-tab="settings"]');
+  await page.click('.settings-gear');
   const settingsText = await page.$eval('#view-settings', (e) => e.textContent);
   check('"All data lives on this phone" note removed', !/All data lives on this phone/.test(settingsText));
 

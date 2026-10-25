@@ -129,7 +129,7 @@ const localISO = (offset) => {
     JSON.stringify(benchStat));
   check('analysis: weeklyVolume 12 weeks', payload.stats.weeklyVolume.length === 12);
 
-  await page.click('.tab[data-tab="settings"]');
+  await page.click('.settings-gear');
   const hasBtn = await page.evaluate(() => [...document.querySelectorAll('.btn')].some((b) => b.textContent === 'Export for analysis'));
   check('settings: Export for analysis button', hasBtn);
 

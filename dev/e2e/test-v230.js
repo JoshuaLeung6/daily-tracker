@@ -143,7 +143,7 @@ const localISO = (offset) => {
   await page.screenshot({ path: path.join(__dirname, 'shots', 'weight-chart.png') });
 
   // ---- 4. profile persists and rides in the doc ----
-  await page.click('.tab[data-tab="settings"]');
+  await page.click('.settings-gear');
   await page.waitForSelector('input[aria-label="Birth year"]');
   await page.type('input[aria-label="Birth year"]', '1998');
   await page.type('input[aria-label="Height"]', '178 cm');
@@ -154,7 +154,7 @@ const localISO = (offset) => {
   check('profile saved', profile.birthYear === 1998 && profile.height === '178 cm' && profile.sex === 'male' && profile.units === 'lb',
     JSON.stringify(profile));
   await page.reload({ waitUntil: 'networkidle0' });
-  await page.click('.tab[data-tab="settings"]');
+  await page.click('.settings-gear');
   await page.waitForSelector('input[aria-label="Birth year"]');
   const byVal = await page.$eval('input[aria-label="Birth year"]', (e) => e.value);
   check('profile survives reload', byVal === '1998', byVal);

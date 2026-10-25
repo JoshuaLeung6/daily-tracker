@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.55.0';
+export const APP_VERSION = '2.56.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -143,9 +143,14 @@ function switchTab(tab) {
     if (btn.dataset.tab === tab) btn.setAttribute('aria-current', 'page');
     else btn.removeAttribute('aria-current');
   }
+  // the gear is redundant while Settings is open
+  const gearBtn = document.querySelector('.settings-gear');
+  if (gearBtn) gearBtn.hidden = tab === 'settings';
   renderActive();
   sections[tab].scrollTop = 0;
 }
+
+document.querySelector('.settings-gear').addEventListener('click', () => switchTab('settings'));
 
 for (const btn of document.querySelectorAll('.tab')) {
   btn.addEventListener('click', () => {

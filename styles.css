@@ -369,6 +369,35 @@ html[data-theme="light"] body::before {
 
 .cards { display: flex; flex-direction: column; gap: 10px; }
 
+/* Settings gear: fixed top-right, the only door to Settings now that it
+   left the tab bar. Sits in the eyebrow band, clear of the nav arrows. */
+.settings-gear {
+  position: fixed;
+  top: calc(var(--top-pad, 0px) + 10px);
+  right: 12px;
+  z-index: 25;   /* above views, under overlays (50) and sheets (60) */
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+  border-radius: 50%;
+}
+.settings-gear svg { width: 19px; height: 19px; }
+
+/* bounded-score slider (e.g. Mental health 0–5 in halves) */
+.slider { width: 100%; accent-color: var(--accent); min-height: 30px; }
+.slider:disabled { opacity: 0.6; }
+.slider-val {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.slider-val.is-empty { color: var(--faint); }
+
 /* grouped day view: Movement / Intake / Recovery, each in a faint bubble */
 .day-group-wrap {
   border: 1px solid var(--hairline);

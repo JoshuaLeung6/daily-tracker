@@ -615,7 +615,8 @@ function workoutSection(iso, locked, rerender) {
 
 function trackerCard(t, iso, entry, locked, rerender) {
   let card;
-  if (t.type === 'number' || t.type === 'measurement') card = numberCard(t, iso, entry, locked, rerender);
+  if (t.type === 'number' && t.range) card = sliderCard(t, iso, entry, locked);
+  else if (t.type === 'number' || t.type === 'measurement') card = numberCard(t, iso, entry, locked, rerender);
   else if (t.type === 'checkbox') card = checkboxCard(t, iso, entry, locked);
   else if (t.type === 'select' || t.type === 'multiselect') card = selectCard(t, iso, entry, locked);
   else card = textCard(t, iso, entry, locked);
@@ -629,6 +630,40 @@ function lockIcon(closed) {
     ? '<svg viewBox="0 0 16 16" width="12" height="12"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>'
     : '<svg viewBox="0 0 16 16" width="12" height="12"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 5.7-1.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
   return span;
+}
+
+// A bounded score (config `range` + `step`) renders as a SLIDER — no
+// keyboard. Honest empty state: the thumb starts mid-track for reach, but a
+// value is only WRITTEN when the slider is actually touched; untouched
+// logs nothing and the readout shows '·'.
+function sliderCard(t, iso, entry, locked) {
+  const [lo, hi] = t.range;
+  const unit = t.unit ? ` ${t.unit}` : '';
+  const cur = entry[t.id];
+  const has = typeof cur === 'number';
+  const valEl = el('span', { class: 'slider-val' + (has ? '' : ' is-empty') }, has ? `${cur}${unit}` : '·');
+  const input = el('input', {
+    type: 'range',
+    class: 'slider',
+    min: String(lo),
+    max: String(hi),
+    step: String(t.step || 1),
+    'aria-label': t.name,
+    disabled: locked,
+    value: has ? String(cur) : String((lo + hi) / 2),
+  });
+  input.addEventListener('input', () => {
+    const num = parseFloat(input.value);
+    setValue(iso, t.id, num);
+    valEl.textContent = `${num}${unit}`;
+    valEl.classList.remove('is-empty');
+  });
+  input.addEventListener('change', () => persistNow());
+  return el('div', { class: 'card card-num' },
+    el('span', { class: 'num-row' },
+      el('span', { class: 't-name' }, t.name),
+      valEl),
+    input);
 }
 
 function numberCard(t, iso, entry, locked, rerender) {

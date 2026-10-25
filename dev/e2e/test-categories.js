@@ -84,7 +84,7 @@ const localISO = (offset) => {
   check('weight shows an average, never a sum', /lb avg/.test(wkText) && !/372|374\.5/.test(wkText), wkText);
 
   // ---- 4. settings: read-only summary shows kind + goal ----
-  await page.click('.tab[data-tab="settings"]');
+  await page.click('.settings-gear');
   await page.waitForSelector('.tracker-row');
   const metaText = await page.evaluate(() => [...document.querySelectorAll('.tr-info .meta')].map((m) => m.textContent).join(' | '));
   check('settings meta: Weight is Measurement with goal', /Measurement.*goal 175/.test(metaText), metaText);

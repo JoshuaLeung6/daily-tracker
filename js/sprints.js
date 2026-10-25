@@ -127,7 +127,7 @@ export function adherence28(days = 28) {
   const pro = proteinTracker();
   const cardio = cardioTracker();
   const steps = activeTrackers().find((t) => t.type === 'checkbox' && /step/i.test(t.name));
-  const sleep = activeTrackers().find((t) => t.type === 'checkbox' && /sleep/i.test(t.name));
+  const sleep = activeTrackers().find((t) => /sleep/i.test(t.name));
 
   // lifts: workout days out of the lifting weekly target scaled to N days
   let liftDays = 0;
@@ -147,7 +147,13 @@ export function adherence28(days = 28) {
     // habit checkboxes count only days their target was in force — a tracker
     // added mid-sprint must not be graded on days it did not exist
     if (steps && targetFor(steps, d)) { stepsOf++; if (e[steps.id] === true) stepsHit++; }
-    if (sleep && targetFor(sleep, d)) { sleepOf++; if (e[sleep.id] === true) sleepHit++; }
+    // sleep hit = okay/good (poor is the flag); `true` keeps the old
+    // checkbox tracker's history counting
+    if (sleep && targetFor(sleep, d)) {
+      sleepOf++;
+      const sv = e[sleep.id];
+      if (sv === true || sv === 'good' || sv === 'okay') sleepHit++;
+    }
     if (wt && typeof e[wt.id] === 'number') weighIns++;
   }
   // Cardio is a WEEKLY target (e.g. 1x/week), so a per-day rate would be

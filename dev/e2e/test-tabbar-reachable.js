@@ -23,8 +23,8 @@ const CHROME = ['C:', 'Program Files', 'Google', 'Chrome', 'Application', 'chrom
         const r = t.getBoundingClientRect();
         return { visible: r.top >= 0 && r.bottom <= window.innerHeight + 1 && r.width > 0 };
       });
-      // is the Settings tab actually tappable at its centre point?
-      const st = document.querySelector('.tab[data-tab="settings"]');
+      // is the Settings GEAR actually tappable at its centre point?
+      const st = document.querySelector('.settings-gear');
       const sr = st.getBoundingClientRect();
       const cx = sr.left + sr.width / 2;
       const cy = sr.top + sr.height / 2;
@@ -35,7 +35,7 @@ const CHROME = ['C:', 'Program Files', 'Google', 'Chrome', 'Application', 'chrom
         innerH: window.innerHeight,
         barFullyVisible: bar.top >= 0 && bar.bottom <= window.innerHeight + 1,
         allTabsVisible: tabs.every((t) => t.visible),
-        settingsTappable: !!(hit && (hit.closest('.tab[data-tab="settings"]'))),
+        settingsTappable: !!(hit && (hit.closest('.settings-gear'))),
       };
     });
     const ok = m.barFullyVisible && m.allTabsVisible && m.settingsTappable;
