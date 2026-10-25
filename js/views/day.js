@@ -3,7 +3,7 @@
 
 import { el, checkIcon } from '../ui.js';
 import { todayISO, addDays, weekdayName, fmt } from '../dates.js';
-import { getEntry, setValue, persistNow, getNote, setNote, collapsedDayGroups, setDayGroupCollapsed } from '../store.js';
+import { getEntry, setValue, persistNow, getNote, setNote, collapsedDayGroups, setDayGroupCollapsed, getRepairs } from '../store.js';
 import { photosOn, addPhoto, deletePhoto, allPhotos, updateCaption } from '../photos.js';
 import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets, previousValue } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, FOCUS_LABELS, sessionHadPR } from '../workouts.js';
@@ -247,8 +247,15 @@ export function render(container, ctx) {
     }, lockIcon(locked), locked ? 'Locked — tap to edit' : 'Editing past day');
     pieces.push(el('div', { class: 'lock-row' }, pill));
   }
+  // Repair comes first: any open issue banners the top of the day
+  const openRepairs = getRepairs().filter((x) => !x.closed);
+  const repairBanner = openRepairs.length ? el('button', {
+    class: 'repair-banner',
+    onclick: () => ctx.openRepair && ctx.openRepair(),
+  }, el('b', {}, 'Repair'), ` ${openRepairs.map((x) => x.title).join(' · ')}`) : null;
+
   // the workout logger lives inside the Movement group now
-  container.replaceChildren(...pieces, cards, journalSection(iso, locked));
+  container.replaceChildren(...pieces, ...(repairBanner ? [repairBanner] : []), cards, journalSection(iso, locked));
 
   if (!locked && active.length === 0 && archivedWithData.length === 0) {
     cards.append(el('div', { class: 'empty-state' }, 'No trackers yet. Add one in Settings.'));

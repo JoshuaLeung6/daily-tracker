@@ -295,6 +295,36 @@ async function setNumberInput(page, selector, value) {
   await page.waitForSelector('.manual-notes');
   check('manual: note persists across reload', await page.$eval('.manual-notes', (e) => e.value) === 'bench cue: tuck elbows');
 
+  // ---- Repair: open an issue, see the day-view banner, resolve it ----
+  await page.evaluate(() => [...document.querySelectorAll('.mn-btn')].find((b) => b.textContent === 'Repair').click());
+  await page.waitForSelector('.manual-pane .ghost-btn');
+  check('repair: empty is the goal state', await page.evaluate(() => /Nothing broken/.test(document.querySelector('.manual-pane').textContent)));
+  await page.evaluate(() => { window.prompt = () => 'left shoulder'; });
+  await page.evaluate(() => [...document.querySelectorAll('.manual-pane .ghost-btn')].find((b) => b.textContent.includes('New issue')).click());
+  await page.waitForSelector('.repair-card');
+  check('repair: issue opens with its title', await page.$eval('.repair-title', (e) => e.textContent) === 'left shoulder');
+  await page.click('.tab[data-tab="day"]');
+  await page.waitForSelector('.repair-banner');
+  check('repair: open issue banners the day view', await page.$eval('.repair-banner', (e) => /left shoulder/.test(e.textContent)));
+  await page.evaluate(() => document.querySelector('.repair-banner').click());
+  await page.waitForSelector('.repair-close');
+  check('repair: banner jumps to the Repair page', (await page.$('#view-manual .repair-card')) !== null);
+  await page.evaluate(() => document.querySelector('.repair-close').click());
+  await new Promise((r) => setTimeout(r, 300));
+  const repairText = await page.evaluate(() => document.querySelector('.manual-pane').textContent);
+  check('repair: resolving moves it to history', /Resolved/.test(repairText) && /Nothing broken/.test(repairText));
+  check('repair: resolved banner leaves the day view', await page.evaluate(() => {
+    document.querySelector('.tab[data-tab="day"]').click();
+    return document.querySelector('.repair-banner') === null;
+  }));
+
+  // ---- Maintain: unarmed reminders ask for dates ----
+  await page.click('.tab[data-tab="manual"]');
+  await page.waitForSelector('.mn-btn');
+  await page.evaluate(() => [...document.querySelectorAll('.mn-btn')].find((b) => b.textContent === 'Maint.').click());
+  await page.waitForSelector('.manual-pane');
+  check('maintain: unarmed reminders ask for dates', await page.evaluate(() => /date needed/.test(document.querySelector('.manual-pane').textContent)));
+
   check('no console/page errors during whole run', errors.length === 0, errors.join(' | ').slice(0, 300));
 
   await browser.close();

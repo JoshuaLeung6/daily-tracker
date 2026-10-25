@@ -5,7 +5,7 @@
 
 import { el } from '../ui.js';
 import { fmt, todayISO, addDays, startOfWeek } from '../dates.js';
-import { getEntry, getData } from '../store.js';
+import { getEntry, getData, getRepairs } from '../store.js';
 // NOTE: no goal/target WRITE imports here on purpose — goals and targets are
 // configured in js/config.js and js/sprints.js, never set from the UI.
 import {
@@ -28,7 +28,7 @@ import { lineChart, barChart, svgEl } from '../charts.js';
 import { allPhotos } from '../photos.js';
 import { openLightbox } from './day.js';
 import { SPRINTS, sprintReport, currentSprint, sprintActive, shortLiftName } from '../sprints.js';
-import { liftingSessionTarget, cardioDayTarget } from '../insights.js';
+import { liftingSessionTarget, cardioDayTarget, maintenanceStatus } from '../insights.js';
 import { CALORIE_BANDS, FLAGS } from '../config.js';
 
 let pane = 'sprint';
@@ -1222,13 +1222,32 @@ export function coachPane(rerender) {
   // no stall/lagging-split nags, no photo-due card. Logging keeps working;
   // coaching pressure resumes when the next sprint starts.
   const active = el('div', { class: 'settings-section' }, el('h2', {}, 'Right now'));
+  let anyActive = false;
+
+  // Repair comes first — its page rule, and it holds between sprints too:
+  // an open issue outranks every other card, active sprint or not.
+  for (const r of getRepairs().filter((x) => !x.closed)) {
+    active.append(el('div', { class: 'card rx-card' },
+      el('div', { class: 'sg-text' }, `Repair open: ${r.title} (since ${fmt(r.opened, { month: 'short', day: 'numeric' })}).`),
+      el('div', { class: 'sg-why' }, 'It comes first — book the professional, train around it, mark it Resolved in Manual → Repair.')));
+    anyActive = true;
+  }
+  // Maintenance calendar: surface only what is due or close to due.
+  for (const m of maintenanceStatus().filter((x) => x.state === 'overdue' || x.state === 'soon')) {
+    active.append(el('div', { class: 'card suggest-card' },
+      el('div', { class: 'sg-text' }, m.state === 'overdue'
+        ? `${m.label} is overdue (was due ${fmt(m.due, { month: 'short', day: 'numeric' })}).`
+        : `${m.label} is due by ${fmt(m.due, { month: 'short', day: 'numeric' })}.`),
+      el('div', { class: 'sg-why' }, 'Book it, then tell Claude the visit date to reset the reminder.')));
+    anyActive = true;
+  }
+
   if (!sprintActive()) {
     active.append(el('div', { class: 'empty-state' },
       'Between sprints — logging stays on; coaching resumes when the next sprint starts.'));
     wrap.append(active);
     return coachTail(wrap, band);
   }
-  let anyActive = false;
 
   const report = weekReport(today);
   for (const sg of weekSuggestions(report)) {

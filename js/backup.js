@@ -28,6 +28,7 @@ export async function exportData() {
     foods: doc.foods || [],
     notes: doc.notes || {},
     manualNotes: doc.manualNotes || {},
+    repairs: doc.repairs || [],
   };
   const result = await shareJSON(JSON.stringify(payload, null, 2), `tracker-backup-${todayISO()}.json`, 'Tracker backup');
   if (result !== 'cancelled') setLastExport();
@@ -131,6 +132,7 @@ export function buildAnalysisPayload() {
     days,
     notes: doc.notes || {},
     manualNotes: doc.manualNotes || {},
+    repairs: doc.repairs || [],
     workouts: doc.workouts,
     stats: {
       targets: targetStats,
@@ -237,6 +239,8 @@ export function applyImport(backup) {
     profile: backup.profile || {},
     foods: backup.foods || [],
     notes: backup.notes || {},
+    manualNotes: backup.manualNotes || {},
+    repairs: backup.repairs || [],
   });
 }
 

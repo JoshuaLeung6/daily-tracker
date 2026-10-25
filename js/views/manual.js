@@ -6,7 +6,9 @@
 
 import { el } from '../ui.js';
 import { MANUAL } from '../config.js';
-import { getManualNote, setManualNote, persistNow } from '../store.js';
+import { getManualNote, setManualNote, persistNow, getRepairs, addRepair, updateRepair } from '../store.js';
+import { todayISO, fmt } from '../dates.js';
+import { maintenanceStatus } from '../insights.js';
 import { coachPane } from './stats.js';
 
 // Coach leads: the live "what should I do now" page, then the five zones.
@@ -44,7 +46,28 @@ export function render(container) {
 
   const m = MANUAL[cat] || { text: '', rows: [] };
   const pane = el('div', { class: `pane manual-pane mnp-${cat}` });
+
+  // Repair's issue tracker comes FIRST — its page rule
+  if (cat === 'repair') pane.append(...repairSections(() => render(container)));
+
   if (m.text) pane.append(el('div', { class: 'card manual-text' }, m.text));
+
+  // Maintain's reminder calendar leads its page
+  if (cat === 'maintenance') {
+    const rem = el('div', { class: 'card plan-card' });
+    for (const it of maintenanceStatus()) {
+      const chip = it.state === 'unarmed'
+        ? el('span', { class: 'rp-dim' }, 'date needed — tell Claude your last visit')
+        : el('span', { class: `mn-due mn-${it.state}` },
+          it.state === 'overdue' ? `overdue — was due ${fmt(it.due, { month: 'short', day: 'numeric' })}`
+            : it.state === 'soon' ? `due ${fmt(it.due, { month: 'short', day: 'numeric' })}`
+              : `due ${fmt(it.due, { month: 'short', day: 'numeric', year: 'numeric' })}`);
+      rem.append(el('div', { class: 'plan-row' },
+        el('span', { class: 'plan-k' }, it.label),
+        el('span', { class: 'plan-v' }, chip)));
+    }
+    pane.append(el('div', { class: 'settings-section' }, el('h2', {}, 'Reminders'), rem));
+  }
   const rowCard = (rows) => {
     const card = el('div', { class: 'card plan-card' });
     for (const [k, v] of rows) {
@@ -77,4 +100,64 @@ export function render(container) {
 
   container.replaceChildren(head, el('div', { class: 'ledger-rule' }), seg, pane);
   requestAnimationFrame(grow);
+}
+
+// Jump straight to the Repair page (the day-view banner's target).
+export function showRepair() {
+  cat = 'repair';
+}
+
+// The Repair issue tracker: open issues (title, opened date, a small note,
+// a Resolved button), a one-tap way to open one, and the resolved history.
+// Empty is the goal state, and the page says so.
+function repairSections(rerender) {
+  const out = [];
+  const open = getRepairs().filter((r) => !r.closed);
+  const closed = getRepairs().filter((r) => r.closed);
+
+  const sec = el('div', { class: 'settings-section' }, el('h2', {}, 'Open'));
+  if (!open.length) {
+    sec.append(el('div', { class: 'empty-state' }, 'Nothing broken — the goal state.'));
+  }
+  for (const r of open) {
+    const note = el('textarea', {
+      class: 'repair-note', rows: '2',
+      placeholder: 'What, who you’re seeing, what to avoid…',
+      'aria-label': `${r.title} note`,
+    });
+    note.value = r.note || '';
+    note.addEventListener('input', () => updateRepair(r.id, { note: note.value }));
+    note.addEventListener('blur', () => persistNow());
+    sec.append(el('div', { class: 'card repair-card' },
+      el('div', { class: 'repair-head' },
+        el('span', { class: 'repair-title' }, r.title),
+        el('span', { class: 'rp-dim' }, `since ${fmt(r.opened, { month: 'short', day: 'numeric' })}`),
+        el('button', {
+          class: 'btn repair-close',
+          onclick: () => { updateRepair(r.id, { closed: todayISO() }); persistNow(); rerender(); },
+        }, 'Resolved'),
+      ),
+      note,
+    ));
+  }
+  sec.append(el('button', {
+    class: 'ghost-btn',
+    onclick: () => {
+      const t = prompt('What hurts / what broke?');
+      if (t && t.trim()) { addRepair(t, todayISO()); rerender(); }
+    },
+  }, '+ New issue'));
+  out.push(sec);
+
+  if (closed.length) {
+    const hist = el('div', { class: 'card report-card' });
+    for (const r of [...closed].reverse()) {
+      hist.append(el('div', { class: 'plan-row' },
+        el('span', { class: 'plan-k' }, r.title),
+        el('span', { class: 'plan-v rp-dim' },
+          `${fmt(r.opened, { month: 'short', day: 'numeric' })} – ${fmt(r.closed, { month: 'short', day: 'numeric' })}`)));
+    }
+    out.push(el('div', { class: 'settings-section' }, el('h2', {}, 'Resolved'), hist));
+  }
+  return out;
 }

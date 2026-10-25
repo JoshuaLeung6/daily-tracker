@@ -69,6 +69,16 @@ export const CARDIO_COUNTS = ['run', 'squash', 'bike', 'kayak', 'tennis', 'swim'
 // Day-view grouping: group is one of movement | intake | recovery; the
 // Day tab renders collapsible sections in that order. No group (Weight) =
 // ungrouped at the top — the goal instrument leads the day.
+// Maintenance reminders (Manual → Maintain). `last` is the last visit,
+// YYYY-MM-DD, set HERE (tell Claude the date); null = unarmed, the page
+// asks for it. Due = last + months; overdue past that, "soon" within 30d.
+export const MAINTENANCE = [
+  { id: 'dentist', label: 'Dentist cleaning', months: 6, last: null },
+  { id: 'physical', label: 'Physical + bloodwork', months: 12, last: null },
+  { id: 'skin', label: 'Skin check', months: 12, last: null },
+  { id: 'eyes', label: 'Optometrist', months: 24, last: null },
+];
+
 // The Manual (footer tab): the standing plan for each zone, written HERE
 // (with Claude) like every other plan in this app. The free-text notes on
 // each Manual page live in the data document, not here.

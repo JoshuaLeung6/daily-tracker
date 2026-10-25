@@ -419,6 +419,60 @@ html[data-theme="light"] body::before {
   overflow: hidden;
 }
 
+/* Repair: the issue tracker (Manual) and the day-view banner. Red is the
+   zone's voice, but kept to edges and labels — not whole surfaces. */
+.card.repair-card { display: block; border-left: 3px solid var(--danger); }
+.repair-card + .repair-card { margin-top: 10px; }
+.repair-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-bottom: 8px; }
+.repair-title { flex: 1 1 100%; font-weight: 700; }
+.repair-close {
+  flex-shrink: 0;
+  margin-left: auto;
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+.repair-note {
+  width: 100%;
+  min-height: 52px;
+  background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px; /* keep ≥16px: iOS zooms on smaller inputs */
+  line-height: 1.5;
+  padding: 8px 10px;
+  resize: none;
+}
+.manual-pane .ghost-btn { margin-top: 10px; }
+.repair-banner {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--hairline));
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface));
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.repair-banner b {
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 8px;
+}
+
+/* Maintain reminders: due-state chips */
+.mn-due.mn-overdue { color: var(--danger); font-weight: 600; }
+.mn-due.mn-soon { color: var(--partial); font-weight: 600; }
+.mn-due.mn-ok { color: var(--faint); }
+
 /* Settings gear: fixed top-right, the only door to Settings now that it
    left the tab bar. Sits in the eyebrow band, clear of the nav arrows. */
 .settings-gear {

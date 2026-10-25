@@ -4,7 +4,7 @@
 // Release convention: bump APP_VERSION here AND the CACHE name in sw.js
 // on every deploy.
 
-export const APP_VERSION = '2.63.0';
+export const APP_VERSION = '2.64.0';
 
 import { init as initStore } from './store.js';
 import { applyTheme } from './theme.js';
@@ -127,6 +127,11 @@ const ctx = {
     state.date = iso;
     state.followToday = iso === todayISO();
     switchTab('week');
+  },
+  // day-view Repair banner -> the Manual's Repair page
+  openRepair() {
+    manualView.showRepair();
+    switchTab('manual');
   },
 };
 

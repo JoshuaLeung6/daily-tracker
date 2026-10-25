@@ -2,7 +2,7 @@
 // One JSON document under `pcal:data`; debounced autosave with
 // immediate flush on blur/hide so iOS suspending the PWA never loses input.
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 const KEY = 'pcal:data';
 const KEY_PRE_IMPORT = 'pcal:backup:pre-import';
@@ -29,6 +29,7 @@ function seed() {
     foods: [],
     notes: {},
     manualNotes: {},
+    repairs: [],
   };
 }
 
@@ -103,12 +104,19 @@ export function init({ onStorageError } = {}) {
     data.schemaVersion = 6;
     persistNow();
   }
+  if (data.schemaVersion < 7) {
+    // v7 adds Repair issues
+    data.repairs ??= [];
+    data.schemaVersion = 7;
+    persistNow();
+  }
   data.workouts ??= {};
   data.liftGoals ??= {};
   data.profile ??= {};
   data.foods ??= [];
   data.notes ??= {};
   data.manualNotes ??= {};
+  data.repairs ??= [];
 
   window.addEventListener('pagehide', () => persistNow());
   document.addEventListener('visibilitychange', () => {
@@ -223,6 +231,30 @@ export function setManualNote(cat, text) {
   if ((text || '').trim()) data.manualNotes[cat] = text;
   else delete data.manualNotes[cat];
   scheduleSave();
+}
+
+// ----- Repair issues: what's broken right now, and when it got fixed -----
+
+export function getRepairs() {
+  return data.repairs || [];
+}
+
+export function addRepair(title, iso) {
+  const t = (title || '').trim();
+  if (!t) return null;
+  data.repairs ??= [];
+  const r = { id: 'r_' + crypto.randomUUID(), title: t, note: '', opened: iso, closed: null };
+  data.repairs.push(r);
+  persistNow();
+  return r;
+}
+
+export function updateRepair(id, patch) {
+  const r = (data.repairs || []).find((x) => x.id === id);
+  if (r) {
+    Object.assign(r, patch);
+    scheduleSave();
+  }
 }
 
 // ----- profile (optional personal context for analysis) -----

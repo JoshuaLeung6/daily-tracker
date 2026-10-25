@@ -62,7 +62,7 @@ const localISO = (offset) => {
   check('migration: Weight becomes measurement', wt.type === 'measurement', wt.type);
   check('migration: bogus daily target on Weight removed', !wt.targets || wt.targets.length === 0);
   check('migration: goal preserved', wt.goal && wt.goal.target === 175);
-  check('migration: schemaVersion 6', doc.schemaVersion === 6);
+  check('migration: schemaVersion 7', doc.schemaVersion === 7);
 
   // ---- 2. day view: Weight card shows last reading, no target bar ----
   const dayText = await page.$eval('#view-day', (e) => e.textContent);

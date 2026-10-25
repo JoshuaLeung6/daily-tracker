@@ -9,11 +9,11 @@
 //   weeks off-band (the playbook's confirmation lag), and only with
 //   enough logged data to trust the trend.
 
-import { todayISO, addDays, startOfWeek, fromISO, toLocalISO } from './dates.js';
+import { todayISO, addDays, addMonths, startOfWeek, fromISO, toLocalISO } from './dates.js';
 import { getEntry, getData } from './store.js';
 import { activeTrackers, targetFor, dayMeets, dayAllMet, ratePerWeek, avgOverDays } from './trackers.js';
 import { allWorkouts, liftVolume, liftStats, SPLITS, SPLIT_LABELS } from './workouts.js';
-import { FLAGS, CARDIO_COUNTS, CALORIE_BANDS } from './config.js';
+import { FLAGS, CARDIO_COUNTS, CALORIE_BANDS, MAINTENANCE } from './config.js';
 // SPRINTS only — the plain config array, not the report functions. sprints.js
 // imports from here, so pulling anything computed back would be circular.
 import { SPRINTS } from './sprints.js';
@@ -479,6 +479,19 @@ export function liftingSessionTarget() {
 
 // Cardio days/week commitment: the Cardio tracker's weekly target if set,
 // else 3.
+// Maintenance reminders, resolved: each config item with its due date and
+// state — 'unarmed' (no last-visit date yet), 'overdue', 'soon' (within
+// 30 days), or 'ok'.
+export function maintenanceStatus() {
+  const today = todayISO();
+  return MAINTENANCE.map((m) => {
+    if (!m.last) return { ...m, due: null, state: 'unarmed' };
+    const due = addMonths(m.last, m.months);
+    const state = due <= today ? 'overdue' : due <= addDays(today, 30) ? 'soon' : 'ok';
+    return { ...m, due, state };
+  });
+}
+
 export function cardioDayTarget() {
   const t = cardioTracker();
   if (t) {
