@@ -21,10 +21,16 @@ export function addDays(iso, n) {
   return toLocalISO(d);
 }
 
-// Monday-start week
+// Week-start convention is DATE-SCOPED, so each sprint era keeps its own
+// weeks: MONDAY-start before 2026-10-25 (the Sprint 1 era — its archive
+// stays exactly as it was lived), SUNDAY-start from 2026-10-25 on (Sprint
+// 2+). The cutoff deliberately falls ON a Sunday, so no new-era week ever
+// reaches back across it; the gap week Oct 19–24 is a 6-day seam, which is
+// fine — it sits between sprints. One rule here, no per-sprint plumbing.
+const SUNDAY_WEEKS_FROM = '2026-10-25';
 export function startOfWeek(iso) {
   const d = fromISO(iso);
-  const offset = (d.getDay() + 6) % 7;
+  const offset = iso >= SUNDAY_WEEKS_FROM ? d.getDay() : (d.getDay() + 6) % 7;
   return addDays(iso, -offset);
 }
 
@@ -38,13 +44,13 @@ export function addMonths(iso, n) {
   return toLocalISO(d);
 }
 
-// 7-column Monday-start grid for the month containing `iso`.
+// 7-column Sunday-start grid for the month containing `iso`.
 // Cells outside the month are null.
 export function monthGrid(iso) {
   const d = fromISO(iso);
   const y = d.getFullYear();
   const m = d.getMonth();
-  const lead = (new Date(y, m, 1).getDay() + 6) % 7;
+  const lead = new Date(y, m, 1).getDay();   // Sunday-first, like startOfWeek
   const daysInMonth = new Date(y, m + 1, 0).getDate();
   const cells = [];
   for (let i = 0; i < lead; i++) cells.push(null);

@@ -43,7 +43,7 @@ const localISO = (offset) => {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
     const today = new Date();
-    const monOffset = -((today.getDay() + 6) % 7); // offset to Monday of this week
+    const monOffset = -(today.getDay()); // offset to Monday of this week
     const doc = {
       schemaVersion: 4,
       trackers: [
@@ -162,7 +162,7 @@ const localISO = (offset) => {
   // workout days = checkbox days ∪ logged-workout days (today has a workout too)
   check('week card workouts line shows N/days', /Workouts\d\/\d days/.test(wkCard), wkCard.slice(0, 200));
   const greenDays = await page.$$eval('.wr-date .dn.all-met', (els) => els.length);
-  const monOffset = -((new Date().getDay() + 6) % 7);
+  const monOffset = -(new Date().getDay());
   const expectedGreen = [-3, -2, 0].filter((off) => off >= monOffset).length;
   check(`week rows: ${expectedGreen} green day number(s) in current week`, greenDays === expectedGreen, `got ${greenDays}`);
 
@@ -178,7 +178,7 @@ const localISO = (offset) => {
   // (calories on -3..0, weightlifting on up to 4 days from this week's Monday)
   const filled = new Set([0, -1, -2, -3]);
   {
-    const monOff = -((new Date().getDay() + 6) % 7);
+    const monOff = -(new Date().getDay());
     let added = 0;
     for (let i = 0; added < 4 && i < 7; i++) {
       const off = monOff + i;

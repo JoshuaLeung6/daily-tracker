@@ -391,11 +391,11 @@ export function weekSuggestions(report) {
   const t = report.training;
   if (t && report.isCurrent) {
     const missing = SPLITS.filter((s) => !t.bySplit[s]);
-    const dow = (new Date().getDay() + 6) % 7; // 0 = Monday
+    const dow = new Date().getDay(); // 0 = Sunday, the week start
     if (dow >= 4 && t.sessions >= 2 && missing.length === 1) {
       out.push({
         id: 'split-missing',
-        text: `${SPLIT_LABELS[missing[0]]} hasn’t been trained this week — slot it before Sunday.`,
+        text: `${SPLIT_LABELS[missing[0]]} hasn’t been trained this week — slot it before Saturday.`,
         why: 'Each muscle should be hit at least once (ideally twice) per week; a skipped split is the main PPL failure mode.',
       });
     }
@@ -497,7 +497,7 @@ export function cardioDayTarget() {
 export function weekLineStatus(report) {
   const out = { weight: null, calories: null, protein: null, cardio: null, workouts: null };
   const daysSoFar = report.daysDone;
-  if (daysSoFar === 0) return out; // Monday: nothing completed yet, nothing to color
+  if (daysSoFar === 0) return out; // week start: nothing completed yet, nothing to color
   const w = report.weight;
   if (w && w.verdict) {
     if (w.verdict === 'in') out.weight = 'good';

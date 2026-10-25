@@ -26,7 +26,6 @@ import {
 import { lineChart, barChart, svgEl } from '../charts.js';
 import { allPhotos } from '../photos.js';
 import { openLightbox } from './day.js';
-import { askClaude, hasClaudeKey, lastAsk } from '../claude.js';
 import { SPRINTS, sprintReport, currentSprint, sprintActive, shortLiftName } from '../sprints.js';
 import { liftingSessionTarget, cardioDayTarget } from '../insights.js';
 import { CALORIE_BANDS, FLAGS } from '../config.js';
@@ -143,10 +142,14 @@ function dashboardPane(rerender) {
       needEl && el('div', { class: 'gc-pace hero-pace' + paceCls }, needEl),
     ));
   } else if (wt) {
+    // a goal can exist while gw is null (no weigh-ins IN this sprint yet) —
+    // say the true blocker, not "no goal"
+    const sg = sprint.goals && sprint.goals.weight != null ? sprint.goals.weight : null;
     heroes.append(el('button', { class: 'card hero-card hero-tap', onclick: () => openWeightSheet(r, sprint, wt) },
       el('div', { class: 'hero-label' }, 'Weight', el('span', { class: 'hero-chev' }, '›')),
       el('div', { class: 'hero-num' }, r.now.weight != null ? fmtN(r.now.weight) : '—', el('span', { class: 'hero-unit' }, unit)),
-      el('div', { class: 'hero-sub rp-dim' }, 'no sprint goal set — ask Claude'),
+      el('div', { class: 'hero-sub rp-dim' },
+        sg != null ? `goal ${fmtN(sg)}${unit} — weigh in to start tracking` : 'no sprint goal set'),
     ));
   }
 
@@ -1021,8 +1024,6 @@ function coachPane(rerender) {
     active.append(el('div', { class: 'empty-state' },
       'Between sprints — logging stays on; coaching resumes when the next sprint starts.'));
     wrap.append(active);
-    const aiIdle = askClaudeSection();
-    if (aiIdle) wrap.append(aiIdle);
     return coachTail(wrap, band);
   }
   let anyActive = false;
@@ -1089,12 +1090,6 @@ function coachPane(rerender) {
   if (!anyActive) active.append(el('div', { class: 'empty-state' }, 'Nothing needs attention — keep logging.'));
   wrap.append(active);
 
-  // --- Ask Claude: on-device analysis with the user's own API key.
-  // No key = NO section (not a pointer): an unused optional feature must be
-  // invisible. Settings > Claude is the on-switch.
-  const ai = askClaudeSection();
-  if (ai) wrap.append(ai);
-
   return coachTail(wrap, band);
 }
 
@@ -1122,63 +1117,6 @@ function coachTail(wrap, band) {
   wrap.append(ref);
 
   return wrap;
-}
-
-// "Ask Claude" on the Coach pane: canned questions or free text, answered by
-// claude-opus-5 against the same JSON the analysis export produces. Needs an
-// API key (Settings); the reply survives tab switches within the session.
-function askClaudeSection() {
-  if (!hasClaudeKey()) return null;   // invisible until a key exists
-  const sec = el('div', { class: 'settings-section' }, el('h2', {}, 'Ask Claude'));
-
-  const out = el('div', { class: 'card ai-reply', hidden: true });
-  const status = el('div', { class: 'settings-note ai-status', 'aria-live': 'polite' }, '');
-  const qIn = el('textarea', {
-    class: 'ai-q', rows: '2',
-    placeholder: 'Ask anything about your data…',
-    'aria-label': 'Question for Claude',
-  });
-
-  let busy = false;
-  const run = async (question) => {
-    if (busy || !question) return;
-    busy = true;
-    out.hidden = true;
-    status.textContent = 'Thinking… (can take ~30s)';
-    try {
-      const r = await askClaude(question);
-      out.textContent = r.text;
-      out.hidden = false;
-      status.textContent = r.usage
-        ? `${(r.usage.input_tokens || 0).toLocaleString()} tokens in · ${(r.usage.output_tokens || 0).toLocaleString()} out`
-        : '';
-    } catch (e) {
-      status.textContent = e && e.message ? e.message : 'Something went wrong.';
-    }
-    busy = false;
-  };
-
-  const chip = (label, q) => el('button', { class: 'chip chip-suggest', onclick: () => run(q) }, label);
-  sec.append(
-    el('div', { class: 'chips ai-chips' },
-      chip('Weekly review', 'Review my last 7 days: weight trend vs goal pace, intake and protein vs targets, training done vs planned, and strength movement. End with the single highest-leverage fix for next week.'),
-      chip('How’s the bulk?', 'Judge the bulk overall: is the weight-gain pace right, is it likely lean (use intake, protein, training consistency, and strength trends), and what would you change?'),
-      chip('Fix one thing', 'Across everything in my data, what is the ONE thing most limiting my results right now? Make the case with my numbers, then give the concrete fix.'),
-    ),
-    qIn,
-    el('div', { class: 'btn-row ai-ask-row' },
-      el('button', { class: 'btn primary', onclick: () => run(qIn.value.trim()) }, 'Ask'),
-    ),
-    status,
-    out,
-  );
-
-  // a reply from earlier in this session survives tab switches
-  if (lastAsk) {
-    out.textContent = lastAsk.text;
-    out.hidden = false;
-  }
-  return sec;
 }
 
 function refCard(title, text, diagram) {

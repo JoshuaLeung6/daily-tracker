@@ -6,8 +6,13 @@ const results = [];
 function check(name, ok, extra = '') {
   results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  — ' + extra : ''}`);
 }
+// Clock PINNED to mid-Sprint-2 (Wed Nov 18, 2026): the dashboard's weight
+// chart is sprint-scoped, so relative fixture dates must land inside an
+// active sprint's window on every run day. Node-side dates derive from the
+// same base the page clock is shifted to.
+const BASE = '2026-11-18T12:00:00';
 const localISO = (offset) => {
-  const d = new Date();
+  const d = new Date(BASE);
   d.setDate(d.getDate() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
@@ -20,6 +25,15 @@ const localISO = (offset) => {
   });
   const page = await browser.newPage();
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 });
+  await page.evaluateOnNewDocument((base) => {
+    const Real = Date;
+    const offset = new Real(base).getTime() - Real.now();
+    // eslint-disable-next-line no-global-assign
+    Date = class extends Real {
+      constructor(...a) { if (a.length) super(...a); else super(Real.now() + offset); }
+      static now() { return Real.now() + offset; }
+    };
+  }, BASE);
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

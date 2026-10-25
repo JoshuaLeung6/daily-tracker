@@ -118,15 +118,6 @@ const localISO = (offset) => {
   const diagrams = await page.$$eval('#view-stats svg.diagram', (els) => els.length);
   check('coach: 3+ diagrams render', diagrams >= 3, `diagrams: ${diagrams}`);
 
-  // ---- 3b. Ask Claude (no network call is ever made without a tap) ----
-  check('coach: Ask Claude invisible without a key', !/Ask Claude/.test(coachText));
-  await page.evaluate(() => localStorage.setItem('pcal:claudeKey', 'sk-ant-test'));
-  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Progress');
-  await clickByText('#view-stats .seg-btn:not(.range-btn)', 'Coach');
-  await page.waitForSelector('.ai-q');
-  const aiChips = await page.$$eval('.ai-chips .chip', (els) => els.map((e) => e.textContent));
-  check('coach: 3 canned questions + free-form box with a key stored', aiChips.length === 3, aiChips.join(','));
-  await page.evaluate(() => localStorage.removeItem('pcal:claudeKey'));
   await page.screenshot({ path: path.join(__dirname, 'shots', 'coach-pane.png') });
 
   // ---- 4. editor preview shows ready hint ----

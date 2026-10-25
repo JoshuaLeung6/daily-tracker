@@ -187,12 +187,11 @@ export const SPRINTS = [
     // moves if anything is ever backdated earlier, and every number keyed to
     // it (week N of 16, start weight, adherence window) moves with it.
     //
-    // Weeks run MONDAY→SUNDAY (see startOfWeek in dates.js). Jul 13 is a
-    // Monday, so the sprint begins exactly on a week boundary. The earlier
-    // logged days (Sat Jul 11, Sun Jul 12) both belong to the week starting
-    // Jul 6, which would have made the sprint's first week a 2-day stub.
-    // 12 whole weeks = 84 days inclusive: 2026-07-13 → 2026-10-04 (Sun).
-    // (Shortened from 16 on 2026-09-27 — vacation starts after week 12.)
+    // Ran under MONDAY-start weeks, and keeps them forever: the week
+    // convention is date-scoped in dates.js (Monday before 2026-10-25,
+    // Sunday after), so this archive renders exactly as it was lived.
+    // 12 whole weeks = 84 days inclusive: 2026-07-13 (Mon) → 2026-10-04.
+    // (Shortened from 16 on 2026-09-27 — vacation after week 12.)
     start: '2026-07-13',
     end: '2026-10-04',
     focus: 'Lean bulk · PPL 5–6×/wk',
@@ -204,6 +203,24 @@ export const SPRINTS = [
     goals: {
       weight: 145,          // lb, trend weight at sprint end (started ~134)
       lifts: {},            // e.g. { 'Bench press': 155 } — e1RM targets
+    },
+  },
+  {
+    id: 's2',
+    name: 'Sprint 2',
+    // Weeks run SUNDAY→SATURDAY (the 2026-10-25 convention flip happened
+    // for this sprint). Oct 25 is a Sunday, so it starts on a week boundary.
+    // 8 whole weeks = 56 days inclusive: 2026-10-25 → 2026-12-19 (Sat).
+    // GOAL SEMANTICS: the weight goal is judged on the FINAL WEEK'S AVERAGE
+    // weigh-in (Dec 13–19 must average ≥ 145) — not a single reading, not
+    // the trend. The goal-oriented Progress redesign builds around this.
+    start: '2026-10-25',
+    end: '2026-12-19',
+    focus: 'Bulk to 145 · final-week average decides',
+    palette: 'slate',
+    goals: {
+      weight: 145,          // lb — final-week (Dec 13–19) average weigh-in
+      lifts: {},            // PR targets set from the fresh export
     },
   },
 ];
@@ -238,9 +255,14 @@ export function currentSprint() {
     const r = resolveSprint(s);
     if (r && r.start <= today && today <= r.end) return r;
   }
-  // fall back to the most recent one
+  // between sprints: fall back to the most recent one that has STARTED —
+  // its final report is what the gap shows. A pinned FUTURE sprint must
+  // never surface early (pinning Sprint N+1 ahead of time would otherwise
+  // flip Progress to an empty, unstarted dashboard).
   const resolved = SPRINTS.map(resolveSprint).filter(Boolean);
-  return resolved.length ? resolved[resolved.length - 1] : null;
+  const started = resolved.filter((s) => s.start <= today);
+  if (started.length) return started[started.length - 1];
+  return resolved.length ? resolved[0] : null;
 }
 
 function daysBetween(a, b) {

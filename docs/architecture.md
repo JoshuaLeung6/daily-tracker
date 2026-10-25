@@ -85,12 +85,17 @@ constant** back. Keep it that way — importing anything computed from
 earlier.
 
 **Sprint length is counted inclusively.** `daysBetween(start, end) + 1`, so
-12 weeks = 84 days. Jul 13 → Oct 4 is exactly 12 weeks; an end date one day
-later makes it 85 days, which `Math.ceil(days / 7)` renders as "of 13".
+8 weeks = 56 days. Oct 25 → Dec 19 is exactly 8 weeks; an end date one day
+later makes it 57 days, which `Math.ceil(days / 7)` renders as "of 9".
 
-**Weeks run MONDAY→SUNDAY.** `startOfWeek()` in `dates.js` is
-`(d.getDay() + 6) % 7`, which maps Monday→0. A sprint must start on a Monday
-or its first week is a stub.
+**The week-start convention is DATE-SCOPED.** `startOfWeek()` in `dates.js`
+uses MONDAY-start for dates before 2026-10-25 (the Sprint 1 era) and
+SUNDAY-start from 2026-10-25 on (Sprint 2+), so each sprint's archive keeps
+the weeks it was lived under. The cutoff falls ON a Sunday, so no new-era
+week reaches back across it. A sprint must start on its era's week-start
+day or its first week is a stub. Anything computing a day-of-week offset
+for CURRENT dates uses the Sunday rule (`d.getDay()`), e.g. the
+split-missing nudge in insights.js.
 *Why: the sprint start was twice moved to the "clean" boundary of a Sun–Sat
 grid that does not exist. Check `startOfWeek()` before reasoning about week
 alignment — do not assume.*
