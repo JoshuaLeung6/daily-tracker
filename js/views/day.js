@@ -7,7 +7,7 @@ import { getEntry, setValue, persistNow, getNote, setNote, collapsedDayGroups, s
 import { photosOn, addPhoto, deletePhoto, allPhotos, updateCaption } from '../photos.js';
 import { activeTrackers, allTrackers, targetFor, streakFor, dayMeets, previousValue } from '../trackers.js';
 import { getWorkout, SPLIT_LABELS, FOCUS_LABELS, sessionHadPR } from '../workouts.js';
-import { sprintActive } from '../sprints.js';
+import { sprintActive, currentSprint } from '../sprints.js';
 import { openWorkout } from './workout.js';
 
 // Past days are read-only unless explicitly unlocked; the unlock covers one
@@ -142,8 +142,18 @@ export function render(container, ctx) {
   const isPast = iso < today;
   const locked = isPast && unlockedISO !== iso;
 
+  // Day navigation is bounded to the sprint: nothing before its first day
+  // (and, as always, nothing after today). Pre-sprint history lives in the
+  // archive, not a swipe away.
+  const sprintNow = currentSprint();
+  const minISO = sprintNow && sprintNow.start <= today ? sprintNow.start : null;
+
   const head = el('header', { class: 'view-head' },
-    el('button', { class: 'nav-arrow', 'aria-label': 'Previous day', onclick: () => ctx.setDate(addDays(iso, -1)) }, '‹'),
+    el('button', {
+      class: 'nav-arrow', 'aria-label': 'Previous day',
+      disabled: minISO != null && iso <= minISO,
+      onclick: () => { if (minISO == null || iso > minISO) ctx.setDate(addDays(iso, -1)); },
+    }, '‹'),
     el('div', { class: 'masthead' },
       el('div', { class: 'eyebrow' }, isToday ? 'Today' : weekdayName(iso)),
       el('h1', {}, fmt(iso, sameYear ? { month: 'long', day: 'numeric' } : { month: 'long', day: 'numeric', year: 'numeric' })),
@@ -199,15 +209,17 @@ export function render(container, ctx) {
     if (total === 0) continue;
     if (locked && logged === 0) continue;   // locked days: silent empty groups
     const isOpen = !collapsed[key];
-    // the whole group lives in one faint bubble: header + cards
-    const bubble = el('div', { class: 'day-group-wrap' + (isOpen ? '' : ' is-collapsed') });
+    // the whole group lives in one faint bubble: header + cards. The dgw-*
+    // class keys the group's tint (--gt): Movement / Intake / Recovery are
+    // the day's three strata, each with its own quiet hue.
+    const bubble = el('div', { class: `day-group-wrap dgw-${key}` + (isOpen ? '' : ' is-collapsed') });
     bubble.append(el('button', {
       class: 'day-group-head' + (isOpen ? ' open' : ''),
       'aria-expanded': String(isOpen),
       onclick: () => { setDayGroupCollapsed(key, isOpen); rerender(); },
     },
       el('span', { class: 'dg-label' }, label),
-      el('span', { class: 'dg-sum' }, `${logged}/${total} logged`),
+      el('span', { class: 'dg-sum' + (total > 0 && logged === total ? ' done' : '') }, `${logged}/${total} logged`),
       el('span', { class: 'wo-chevron' }, isOpen ? '⌄' : '›'),
     ));
     if (isOpen) {
@@ -264,8 +276,10 @@ export function render(container, ctx) {
   g.hint = hint;
   g.iso = iso;
   g.ctx = ctx;
-  // never swipe past today — there is nothing to log for a future day
+  // never swipe past today — there is nothing to log for a future day —
+  // and never swipe before the sprint's first day
   g.canNext = iso < todayISO();
+  g.canPrev = minISO == null || iso > minISO;
   g.startX = g.startY = null;
   g.axis = null;
 
@@ -333,6 +347,19 @@ export function render(container, ctx) {
         else g.axis = 'scroll';
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
       }
+      // A scroll that REACHES the top and keeps pulling converts into the
+      // zoom-out, matching the native continuous feel. Without this, a pull
+      // that began even slightly scrolled was claimed as 'scroll' and
+      // silently eaten — the "sometimes nothing happens" bug. Rebase the
+      // start point so the pull measures from the conversion moment.
+      if (g.axis === 'scroll' && container.scrollTop <= 0 && g.vy > 0 && dy > 0) {
+        g.axis = 'y';
+        g.startX = e.touches[0].clientX;
+        g.startY = e.touches[0].clientY;
+        g.startScroll = 0;
+        container.classList.add('gesture-live');
+        return;   // next move event runs the 'y' branch with fresh deltas
+      }
       // Once committed to a SIDE swipe, own the gesture: preventDefault stops
       // the page scrolling vertically underneath the horizontal drag, which
       // otherwise reads as the content sliding two ways at once. Only for
@@ -346,8 +373,8 @@ export function render(container, ctx) {
       //    fast some of the time and right the rest. One motion only.
       if ((g.axis === 'x' || g.axis === 'y') && e.cancelable) e.preventDefault();
       if (g.axis === 'x') {
-        // swiping forward from today is blocked: heavy rubber-band resistance
-        const blocked = dx < 0 && !g.canNext;
+        // swiping past today or before the sprint start is blocked: wall
+        const blocked = (dx < 0 && !g.canNext) || (dx > 0 && !g.canPrev);
         // 1:1 with the finger, the native pager feel. A blocked direction gets
         // progressive resistance instead, so it reads as a wall, not a lag.
         // 0.6x the finger, not 1:1: with the commit distance at 160px a 1:1
@@ -404,6 +431,7 @@ export function render(container, ctx) {
     if (usedAxis === 'x' && willCommit(dx, vx)) {
       const forward = dx < 0;
       if (forward && !g.canNext) { resetGesture(); return; }
+      if (!forward && !g.canPrev) { resetGesture(); return; }
       // do NOT reset the transform here — slidePage continues the motion in
       // the swipe direction and swaps the content while it is off-screen
       // reset the WHOLE class list. touchmove writes className wholesale

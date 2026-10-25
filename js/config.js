@@ -88,6 +88,10 @@ export const TRACKERS = [
     target: null },
   { name: 'Caffeine', type: 'multiselect', options: ['morning', 'afternoon', 'night'], group: 'intake',
     target: null },
+  { name: 'Cannabis', type: 'checkbox', group: 'intake',
+    // exception-logged like alcohol: unchecked = none, zero taps. No
+    // target — a correlation instrument (sleep, mental health, training).
+    target: null },
   { name: 'Cardio', type: 'multiselect', options: ['run', 'squash', 'bike', 'kayak', 'tennis', 'swim', 'climb'], group: 'movement',
     // real cardio only, once a week minimum — backdated to the sprint start
     target: { period: 'week', value: 1, from: '2026-07-11' } },

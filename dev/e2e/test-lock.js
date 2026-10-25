@@ -8,6 +8,10 @@ function check(name, ok, extra = '') {
   results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  — ' + extra : ''}`);
 }
 
+// Clock PINNED to mid-Sprint-2 (Wed Nov 18, 2026): day navigation is
+// bounded to the sprint, so suites that walk into past days need the
+// fixture clock to sit mid-sprint on every run day.
+const BASE = '2026-11-18T12:00:00';
 (async () => {
   const browser = await puppeteer.launch({
     executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -16,6 +20,15 @@ function check(name, ok, extra = '') {
   });
   const page = await browser.newPage();
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 });
+  await page.evaluateOnNewDocument((base) => {
+    const Real = Date;
+    const offset = new Real(base).getTime() - Real.now();
+    // eslint-disable-next-line no-global-assign
+    Date = class extends Real {
+      constructor(...a) { if (a.length) super(...a); else super(Real.now() + offset); }
+      static now() { return Real.now() + offset; }
+    };
+  }, BASE);
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -40,8 +53,8 @@ function check(name, ok, extra = '') {
   const unlockedCards = await page.$$eval('.cards .card', (els) => els.length);
   // config trackers minus the Weightlifting checkbox (derived from the
   // workout log): Weight, Cardio, Mobility, Calories, Protein, Alcohol,
-  // Caffeine, Mental health, Sleep
-  check('unlocking reveals the 9 loggable trackers', unlockedCards === 9, `cards: ${unlockedCards}`);
+  // Caffeine, Cannabis, Mental health, Sleep
+  check('unlocking reveals the 10 loggable trackers', unlockedCards === 10, `cards: ${unlockedCards}`);
   await page.click('.card input[type="text"]');
   await page.keyboard.type('1800');
   await new Promise((r) => setTimeout(r, 500));

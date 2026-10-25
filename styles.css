@@ -28,6 +28,10 @@
   --met-week: #7fa9d4;
   --goal: #bb9bd8;
   --partial: #e8d44d;   /* clear yellow — distinct from both green and red */
+  /* day-view zone tints: Movement (work), Intake (fuel), Recovery (rest) */
+  --g-move: #8cbe72;
+  --g-intake: #e2a63d;
+  --g-recover: #bb9bd8;
   --serif: ui-serif, "New York", Georgia, "Times New Roman", serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --radius: 14px;
@@ -46,10 +50,10 @@
 /* 'slate' — cool dark, teal accent. Reserved for Sprint 2. */
 html[data-sprint="slate"] {
   --bg: #0f1418;
-  --surface: #171e24;
+  --surface: #1b242c;
   --surface-2: #1f2930;
   --line: #2c3a44;
-  --hairline: #1f2a32;
+  --hairline: #263540;
   --ink: #e6eef2;
   --muted: #8ea3ae;
   --faint: #5c6f7a;
@@ -61,6 +65,9 @@ html[data-sprint="slate"] {
   --met-week: #6faee0;
   --goal: #b79ae0;
   --partial: #e6cf4a;
+  --g-move: #4fc3b8;
+  --g-intake: #e0a458;
+  --g-recover: #a78bda;
 }
 html[data-sprint="slate"][data-theme="light"] {
   --bg: #eef3f5;
@@ -79,6 +86,9 @@ html[data-sprint="slate"][data-theme="light"] {
   --met-week: #2d6a99;
   --goal: #6b4f96;
   --partial: #9a8600;
+  --g-move: #0f7f76;
+  --g-intake: #a86a1c;
+  --g-recover: #6b4f96;
 }
 
 html[data-theme="light"] {
@@ -98,6 +108,9 @@ html[data-theme="light"] {
   --met-week: #3d6b9b;
   --goal: #7a5799;
   --partial: #a58a00;
+  --g-move: #4e7c32;
+  --g-intake: #8f6210;
+  --g-recover: #7a5799;
   color-scheme: light;
 }
 
@@ -416,15 +429,44 @@ html[data-theme="light"] body::before {
 }
 .slider-val.is-empty { color: var(--faint); }
 
-/* grouped day view: Movement / Intake / Recovery, each in a faint bubble */
+/* grouped day view: Movement / Intake / Recovery — the day's three strata,
+   each a faint bubble carrying its own quiet hue (--gt). The tint shows in
+   exactly three places: the header dot, a whisper of cast on the bubble,
+   and COMPLETED states (selected chips, checked dots, the slider, a done
+   count) — doing something is what brings the colour out. */
+.dgw-movement { --gt: var(--g-move); }
+.dgw-intake { --gt: var(--g-intake); }
+.dgw-recovery { --gt: var(--g-recover); }
 .day-group-wrap {
-  border: 1px solid var(--hairline);
+  border: 1px solid color-mix(in srgb, var(--gt, var(--hairline)) 24%, var(--hairline));
   border-radius: 16px;
   padding: 2px 10px 10px;
-  /* a shade off the page background — mixes correctly in every palette
-     and theme; cards (--surface) still stand out inside it */
-  background: color-mix(in srgb, var(--surface) 45%, var(--bg));
+  /* a shade off the page with a whisper of the zone's hue */
+  background: color-mix(in srgb, var(--gt, var(--surface)) 5%, color-mix(in srgb, var(--surface) 40%, var(--bg)));
 }
+.day-group-head .dg-label::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gt, var(--muted));
+  margin-right: 8px;
+  vertical-align: 1px;
+}
+.dg-sum.done { color: var(--gt, var(--met-day)); font-weight: 600; }
+/* logging is what lights the zone up */
+.day-group-wrap .chip[aria-pressed="true"] {
+  background: var(--gt, var(--accent));
+  border-color: var(--gt, var(--accent));
+  color: var(--bg);
+}
+.day-group-wrap .card-check[aria-pressed="true"] .check-dot {
+  background: var(--gt, var(--accent));
+  border-color: var(--gt, var(--accent));
+}
+.day-group-wrap .check-dot svg { color: var(--bg); }
+.day-group-wrap .slider { accent-color: var(--gt, var(--accent)); }
 .day-group-wrap.is-collapsed { padding-bottom: 2px; }
 .day-group-wrap.is-collapsed .day-group-head { border-bottom: none; }
 .day-group-head {
@@ -469,11 +511,13 @@ html[data-theme="light"] body::before {
 .cards { gap: 7px; }
 
 .t-name {
-  font-size: 13px;
+  /* names are metadata and should recede — the logged VALUE is the thing
+     the eye came for */
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--faint);
   flex-shrink: 0;
 }
 

@@ -7,8 +7,12 @@ const results = [];
 function check(name, ok, extra = '') {
   results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  — ' + extra : ''}`);
 }
+// Clock PINNED to mid-Sprint-2 (Wed Nov 18, 2026): day navigation is
+// bounded to the sprint, so suites that walk into past days need the
+// fixture clock to sit mid-sprint on every run day.
+const BASE = '2026-11-18T12:00:00';
 const localISO = (offset) => {
-  const d = new Date();
+  const d = new Date(BASE);
   d.setDate(d.getDate() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
@@ -21,6 +25,15 @@ const localISO = (offset) => {
   });
   const page = await browser.newPage();
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 });
+  await page.evaluateOnNewDocument((base) => {
+    const Real = Date;
+    const offset = new Real(base).getTime() - Real.now();
+    // eslint-disable-next-line no-global-assign
+    Date = class extends Real {
+      constructor(...a) { if (a.length) super(...a); else super(Real.now() + offset); }
+      static now() { return Real.now() + offset; }
+    };
+  }, BASE);
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -162,7 +175,7 @@ const localISO = (offset) => {
   // workout days = checkbox days ∪ logged-workout days (today has a workout too)
   check('week card workouts line shows N/days', /Workouts\d\/\d days/.test(wkCard), wkCard.slice(0, 200));
   const greenDays = await page.$$eval('.wr-date .dn.all-met', (els) => els.length);
-  const monOffset = -(new Date().getDay());
+  const monOffset = -(new Date(BASE).getDay());
   const expectedGreen = [-3, -2, 0].filter((off) => off >= monOffset).length;
   check(`week rows: ${expectedGreen} green day number(s) in current week`, greenDays === expectedGreen, `got ${greenDays}`);
 
@@ -178,7 +191,7 @@ const localISO = (offset) => {
   // (calories on -3..0, weightlifting on up to 4 days from this week's Monday)
   const filled = new Set([0, -1, -2, -3]);
   {
-    const monOff = -(new Date().getDay());
+    const monOff = -(new Date(BASE).getDay());
     let added = 0;
     for (let i = 0; added < 4 && i < 7; i++) {
       const off = monOff + i;

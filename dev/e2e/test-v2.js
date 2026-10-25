@@ -55,7 +55,7 @@ async function setNumberInput(page, selector, value) {
   // Mobility), Intake (Calories, Protein, Alcohol, Caffeine), Recovery
   // (Mental health, Sleep)
   check('day cards grouped: Weight, then Movement, Intake, Recovery',
-    JSON.stringify(names) === JSON.stringify(['Weight', 'Cardio', 'Mobility', 'Calories', 'Protein', 'Alcohol', 'Caffeine', 'Mental health', 'Sleep']), names.join(','));
+    JSON.stringify(names) === JSON.stringify(['Weight', 'Cardio', 'Mobility', 'Calories', 'Protein', 'Alcohol', 'Caffeine', 'Cannabis', 'Mental health', 'Sleep']), names.join(','));
   const groupHeads = await page.$$eval('.day-group-head', (els) => els.map((e) => e.textContent));
   check('three group headers with logged counts',
     groupHeads.length === 3 && /Movement/.test(groupHeads[0]) && /Intake/.test(groupHeads[1]) && /Recovery/.test(groupHeads[2])

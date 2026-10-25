@@ -300,6 +300,16 @@ function renderDetail(container, ctx) {
         else g.axis = 'scroll';
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
       }
+      // scroll-to-top that keeps pulling converts into the zoom-out —
+      // see day.js for the full why; rebase so the pull measures from here
+      if (g.axis === 'scroll' && container.scrollTop <= 0 && g.vy > 0 && dy > 0) {
+        g.axis = 'y';
+        g.gx = e.touches[0].clientX;
+        g.gy = e.touches[0].clientY;
+        g.startScroll = 0;
+        container.classList.add('gesture-live');
+        return;
+      }
       // Once committed to a SIDE swipe, own the gesture: preventDefault stops
       // the page scrolling vertically underneath the horizontal drag, which
       // otherwise reads as the content sliding two ways at once. Only for
