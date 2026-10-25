@@ -296,7 +296,7 @@ function renderDetail(container, ctx) {
         // eager 'y' capture was the "stuck" / "can't swipe up" bug)
         const fromEdge = g.gx <= EDGE_ZONE || g.gx >= window.innerWidth - EDGE_ZONE;
         if (fromEdge && Math.abs(dx) > Math.abs(dy) * 1.4) g.axis = 'x';
-        else if (g.startScroll <= 0 && dy > 0 && dy > Math.abs(dx) * 1.4) g.axis = 'y';
+        else if (g.startScroll <= 4 && dy > 0 && dy > Math.abs(dx) * 1.4) g.axis = 'y';   // 4px top slop, same as day.js
         else g.axis = 'scroll';
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
       }
@@ -376,7 +376,7 @@ function renderDetail(container, ctx) {
       return;
     }
     resetGesture();
-    if (usedAxis === 'y' && g.startScroll <= 0 && container.scrollTop <= 0 && dy > 0 && willCommitPull(dy, vy)) {
+    if (usedAxis === 'y' && g.startScroll <= 4 && container.scrollTop <= 4 && dy > 0 && willCommitPull(dy, vy)) {
       ctx.goTab('sprint');   // pull down from the week detail -> the ledger
     }
   };

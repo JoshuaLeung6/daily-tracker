@@ -327,7 +327,9 @@ export function render(container, ctx) {
         // whole page off-screen, and never scrolled.
         const fromEdge = g.startX <= EDGE_ZONE || g.startX >= window.innerWidth - EDGE_ZONE;
         if (fromEdge && Math.abs(dx) > Math.abs(dy) * 1.4) g.axis = 'x';
-        else if (g.startScroll <= 0 && dy > 0 && dy > Math.abs(dx) * 1.4) g.axis = 'y';
+        // TOP_SLOP: iOS often leaves scrollTop at 1–3px after a scroll
+        // settles, and a strict 0 silently ate the pull-down "sometimes"
+        else if (g.startScroll <= 4 && dy > 0 && dy > Math.abs(dx) * 1.4) g.axis = 'y';
         else g.axis = 'scroll';
         if (g.axis !== 'scroll') container.classList.add('gesture-live');
       }
@@ -395,7 +397,7 @@ export function render(container, ctx) {
     const dx = e.changedTouches[0].clientX - g.startX;
     const dy = e.changedTouches[0].clientY - g.startY;
     const usedAxis = g.axis;
-    const scrolledTop = g.startScroll <= 0 && container.scrollTop <= 0;
+    const scrolledTop = g.startScroll <= 4 && container.scrollTop <= 4;
     const vx = g.vx;
     const vy = g.vy;
     // same willCommit() the preview used, so the armed cue always tells truth
