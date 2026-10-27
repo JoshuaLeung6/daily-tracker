@@ -66,6 +66,37 @@ export const STRIP_OPTIONS = {
 // as the "10k steps" habit (NEAT floor), not as conditioning.
 export const CARDIO_COUNTS = ['run', 'squash', 'bike', 'kayak', 'tennis', 'swim', 'climb'];
 
+// Staple foods seeded into the on-phone food library at startup (matched by
+// name, created only if missing — foods added in-app are never touched; a
+// seeded food's numbers follow this list until it is edited in-app). All
+// values are PER-SERVING estimates from standard references; correct any
+// with Claude and the fix lands on the next launch.
+export const FOOD_SEEDS = [
+  { name: 'Egg (1 large)', kcal: 70, protein: 6 },
+  { name: 'Bread (1 slice)', kcal: 80, protein: 3 },
+  { name: 'Rice (1 cup uncooked)', kcal: 680, protein: 13 },
+  { name: 'Hashbrown (1 patty)', kcal: 130, protein: 2 },
+  { name: 'Bacon (1 strip)', kcal: 45, protein: 3 },
+  { name: 'Banana', kcal: 105, protein: 1 },
+  { name: 'Frozen fruit (1 cup)', kcal: 70, protein: 1 },
+  { name: 'Avocado (whole)', kcal: 240, protein: 3 },
+  { name: 'Yogurt (¾ cup Greek)', kcal: 150, protein: 15 },
+  { name: 'Milk (1 cup, 2%)', kcal: 120, protein: 8 },
+  { name: 'Peanut butter (2 tbsp)', kcal: 190, protein: 7 },
+  { name: 'Smoothie (fruit, yogurt, milk, honey, PB)', kcal: 590, protein: 30 },
+  { name: 'Almonds (¼ cup)', kcal: 170, protein: 6 },
+  { name: 'Chocolate almonds (¼ cup)', kcal: 210, protein: 5 },
+  { name: 'Beer (1 can)', kcal: 150, protein: 2 },
+  { name: 'Pasta (85 g dry)', kcal: 300, protein: 11 },
+  { name: 'Pasta sauce, tomato (½ cup)', kcal: 70, protein: 2 },
+  { name: 'Pasta sauce, cream (½ cup)', kcal: 220, protein: 4 },
+  { name: 'Ice cream (½ cup)', kcal: 140, protein: 2 },
+  { name: 'Salmon (6 oz)', kcal: 350, protein: 34 },
+  { name: 'Ground beef (¼ lb, 80/20)', kcal: 290, protein: 19 },
+  { name: 'Chicken thigh (1, boneless)', kcal: 180, protein: 22 },
+  { name: 'Cheese (1 oz)', kcal: 110, protein: 7 },
+];
+
 // Day-view grouping: group is one of movement | intake | recovery; the
 // Day tab renders collapsible sections in that order. No group (Weight) =
 // ungrouped at the top — the goal instrument leads the day.
@@ -88,7 +119,7 @@ export const MANUAL = {
     rows: [
       ['Lifting', '5–6 sessions/week'],
       ['Main lifts', 'DB press · Lat pulldown · Leg press'],
-      ['Cardio', '1×/week minimum, any sport'],
+      ['Cardio', '2×/week, any sport (1 = yellow, 0 = red)'],
       ['Mobility', '2×/week, 10+ minutes'],
       ['When stuck', 'eating? sleep? → add a set → change range → deload'],
     ],
@@ -173,8 +204,10 @@ export const TRACKERS = [
     // target — a correlation instrument (sleep, mental health, training).
     target: null },
   { name: 'Cardio', type: 'multiselect', options: ['run', 'squash', 'bike', 'kayak', 'tennis', 'swim', 'climb'], group: 'movement',
-    // real cardio only, once a week minimum — backdated to the sprint start
-    target: { period: 'week', value: 1, from: '2026-07-11' } },
+    // 2×/week from Sprint 2 (owner's call 2026-10-26; grading: 2 green,
+    // 1 yellow, 0 red — see weekLineStatus). Sprint 1 history keeps its
+    // 1×/week target: the `from` date scopes the new bar to the new sprint.
+    target: { period: 'week', value: 2, from: '2026-10-25' } },
   // ('10k steps' was removed 2026-10-25: unlisting archives it — history
   // kept, hidden everywhere. SEED_VALUES above stays as a historical record.)
   { name: 'Mobility', type: 'checkbox', group: 'movement',

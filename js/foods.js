@@ -15,6 +15,27 @@ export function listFoods() {
     || a.name.localeCompare(b.name));
 }
 
+// Reconcile config FOOD_SEEDS into the library (non-destructive, like the
+// tracker config): matched by name, created if missing. A seeded food (fs_
+// id) keeps following the config's numbers, so corrections made with Claude
+// land on the next launch; a food added in-app is never touched.
+export function seedFoods(seeds) {
+  const doc = getData();
+  let changed = false;
+  for (const s of seeds || []) {
+    const existing = doc.foods.find((f) => f.name.toLowerCase() === s.name.toLowerCase());
+    if (!existing) {
+      doc.foods.push({ id: 'fs_' + crypto.randomUUID(), name: s.name, kcal: s.kcal, protein: s.protein, uses: 0, lastUsed: null });
+      changed = true;
+    } else if (existing.id.startsWith('fs_') && (existing.kcal !== s.kcal || existing.protein !== s.protein)) {
+      existing.kcal = s.kcal;
+      existing.protein = s.protein;
+      changed = true;
+    }
+  }
+  if (changed) persistNow();
+}
+
 export function addFood({ name, kcal, protein }) {
   const food = {
     id: 'f_' + crypto.randomUUID(),

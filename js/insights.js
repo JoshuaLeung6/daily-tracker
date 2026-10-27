@@ -545,8 +545,20 @@ export function weekLineStatus(report) {
     if (scaled >= 3) return 'neutral';
     return 'bad';
   };
-  // cardio: a once-a-week commitment — good once hit, neutral until then
-  if (report.cardio) out.cardio = report.cardio.days >= cardioDayTarget() ? 'good' : 'neutral';
+  // cardio: 2×/week — hit = green. A COMPLETED week that fell short goes
+  // yellow with some sessions, red with none (owner's bands); a week still
+  // in progress stays neutral until hit, since the sessions may yet come.
+  if (report.cardio) {
+    // the target IN FORCE that week, not today's — Sprint 1 weeks keep
+    // grading against their 1×/week bar after the move to 2
+    const ct = cardioTracker();
+    const ctgt = ct ? targetFor(ct, report.end) : null;
+    const need = ctgt && ctgt.period === 'week' ? ctgt.value : cardioDayTarget();
+    const complete = daysSoFar >= report.days.length;
+    out.cardio = report.cardio.days >= need ? 'good'
+      : !complete || report.cardio.days > 0 ? 'neutral'
+      : 'bad';
+  }
   if (report.training) out.workouts = report.training.days > 0 || allWorkouts().length > 0
     ? bandFor(report.training.days)
     : null;

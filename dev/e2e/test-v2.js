@@ -325,27 +325,18 @@ async function setNumberInput(page, selector, value) {
   await page.waitForSelector('.manual-pane');
   check('maintain: unarmed reminders ask for dates', await page.evaluate(() => /date needed/.test(document.querySelector('.manual-pane').textContent)));
 
-  // ---- Manual -> Intake: food library lookup ----
+  // ---- Manual -> Intake: food library lookup (config-seeded staples) ----
   await page.evaluate(() => [...document.querySelectorAll('.mn-btn')].find((b) => b.textContent === 'Intake').click());
   await new Promise((r) => setTimeout(r, 200));
-  check('food library: empty state before any foods', await page.evaluate(() => /No foods saved yet/.test(document.querySelector('.manual-pane').textContent)));
-  // seed a food AFTER the old page's pagehide flush, BEFORE the app boots
-  await page.evaluateOnNewDocument(() => {
-    const doc = JSON.parse(localStorage.getItem('pcal:data'));
-    if (doc && Array.isArray(doc.foods) && doc.foods.length === 0) {
-      doc.foods = [{ id: 'f_test', name: 'Greek yogurt', kcal: 150, protein: 20, uses: 3, lastUsed: null }];
-      localStorage.setItem('pcal:data', JSON.stringify(doc));
-    }
-  });
-  await page.reload({ waitUntil: 'networkidle0' });
-  await page.waitForSelector('.card');
-  await page.click('.tab[data-tab="manual"]');
-  await page.waitForSelector('.mn-btn');
-  await page.evaluate(() => [...document.querySelectorAll('.mn-btn')].find((b) => b.textContent === 'Intake').click());
-  await new Promise((r) => setTimeout(r, 200));
-  check('food library: lists the saved food with its numbers', await page.evaluate(() => {
+  check('food library: seeded staples listed with numbers', await page.evaluate(() => {
     const t = document.querySelector('.manual-pane').textContent;
-    return /Greek yogurt/.test(t) && /150 kcal · 20 g protein/.test(t);
+    return /Egg \(1 large\)/.test(t) && /70 kcal · 6 g protein/.test(t);
+  }));
+  await page.type('.food-search', 'salmon');
+  await new Promise((r) => setTimeout(r, 150));
+  check('food library: search filters the list', await page.evaluate(() => {
+    const sec = document.querySelector('.food-search').closest('.settings-section');
+    return /Salmon/.test(sec.textContent) && !/Egg/.test(sec.textContent);
   }));
 
   check('no console/page errors during whole run', errors.length === 0, errors.join(' | ').slice(0, 300));
