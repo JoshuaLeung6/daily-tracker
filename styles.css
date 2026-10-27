@@ -468,6 +468,20 @@ html[data-theme="light"] body::before {
   margin-right: 8px;
 }
 
+/* Food library search (Manual -> Intake) */
+.food-search {
+  width: 100%;
+  margin-bottom: 10px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px; /* keep ≥16px: iOS zooms on smaller inputs */
+  padding: 9px 12px;
+}
+.food-search::placeholder { color: var(--faint); }
+
 /* Maintain reminders: due-state chips */
 .mn-due.mn-overdue { color: var(--danger); font-weight: 600; }
 .mn-due.mn-soon { color: var(--partial); font-weight: 600; }

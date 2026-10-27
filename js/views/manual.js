@@ -9,6 +9,7 @@ import { MANUAL } from '../config.js';
 import { getManualNote, setManualNote, persistNow, getRepairs, addRepair, updateRepair } from '../store.js';
 import { todayISO, fmt } from '../dates.js';
 import { maintenanceStatus } from '../insights.js';
+import { listFoods } from '../foods.js';
 import { coachPane } from './stats.js';
 
 // Coach leads: the live "what should I do now" page, then the five zones.
@@ -83,6 +84,9 @@ export function render(container) {
     pane.append(el('div', { class: 'settings-section' }, el('h2', {}, title), rowCard(rows)));
   }
 
+  // Intake's lookup: the saved food library (per-serving numbers)
+  if (cat === 'intake') pane.append(foodSection());
+
   // notes: one free text per zone, autosaved like the day note
   const ta = el('textarea', {
     class: 'manual-notes',
@@ -105,6 +109,46 @@ export function render(container) {
 // Jump straight to the Repair page (the day-view banner's target).
 export function showRepair() {
   cat = 'repair';
+}
+
+// Food library lookup on the Intake page: every saved food's per-serving
+// kcal + protein, most-used first (same order as the + Food sheet), with a
+// filter once the list is long enough to need one. Read-only here — foods
+// are added/edited from the Day view's Calories card.
+function foodSection() {
+  const sec = el('div', { class: 'settings-section' }, el('h2', {}, 'Food library'));
+  const foods = listFoods();
+  if (!foods.length) {
+    sec.append(el('div', { class: 'empty-state' },
+      'No foods saved yet — add them with + Food on the Day view’s Calories card.'));
+    return sec;
+  }
+  const card = el('div', { class: 'card plan-card' });
+  const renderRows = (q) => {
+    const needle = (q || '').trim().toLowerCase();
+    card.replaceChildren();
+    for (const f of foods) {
+      if (needle && !f.name.toLowerCase().includes(needle)) continue;
+      card.append(el('div', { class: 'plan-row' },
+        el('span', { class: 'plan-k' }, f.name),
+        el('span', { class: 'plan-v' },
+          [f.kcal != null ? `${f.kcal.toLocaleString()} kcal` : null,
+            f.protein != null ? `${f.protein} g protein` : null,
+          ].filter(Boolean).join(' · ') || '—')));
+    }
+    if (!card.children.length) card.append(el('div', { class: 'empty-state' }, 'No food matches.'));
+  };
+  if (foods.length > 6) {
+    const search = el('input', {
+      class: 'food-search', type: 'search',
+      placeholder: 'Search foods…', 'aria-label': 'Search foods',
+    });
+    search.addEventListener('input', () => renderRows(search.value));
+    sec.append(search);
+  }
+  renderRows('');
+  sec.append(card);
+  return sec;
 }
 
 // The Repair issue tracker: open issues (title, opened date, a small note,
